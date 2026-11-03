@@ -1,0 +1,21 @@
+# 构建产物
+bin/
+obj/
+publish/
+*.dll
+*.pdb
+*.exe
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+# 本地配置（每个人的薪资/位置不同，不入库）
+settings.json
+
+# 系统文件
+Thumbs.db
+desktop.ini
+.DS_Store

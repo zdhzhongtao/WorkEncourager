@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>上班鼓励器</title>
+<style>
+  :root{
+    --bg:#f4f6f8;
+    --card:#ffffff;
+    --line:#e9edf2;
+    --line-soft:#f1f4f8;
+    --ink:#0f172a;
+    --ink2:#475467;
+    --muted:#8a94a6;
+    --accent:#f97316;
+    --accent-2:#fbbf24;
+    --green:#12b76a;
+    --shadow-lg:0 1px 2px rgba(15,23,42,.04), 0 18px 40px -24px rgba(15,23,42,.22);
+    --shadow-sm:0 1px 2px rgba(15,23,42,.05), 0 6px 16px -12px rgba(15,23,42,.18);
+    --radius:20px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{min-height:100%}
+  body{
+    margin:0;
+    min-height:100vh;display:flex;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(1100px 520px at 8% -12%, #fff7ed 0%, rgba(255,247,237,0) 58%),
+      radial-gradient(900px 480px at 96% -6%, #eef6ff 0%, rgba(238,246,255,0) 52%),
+      var(--bg);
+    background-attachment:fixed;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{width:100%;max-width:1120px;margin:auto;padding:30px 32px 44px}
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{
+    width:40px;height:40px;border-radius:13px;flex:none;
+    background:linear-gradient(140deg,#fbbf24,#f97316);
+    box-shadow:0 8px 18px -10px rgba(249,115,22,.85);
+    display:grid;place-items:center;font-size:19px;
+  }
+  h1{margin:0;font-size:24px;font-weight:700;letter-spacing:.4px}
+  .sub{margin:2px 0 0;font-size:12.5px;color:var(--muted);letter-spacing:.3px}
+  .btn{
+    font:inherit;font-size:13.5px;cursor:pointer;border-radius:12px;
+    border:1px solid var(--line);background:#fff;color:var(--ink2);
+    padding:9px 16px;display:inline-flex;align-items:center;gap:7px;
+    transition:.18s ease;user-select:none;
+  }
+  .btn:hover{border-color:#d8dfe9;box-shadow:var(--shadow-sm);color:var(--ink);transform:translateY(-1px)}
+  .btn:active{transform:translateY(0)}
+  .btn-primary{
+    border:none;color:#fff;
+    background:linear-gradient(135deg,#fb923c,#f97316);
+    box-shadow:0 10px 22px -14px rgba(249,115,22,.95);
+  }
+  .btn-primary:hover{color:#fff;box-shadow:0 14px 26px -14px rgba(249,115,22,.95)}
+  .btn-green{
+    border:none;color:#fff;
+    background:linear-gradient(135deg,#34d399,#12b76a);
+    box-shadow:0 10px 22px -14px rgba(18,183,106,.9);
+  }
+  .btn-green:hover{color:#fff}
+  .btn-ghost{background:#fbfcfd}
+  .btn svg{width:15px;height:15px;flex:none}
+
+  /* ---------- cards ---------- */
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow-lg);
+  }
+  .hero{padding:26px 28px 24px;margin-bottom:18px;position:relative;overflow:hidden}
+  .hero::after{
+    content:"";position:absolute;right:-90px;top:-120px;width:320px;height:320px;border-radius:50%;
+    background:radial-gradient(circle,rgba(251,191,36,.16),rgba(251,191,36,0) 68%);pointer-events:none;
+  }
+  .hero-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .clockline{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .date{font-size:14.5px;font-weight:600;color:var(--ink2);letter-spacing:.3px}
+  .time{
+    font-size:14.5px;color:var(--ink);font-weight:600;letter-spacing:.6px;
+    font-variant-numeric:tabular-nums;
+    font-family:"SF Mono",Consolas,"Cascadia Mono",ui-monospace,monospace;
+  }
+  .chips{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .chip{
+    display:inline-flex;align-items:center;gap:7px;border-radius:999px;
+    font-size:12.8px;font-weight:600;padding:6px 13px;letter-spacing:.2px;white-space:nowrap;
+  }
+  .dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .chip-on{background:#ecfdf3;color:#067647}
+  .chip-on .dot{background:var(--green);box-shadow:0 0 0 0 rgba(18,183,106,.55);animation:pulse 2s infinite}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(18,183,106,.5)}
+    70%{box-shadow:0 0 0 7px rgba(18,183,106,0)}
+    100%{box-shadow:0 0 0 0 rgba(18,183,106,0)}
+  }
+  .chip-off{background:#f2f4f7;color:#475467}
+  .chip-off .dot{background:#98a2b3}
+  .chip-wait{background:#eff6ff;color:#1d4ed8}
+  .chip-wait .dot{background:#3b82f6}
+  .chip-pause{background:#fffaeb;color:#b45309}
+  .chip-pause .dot{background:#f59e0b}
+  .chip-count{
+    background:#fff7ed;border:1px solid #fed7aa;color:#b45309;
+    font-variant-numeric:tabular-nums;
+    font-family:"SF Mono",Consolas,"Cascadia Mono",ui-monospace,monospace;
+    font-size:13px;letter-spacing:.8px;
+  }
+
+  .money-row{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-top:22px}
+  .label{font-size:13px;color:var(--muted);letter-spacing:.4px;margin-bottom:6px}
+  .money{
+    display:flex;align-items:baseline;gap:8px;
+    font-variant-numeric:tabular-nums;
+    font-family:"SF Mono",Consolas,"Cascadia Mono",ui-monospace,monospace;
+    line-height:1.05;
+  }
+  .money .cur{font-size:26px;font-weight:600;color:var(--accent);opacity:.9}
+  .money .val{
+    font-size:clamp(40px,6.4vw,66px);font-weight:700;letter-spacing:-1.5px;
+    background:linear-gradient(135deg,#f97316 10%,#f43f5e 92%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .rate-box{
+    text-align:right;padding:12px 18px;border-radius:16px;
+    background:linear-gradient(180deg,#fdfefe,#f7f9fc);
+    border:1px solid var(--line-soft);min-width:190px;
+  }
+  .rate{
+    font-size:23px;font-weight:700;color:var(--ink);letter-spacing:-.3px;
+    font-variant-numeric:tabular-nums;
+    font-family:"SF Mono",Consolas,"Cascadia Mono",ui-monospace,monospace;
+  }
+  .rate small{font-size:12.5px;font-weight:600;color:var(--muted);margin-left:5px;letter-spacing:.3px}
+
+  .encourage{
+    margin-top:20px;display:flex;align-items:center;gap:12px;
+    padding:14px 18px;border-radius:16px;
+    background:linear-gradient(100deg,#fffaf3,#fff6f9);
+    border:1px dashed #fadfbd;
+  }
+  .encourage .ico{font-size:19px;flex:none;line-height:1}
+  .encourage .txt{font-size:15.5px;font-weight:600;color:#9a3412;letter-spacing:.4px}
+  .encourage .txt em{
+    font-style:normal;font-weight:700;color:#c2410c;
+    font-variant-numeric:tabular-nums;
+  }
+
+  .actions{display:flex;align-items:center;gap:10px;margin-top:20px;flex-wrap:wrap}
+  .hint{font-size:12.3px;color:var(--muted);margin-left:4px;letter-spacing:.2px}
+
+  /* ---------- progress ---------- */
+  .progress-card{padding:24px 28px 22px;margin-bottom:18px}
+  .pc-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .pc-title{font-size:14.5px;font-weight:600;color:var(--ink2);letter-spacing:.4px}
+  .pc-pct{
+    font-size:30px;font-weight:700;letter-spacing:-.8px;
+    font-variant-numeric:tabular-nums;
+    font-family:"SF Mono",Consolas,"Cascadia Mono",ui-monospace,monospace;
+    background:linear-gradient(135deg,#f59e0b,#f97316);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .pc-pct span{font-size:16px;margin-left:2px;font-weight:600}
+  .bar{
+    position:relative;height:14px;border-radius:999px;background:#f1f4f8;
+    margin:14px 0 12px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(15,23,42,.05);
+  }
+  .bar-fill{
+    height:100%;width:0%;border-radius:999px;
+    background:linear-gradient(90deg,#fcd34d,#fb923c 60%,#f97316);
+    box-shadow:0 0 14px rgba(249,115,22,.45);
+    transition:width .35s cubic-bezier(.25,.9,.25,1);
+    position:relative;
+  }
+  .bar-fill::after{
+    content:"";position:absolute;inset:0;border-radius:999px;
+    background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.45));
+  }
+  .pc-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--ink2)}
+  .pc-foot b{
+    font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;
+    font-family:"SF Mono",Consolas,"Cascadia Mono",ui-monospace,monospace;font-size:14px;
+  }
+  .pc-foot .muted{color:var(--muted)}
+
+  /* ---------- stats ---------- */
+  .grid{display:grid;grid-template-columns:1.45fr 1fr 1fr;gap:18px}
+  .stat{padding:22px 24px 20px;display:flex;flex-direction:column;justify-content:space-between;min-height:132px}
+  .stat .label{margin-bottom:8px}
+  .stat .num{
+    font-size:clamp(23px,2.7vw,30px);font-weight:700;letter-spacing:-.6px;color:var(--ink);
+    font-variant-numeric:tabular-nums;
+    font-family:"SF Mono",Consolas,"Cascadia Mono",ui-monospace,monospace;
+    display:flex;align-items:baseline;gap:5px;
+  }
+  .stat .num small{font-size:14px;font-weight:600;color:var(--muted);letter-spacing:0}
+  .stat .num.hl{background:linear-gradient(135deg,#f97316,#f43f5e);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .note{
+    margin-top:12px;font-size:11.8px;line-height:1.6;color:var(--muted);
+    padding-top:10px;border-top:1px dashed var(--line);
+  }
+  .badge-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent-2);margin-right:6px;vertical-align:1px}
+
+  /* ---------- modal ---------- */
+  .mask{
+    position:fixed;inset:0;background:rgba(15,23,42,.34);backdrop-filter:blur(4px);
+    display:none;align-items:center;justify-content:center;padding:24px;z-index:50;
+  }
+  .mask.show{display:flex;animation:fade .18s ease}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .modal{
+    width:100%;max-width:480px;background:#fff;border-radius:22px;
+    box-shadow:0 30px 70px -20px rgba(15,23,42,.45);
+    padding:26px 28px 22px;animation:rise .22s cubic-bezier(.2,.9,.3,1);
+    max-height:calc(100vh - 48px);overflow:auto;
+  }
+  @keyframes rise{from{transform:translateY(10px) scale(.99);opacity:0}to{transform:none;opacity:1}}
+  .modal h2{margin:0 0 4px;font-size:18px;font-weight:700}
+  .modal .desc{margin:0 0 20px;font-size:12.8px;color:var(--muted)}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:13px;font-weight:600;color:var(--ink2);margin-bottom:7px;letter-spacing:.3px}
+  .field input{
+    width:100%;font:inherit;font-size:14px;color:var(--ink);
+    padding:11px 13px;border:1px solid var(--line);border-radius:12px;background:#fbfcfd;
+    transition:.16s;font-variant-numeric:tabular-nums;
+  }
+  .field input:focus{outline:none;border-color:#fdba74;background:#fff;box-shadow:0 0 0 4px rgba(249,115,22,.10)}
+  .field .tip{font-size:11.5px;color:var(--muted);margin-top:6px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .dows{display:flex;gap:7px;flex-wrap:wrap}
+  .dow{
+    width:38px;height:36px;border-radius:11px;border:1px solid var(--line);background:#fbfcfd;
+    font:inherit;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:.16s;
+  }
+  .dow:hover{border-color:#d8dfe9;color:var(--ink2)}
+  .dow.on{background:linear-gradient(135deg,#fff1e2,#ffe7d4);border-color:#fdba74;color:#c2410c}
+  .modal-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:22px}
+  .link{font-size:12.5px;color:var(--muted);cursor:pointer;border:none;background:none;font:inherit;padding:0}
+  .link:hover{color:var(--accent);text-decoration:underline}
+  .modal-foot .right{display:flex;gap:10px}
+
+  .toast{
+    position:fixed;left:50%;bottom:34px;transform:translate(-50%,20px);
+    background:#101828;color:#fff;font-size:13px;padding:11px 20px;border-radius:12px;
+    opacity:0;pointer-events:none;transition:.25s ease;z-index:80;
+    box-shadow:0 16px 40px -14px rgba(15,23,42,.6);
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media (max-width:860px){
+    .app{padding:22px 18px 34px}
+    .grid{grid-template-columns:1fr 1fr}
+    .stat.wide{grid-column:1 / -1}
+    .rate-box{min-width:0;flex:1}
+  }
+  @media (max-width:560px){
+    .grid{grid-template-columns:1fr}
+    .row2{grid-template-columns:1fr}
+    .money .val{font-size:46px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="logo">💰</div>
+      <div>
+        <h1>上班鼓励器</h1>
+        <p class="sub">每一秒都在进账 · 摸鱼也要看进度</p>
+      </div>
+    </div>
+    <button class="btn" id="btnSettings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      设置
+    </button>
+  </header>
+
+  <!-- 核心展示区 -->
+  <section class="card hero">
+    <div class="hero-top">
+      <div class="clockline">
+        <span class="date" id="dateText">--</span>
+        <span class="time" id="timeText">--:--:--</span>
+      </div>
+      <div class="chips">
+        <span class="chip chip-on" id="statusChip"><i class="dot"></i><span id="statusText">上班中</span></span>
+        <span class="chip chip-count" id="countChip">距下班 00:00:00</span>
+      </div>
+    </div>
+
+    <div class="money-row">
+      <div>
+        <div class="label">今日已赚</div>
+        <div class="money"><span class="cur">¥</span><span class="val" id="earnedText">0.0000</span></div>
+      </div>
+      <div class="rate-box">
+        <div class="label" style="margin-bottom:4px">当前赚钱速度</div>
+        <div class="rate"><span id="rateText">0.0000</span><small>元/秒</small></div>
+      </div>
+    </div>
+
+    <div class="encourage">
+      <span class="ico" id="encIco">👕</span>
+      <span class="txt" id="encText">正在计算…</span>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="btnToggle">
+        <svg id="toggleIcon" viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="5" width="3.6" height="14" rx="1.2"/><rect x="13.4" y="5" width="3.6" height="14" rx="1.2"/></svg>
+        <span id="toggleText">关闭计时器</span>
+      </button>
+      <button class="btn btn-ghost" id="btnReset">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+        重置计时
+      </button>
+      <span class="hint" id="pauseHint"></span>
+    </div>
+  </section>
+
+  <!-- 进度区 -->
+  <section class="card progress-card">
+    <div class="pc-head">
+      <div class="pc-title">今日工时进度</div>
+      <div class="pc-pct"><span id="pctText">0.0</span><span>%</span></div>
+    </div>
+    <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+    <div class="pc-foot">
+      <div>已工作 <b id="workedText">0.00</b> <span class="muted">/ 总工作</span> <b id="totalText">8.0</b> <span class="muted">小时</span></div>
+      <div class="muted">剩余 <b id="remainText" style="color:#475467">8.00</b> 小时</div>
+    </div>
+  </section>
+
+  <!-- 数据区 -->
+  <section class="grid">
+    <div class="card stat wide">
+      <div>
+        <div class="label" id="monthLabel">本月累计</div>
+        <div class="num hl">¥&nbsp;<span id="monthText">0.0000</span></div>
+      </div>
+      <div class="note"><span class="badge-dot"></span>已过的日子按满勤补算，本月只计已赚，不含亏损</div>
+    </div>
+    <div class="card stat">
+      <div>
+        <div class="label">时薪</div>
+        <div class="num">¥&nbsp;<span id="hourlyText">0.0000</span></div>
+      </div>
+      <div class="note"><span class="badge-dot"></span>日薪 ÷ 每日工时</div>
+    </div>
+    <div class="card stat">
+      <div>
+        <div class="label">今日满勤可得</div>
+        <div class="num">¥&nbsp;<span id="fullText">0.0000</span></div>
+      </div>
+      <div class="note"><span class="badge-dot"></span>干满 <span id="fullHoursText">8</span> 小时全额到账</div>
+    </div>
+  </section>
+</div>
+
+<!-- 设置弹窗 -->
+<div class="mask" id="mask">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="设置">
+    <h2>设置</h2>
+    <p class="desc">所有数据保存在本机浏览器，下次打开自动生效。</p>
+
+    <div class="field">
+      <label for="inSalary">日薪（元）</label>
+      <input id="inSalary" type="number" min="0" step="10" inputmode="decimal" />
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label for="inHours">每日工作时长（小时）</label>
+        <input id="inHours" type="number" min="0.5" max="24" step="0.5" inputmode="decimal" />
+      </div>
+      <div class="field">
+        <label for="inStart">上班起始时间</label>
+        <input id="inStart" type="time" step="60" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="inShirt">鼓励物单价（元 / 件T恤）</label>
+      <input id="inShirt" type="number" min="1" step="1" inputmode="decimal" />
+      <div class="tip">用来生成「再过 X 小时 X 分，一件T恤就赚回来了」</div>
+    </div>
+
+    <div class="field" style="margin-bottom:6px">
+      <label>本月计薪日</label>
+      <div class="dows" id="dows"></div>
+      <div class="tip">「本月累计」按所选星期几计算满勤，今天按实际已赚计。</div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="link" id="btnDefault">恢复默认</button>
+      <div class="right">
+        <button class="btn btn-ghost" id="btnCancel">取消</button>
+        <button class="btn btn-primary" id="btnSave">保存设置</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">设置已保存</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var DEFAULTS = {
+    salary: 300,      // 日薪
+    hours: 8,         // 每日工作时长
+    start: "09:00",   // 上班起始时间
+    shirt: 69,        // 一件T恤价格
+    weekdays: [1, 2, 3, 4, 5] // 0=周日 ... 6=周六
+  };
+  var STORE_KEY = "work-encourager-settings-v1";
+
+  var cfg = loadCfg();
+
+  // 暂停状态
+  var paused = false;
+  var pausedAccum = 0;   // 累计已暂停的毫秒
+  var pauseAt = 0;       // 本次暂停开始时刻
+  var dayKey = "";
+
+  // DOM
+  var $ = function (id) { return document.getElementById(id); };
+  var el = {
+    dateText: $("dateText"), timeText: $("timeText"),
+    statusChip: $("statusChip"), statusText: $("statusText"),
+    countChip: $("countChip"),
+    earnedText: $("earnedText"), rateText: $("rateText"),
+    encText: $("encText"), encIco: $("encIco"),
+    btnToggle: $("btnToggle"), toggleText: $("toggleText"), toggleIcon: $("toggleIcon"),
+    btnReset: $("btnReset"), pauseHint: $("pauseHint"),
+    pctText: $("pctText"), barFill: $("barFill"),
+    workedText: $("workedText"), totalText: $("totalText"), remainText: $("remainText"),
+    monthLabel: $("monthLabel"), monthText: $("monthText"),
+    hourlyText: $("hourlyText"), fullText: $("fullText"), fullHoursText: $("fullHoursText")
+  };
+
+  /* ---------------- 配置读写 ---------------- */
+  function loadCfg() {
+    var c = {};
+    for (var k in DEFAULTS) c[k] = DEFAULTS[k];
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (raw) {
+        var o = JSON.parse(raw);
+        if (typeof o.salary === "number" && o.salary >= 0) c.salary = o.salary;
+        if (typeof o.hours === "number" && o.hours > 0 && o.hours <= 24) c.hours = o.hours;
+        if (typeof o.start === "string" && /^\d{1,2}:\d{2}$/.test(o.start)) c.start = pad5(o.start);
+        if (typeof o.shirt === "number" && o.shirt > 0) c.shirt = o.shirt;
+        if (Array.isArray(o.weekdays) && o.weekdays.length) c.weekdays = o.weekdays.slice();
+      }
+    } catch (e) { /* 忽略损坏数据 */ }
+    return c;
+  }
+  function saveCfg() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(cfg)); } catch (e) {}
+  }
+  function pad5(t) {
+    var p = t.split(":");
+    return ("0" + parseInt(p[0], 10)).slice(-2) + ":" + ("0" + (parseInt(p[1], 10) || 0)).slice(-2);
+  }
+
+  /* ---------------- 工具函数 ---------------- */
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+
+  function fmtMoney(n) {
+    if (!isFinite(n)) n = 0;
+    var s = n.toLocaleString("zh-CN", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+    return s;
+  }
+  function fmtHour(n, digits) { return n.toFixed(digits === undefined ? 2 : digits); }
+
+  function weekName(d) {
+    return ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"][d.getDay()];
+  }
+
+  // 秒 -> “X小时X分”
+  function fmtDur(sec) {
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    var totalMin = Math.round(sec / 60);
+    if (totalMin >= 60) {
+      var h = Math.floor(totalMin / 60), m = totalMin % 60;
+      return m > 0 ? h + "小时" + m + "分" : h + "小时";
+    }
+    if (totalMin >= 1) return totalMin + "分钟";
+    return "不到1分钟";
+  }
+
+  function fmtClock(sec) {
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    sec = Math.floor(sec);
+    var h = Math.floor(sec / 3600),
+        m = Math.floor((sec % 3600) / 60),
+        s = sec % 60;
+    return (h < 10 ? "0" + h : h) + ":" + (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+  }
+
+  /* ---------------- 计算核心 ---------------- */
+  function startOfToday(now) {
+    var p = cfg.start.split(":");
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(p[0], 10), parseInt(p[1], 10), 0, 0).getTime();
+  }
+
+  function compute() {
+    var realNow = Date.now();
+    var now = new Date(realNow);
+
+    // 跨天重置
+    var key = now.getFullYear() + "-" + now.getMonth() + "-" + now.getDate();
+    if (dayKey && key !== dayKey) { paused = false; pausedAccum = 0; pauseAt = 0; }
+    dayKey = key;
+
+    // 计时器「有效时间」：暂停期间冻结
+    var effNow = paused ? (pauseAt - pausedAccum) : (realNow - pausedAccum);
+
+    var totalSec = cfg.hours * 3600;
+    var startTs = startOfToday(now);
+    var endTs = startTs + totalSec * 1000;
+    var perSec = totalSec > 0 ? cfg.salary / totalSec : 0;
+
+    var workedSec = clamp((effNow - startTs) / 1000, 0, totalSec);
+    var remainSec = Math.max(0, totalSec - workedSec);
+    var earned = perSec * workedSec;
+    var pct = totalSec > 0 ? (workedSec / totalSec) * 100 : 0;
+
+    // 状态
+    var status, chipClass;
+    if (effNow < startTs) { status = "待上班"; chipClass = "chip-wait"; }
+    else if (effNow >= endTs) { status = "已下班"; chipClass = "chip-off"; }
+    else { status = "上班中"; chipClass = "chip-on"; }
+
+    return {
+      now: now, effNow: effNow, totalSec: totalSec, perSec: perSec,
+      workedSec: workedSec, remainSec: remainSec, earned: earned, pct: pct,
+      status: status, chipClass: chipClass, startTs: startTs, endTs: endTs
+    };
+  }
+
+  // 本月累计：已过的计薪日按满勤补算，今天按实际已赚
+  function monthTotal(st) {
+    var now = st.now;
+    var y = now.getFullYear(), m = now.getMonth(), today = now.getDate();
+    var sum = 0;
+    for (var d = 1; d <= today; d++) {
+      var dt = new Date(y, m, d);
+      if (cfg.weekdays.indexOf(dt.getDay()) === -1) continue;
+      if (d === today) sum += st.earned;
+      else sum += cfg.salary;
+    }
+    return sum;
+  }
+
+  /* ---------------- 渲染 ---------------- */
+  var lastEncKey = "";
+
+  function render() {
+    var st = compute();
+
+    // 日期 / 时间
+    var n = st.now;
+    el.dateText.textContent = n.getFullYear() + "年" + (n.getMonth() + 1) + "月" + n.getDate() + "日 " + weekName(n);
+    el.timeText.textContent = ("0" + n.getHours()).slice(-2) + ":" + ("0" + n.getMinutes()).slice(-2) + ":" + ("0" + n.getSeconds()).slice(-2);
+
+    // 状态
+    if (st.status !== el.statusText.textContent) el.statusText.textContent = st.status;
+    el.statusChip.className = "chip " + (paused ? "chip-pause" : st.chipClass);
+    if (paused) el.statusText.textContent = "已暂停";
+
+    // 倒计时
+    if (st.status === "待上班") {
+      el.countChip.textContent = "距上班 " + fmtClock((st.startTs - st.effNow) / 1000);
+    } else if (st.status === "已下班") {
+      el.countChip.textContent = "今日已收工 🎉";
+    } else {
+      el.countChip.textContent = "距下班 " + fmtClock(st.remainSec);
+    }
+
+    // 金额 / 速度
+    el.earnedText.textContent = fmtMoney(st.earned);
+    el.rateText.textContent = st.perSec.toFixed(4);
+
+    // 进度
+    el.pctText.textContent = st.pct.toFixed(1);
+    el.barFill.style.width = clamp(st.pct, 0, 100).toFixed(2) + "%";
+    el.workedText.textContent = fmtHour(st.workedSec / 3600);
+    el.totalText.textContent = cfg.hours.toFixed(1);
+    el.remainText.textContent = fmtHour(st.remainSec / 3600);
+
+    // 数据卡
+    el.monthLabel.textContent = (n.getMonth() + 1) + "月累计";
+    el.monthText.textContent = fmtMoney(monthTotal(st));
+    el.hourlyText.textContent = fmtMoney(cfg.hours > 0 ? cfg.salary / cfg.hours : 0);
+    el.fullText.textContent = fmtMoney(cfg.salary);
+    el.fullHoursText.textContent = cfg.hours % 1 === 0 ? String(cfg.hours) : cfg.hours.toFixed(1);
+
+    // 鼓励语
+    renderEncourage(st);
+
+    // 暂停提示
+    el.pauseHint.textContent = paused ? "计时器已暂停，金额已冻结" : "";
+    el.toggleText.textContent = paused ? "开启计时器" : "关闭计时器";
+    el.btnToggle.className = "btn " + (paused ? "btn-green" : "btn-primary");
+    el.toggleIcon.innerHTML = paused
+      ? '<path d="M8 5.5v13l11-6.5z"/>'
+      : '<rect x="7" y="5" width="3.6" height="14" rx="1.2"/><rect x="13.4" y="5" width="3.6" height="14" rx="1.2"/>';
+  }
+
+  function renderEncourage(st) {
+    var html;
+    if (st.perSec <= 0) {
+      html = "先去右上角「设置」里填个日薪吧 🙂";
+    } else if (paused) {
+      html = "计时器已暂停，开心的时光不用算钱";
+    } else if (st.status === "已下班") {
+      html = "今天已经收工，一共赚到 <em>¥" + fmtMoney(st.earned) + "</em>，去休息吧 🎉";
+    } else if (st.status === "待上班") {
+      html = "还没到点，距离开工还有 <em>" + fmtDur((st.startTs - st.effNow) / 1000) + "</em>";
+    } else {
+      var price = cfg.shirt > 0 ? cfg.shirt : 0;
+      var count = price > 0 ? Math.floor(st.earned / price) : 0;
+      var nextNeedSec = price > 0 ? ((count + 1) * price - st.earned) / st.perSec : Infinity;
+
+      if (price <= 0) {
+        html = "设置一个鼓励物单价，就知道离「小目标」还有多远了";
+      } else if (nextNeedSec <= st.remainSec) {
+        // 今天还来得及
+        html = count > 0
+          ? "今天已赚回 <em>" + count + " 件T恤</em>，再过 <em>" + fmtDur(nextNeedSec) + "</em> 下一件到手"
+          : "再过 <em>" + fmtDur(nextNeedSec) + "</em>，一件T恤就赚回来了";
+      } else {
+        // 今天赚不回一件了 —— 按剩余下班时间给鼓励
+        var canBuy = (st.perSec * st.remainSec) / price;
+        html = "再过 <em>" + fmtDur(st.remainSec) + "</em> 就下班了，今天的钱还能买 <em>" + canBuy.toFixed(2) + " 件T恤</em>";
+      }
+    }
+    var key = html;
+    if (key !== lastEncKey) { el.encText.innerHTML = html; lastEncKey = key; }
+  }
+
+  /* ---------------- 循环 ---------------- */
+  function tick() { render(); }
+  setInterval(tick, 60);
+
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) render();
+  });
+
+  /* ---------------- 交互：暂停 / 重置 ---------------- */
+  el.btnToggle.addEventListener("click", function () {
+    if (!paused) {
+      paused = true;
+      pauseAt = Date.now();
+    } else {
+      paused = false;
+      pausedAccum += Date.now() - pauseAt;
+      pauseAt = 0;
+    }
+    render();
+  });
+
+  el.btnReset.addEventListener("click", function () {
+    paused = false;
+    pausedAccum = 0;
+    pauseAt = 0;
+    render();
+    toast("已重置，按当前时钟重新计算");
+  });
+
+  /* ---------------- 设置弹窗 ---------------- */
+  var mask = $("mask");
+  var dowWrap = $("dows");
+  var DOW_NAMES = ["日", "一", "二", "三", "四", "五", "六"];
+  var draftDow = cfg.weekdays.slice();
+
+  DOW_NAMES.forEach(function (name, i) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "dow";
+    b.textContent = name;
+    b.dataset.dow = String(i);
+    b.addEventListener("click", function () {
+      var idx = draftDow.indexOf(i);
+      if (idx === -1) draftDow.push(i); else draftDow.splice(idx, 1);
+      draftDow.sort();
+      syncDow();
+    });
+    dowWrap.appendChild(b);
+  });
+
+  function syncDow() {
+    Array.prototype.forEach.call(dowWrap.children, function (b) {
+      var i = parseInt(b.dataset.dow, 10);
+      b.classList.toggle("on", draftDow.indexOf(i) !== -1);
+    });
+  }
+
+  function openModal() {
+    $("inSalary").value = cfg.salary;
+    $("inHours").value = cfg.hours;
+    $("inStart").value = cfg.start;
+    $("inShirt").value = cfg.shirt;
+    draftDow = cfg.weekdays.slice();
+    syncDow();
+    mask.classList.add("show");
+    setTimeout(function () { $("inSalary").focus(); $("inSalary").select(); }, 60);
+  }
+  function closeModal() { mask.classList.remove("show"); }
+
+  $("btnSettings").addEventListener("click", openModal);
+  $("btnCancel").addEventListener("click", closeModal);
+  mask.addEventListener("click", function (e) { if (e.target === mask) closeModal(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && mask.classList.contains("show")) closeModal(); });
+
+  $("btnDefault").addEventListener("click", function () {
+    $("inSalary").value = DEFAULTS.salary;
+    $("inHours").value = DEFAULTS.hours;
+    $("inStart").value = DEFAULTS.start;
+    $("inShirt").value = DEFAULTS.shirt;
+    draftDow = DEFAULTS.weekdays.slice();
+    syncDow();
+  });
+
+  $("btnSave").addEventListener("click", function () {
+    var salary = parseFloat($("inSalary").value);
+    var hours = parseFloat($("inHours").value);
+    var start = $("inStart").value;
+    var shirt = parseFloat($("inShirt").value);
+
+    if (!isFinite(salary) || salary < 0) { toast("日薪请填一个非负数字"); return; }
+    if (!isFinite(hours) || hours < 0.5 || hours > 24) { toast("每日工作时长需在 0.5 ~ 24 小时之间"); return; }
+    if (!/^\d{1,2}:\d{2}$/.test(start)) { toast("请选择上班起始时间"); return; }
+    if (!isFinite(shirt) || shirt <= 0) { toast("鼓励物单价需大于 0"); return; }
+    if (!draftDow.length) { toast("至少选择一个计薪日"); return; }
+
+    cfg.salary = salary;
+    cfg.hours = hours;
+    cfg.start = pad5(start);
+    cfg.shirt = shirt;
+    cfg.weekdays = draftDow.slice();
+    saveCfg();
+    closeModal();
+    render();
+    toast("设置已保存");
+  });
+
+  var toastTimer = null;
+  function toast(msg) {
+    var t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove("show"); }, 1800);
+  }
+
+  /* ---------------- 启动 ---------------- */
+  render();
+})();
+</script>
+</body>
+</html>
