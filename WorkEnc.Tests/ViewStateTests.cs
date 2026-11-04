@@ -68,24 +68,6 @@ namespace WorkEnc.Tests
             foreach (var tab in new[] { MainTab.Home, MainTab.Detail, MainTab.Stats, MainTab.Settings })
                 Assert.Equal(tab, ViewState.ParseTab(ViewState.ToText(tab)));
         }
-
-        [Fact]
-        public void NextTab_CyclesThroughAllFour()
-        {
-            Assert.Equal(MainTab.Detail, ViewState.NextTab(MainTab.Home));
-            Assert.Equal(MainTab.Stats, ViewState.NextTab(MainTab.Detail));
-            Assert.Equal(MainTab.Settings, ViewState.NextTab(MainTab.Stats));
-            Assert.Equal(MainTab.Home, ViewState.NextTab(MainTab.Settings));
-        }
-
-        [Fact]
-        public void TabTitle_AllFour()
-        {
-            Assert.Equal("主页", ViewState.TabTitle(MainTab.Home));
-            Assert.Equal("明细", ViewState.TabTitle(MainTab.Detail));
-            Assert.Equal("统计", ViewState.TabTitle(MainTab.Stats));
-            Assert.Equal("设置", ViewState.TabTitle(MainTab.Settings));
-        }
     }
 
     /// <summary>窗口尺寸计算测试。</summary>

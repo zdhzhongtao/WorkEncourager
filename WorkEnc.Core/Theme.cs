@@ -26,9 +26,6 @@ namespace WorkEnc.Core
         public string EncText { get; set; } = "#9A3412";
         public string BarBg { get; set; } = "#F1F4F8";
         public string Divider { get; set; } = "#F1F4F8";
-        public string InputBg { get; set; } = "#FBFCFE";
-        public string InputBorder { get; set; } = "#E9EDF2";
-        public string SettingsBg { get; set; } = "#FDFEFF";
         public string ChipWorkingBg { get; set; } = "#ECFDF3";
         public string ChipWorkingFg { get; set; } = "#067647";
         public string ChipWorkingDot { get; set; } = "#12B76A";
@@ -41,8 +38,6 @@ namespace WorkEnc.Core
         public string ChipPausedBg { get; set; } = "#FFFAEB";
         public string ChipPausedFg { get; set; } = "#B45309";
         public string ChipPausedDot { get; set; } = "#F59E0B";
-        public string ShadowColor { get; set; } = "#0F172A";
-        public double ShadowOpacity { get; set; } = 0.18;
 
         /// <summary>Tab 条底色。</summary>
         public string TabBarBg { get; set; } = "#F1F4F8";
@@ -77,9 +72,6 @@ namespace WorkEnc.Core
             EncText = "#FDBA74",
             BarBg = "#26FFFFFF",
             Divider = "#1FFFFFFF",
-            InputBg = "#1AFFFFFF",
-            InputBorder = "#33FFFFFF",
-            SettingsBg = "#F01C2530",
             ChipWorkingBg = "#3334D399",
             ChipWorkingFg = "#6EE7B7",
             ChipWorkingDot = "#34D399",
@@ -96,9 +88,7 @@ namespace WorkEnc.Core
             TabActiveBg = "#33FFFFFF",
             TabActiveBorder = "#4DF97316",
             TabActiveFg = "#FDBA74",
-            TabIdleFg = "#8794A8",
-            ShadowColor = "#000000",
-            ShadowOpacity = 0.45
+            TabIdleFg = "#8794A8"
         };
 
         public static Theme Get(string name) =>

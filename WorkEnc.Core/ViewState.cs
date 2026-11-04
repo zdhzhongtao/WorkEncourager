@@ -130,17 +130,5 @@ namespace WorkEnc.Core
             MainTab.Settings => "settings",
             _ => "home"
         };
-
-        /// <summary>下一个 Tab（循环），用于键盘快捷键。</summary>
-        public static MainTab NextTab(MainTab tab) => (MainTab)(((int)tab + 1) % 4);
-
-        /// <summary>Tab 的中文标题。</summary>
-        public static string TabTitle(MainTab tab) => tab switch
-        {
-            MainTab.Detail => "明细",
-            MainTab.Stats => "统计",
-            MainTab.Settings => "设置",
-            _ => "主页"
-        };
     }
 }

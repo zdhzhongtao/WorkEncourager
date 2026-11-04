@@ -358,8 +358,8 @@
     </Style>
   </Window.Resources>
 
-  <Grid x:Name="WindowRoot">
-    <Grid x:Name="RootGrid" Margin="16">
+  <Grid>
+    <Grid Margin="16">
 
       <!-- ================= 完整模式 ================= -->
       <Viewbox x:Name="FullViewbox" Stretch="Uniform" StretchDirection="Both">
@@ -377,7 +377,7 @@
               </Grid.RowDefinitions>
 
               <!-- 头部 -->
-              <Grid x:Name="HeaderGrid" Grid.Row="0">
+              <Grid Grid.Row="0">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="Auto" />
                   <ColumnDefinition Width="*" />
@@ -412,7 +412,7 @@
               </Border>
 
               <!-- Tab 内容 -->
-              <Grid x:Name="TabContent" Grid.Row="2" Margin="0,11,0,0">
+              <Grid Grid.Row="2" Margin="0,11,0,0">
 
                 <!-- ========== 主页 ========== -->
                 <StackPanel x:Name="HomePanel">
@@ -725,7 +725,7 @@
 
                 <!-- ========== 设置 ========== -->
                 <ScrollViewer x:Name="SettingsScroll" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                  <StackPanel x:Name="SettingsPanel">
+                  <StackPanel>
 
                     <TextBlock Text="月薪（元）" Style="{StaticResource FieldLabel}" Margin="2,2,0,4" />
                     <TextBox x:Name="InSalary" Style="{StaticResource Input}" />
@@ -881,7 +881,7 @@
 
       <!-- ================= 迷你挂件 ================= -->
       <Viewbox x:Name="MiniViewbox" Stretch="Uniform" StretchDirection="Both" Visibility="Collapsed">
-       <Grid x:Name="MiniCanvas" Width="220" Height="80" Background="Transparent">
+       <Grid Width="220" Height="80" Background="Transparent">
         <Border x:Name="MiniShell" CornerRadius="14" Background="#F2FFFFFF" BorderBrush="#E7ECF3" BorderThickness="1">
             <Border.Effect>
               <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.20" Color="#0F172A" />
@@ -941,7 +941,7 @@
     </Grid>
 
     <!--
-      窗口边缘缩放热区。全部落在 RootGrid 的 16px 外圈里，不遮挡任何内容。
+      窗口边缘缩放热区。全部落在根 Grid 的 16px 外圈里，不遮挡任何内容。
       边条 12px、角落 16px，鼠标移上去会显示对应方向的缩放光标。
     -->
     <Rectangle x:Name="GripTop" Style="{StaticResource ResizeGrip}"

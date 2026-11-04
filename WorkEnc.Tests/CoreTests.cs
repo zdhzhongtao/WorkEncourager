@@ -410,7 +410,6 @@ namespace WorkEnc.Tests
                     Weekdays = new[] { 1, 2, 3, 4, 5, 6 },
                     Tone = "hype",
                     Theme = "dark",
-                    CompactMode = true,
                     ClickThrough = true,
                     ExtraHolidays = new[] { "2026-12-24" }
                 };
@@ -423,7 +422,6 @@ namespace WorkEnc.Tests
                 Assert.Equal(15, loaded.PayDay);
                 Assert.Equal("hype", loaded.Tone);
                 Assert.Equal("dark", loaded.Theme);
-                Assert.True(loaded.CompactMode);
                 Assert.True(loaded.ClickThrough);
                 Assert.Equal("12:00-13:00", loaded.Breaks[0]);
                 Assert.Equal("2026-12-24", loaded.ExtraHolidays[0]);

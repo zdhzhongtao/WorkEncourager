@@ -42,9 +42,6 @@ namespace WorkEnc.Core
         /// <summary>主题：light / dark。</summary>
         public string Theme { get; set; } = "light";
 
-        /// <summary>极简模式：只显示核心数字。</summary>
-        public bool CompactMode { get; set; }
-
         /// <summary>视图模式：full（完整多 Tab）/ mini（桌面小挂件）。空值表示旧版本配置，首次升级时重置布局。</summary>
         public string ViewMode { get; set; } = "";
 

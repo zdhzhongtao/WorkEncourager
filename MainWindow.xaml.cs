@@ -555,6 +555,8 @@ namespace WorkEncourager
                               : st.Status == "wait" ? "距上班 " + Clock((st.StartTs - now).TotalSeconds)
                               : st.Status == "off" ? "今日已收工"
                               : "距下班 " + Clock(st.RemainSec);
+                MiniStatus.Text = statusText;
+                MiniStatus.Foreground = _bChipFg;
                 MiniDot.Fill = _bChipDot;
                 UpdateMiniBar(st.Pct);
             }
@@ -679,14 +681,6 @@ namespace WorkEncourager
             {
                 EncText.Inlines.Add(new Run(text) { Foreground = _bEncText });
             }
-        }
-
-        /// <summary>语录库：按语气随机取一条，用于设置面板预览。</summary>
-        public string GetSampleQuote()
-        {
-            return _quotes.Get(QuoteProvider.ParseTone(_cfg.Tone),
-                               string.IsNullOrWhiteSpace(_cfg.GoalItem) ? "目标" : _cfg.GoalItem,
-                               "3小时25分", "888.8888");
         }
 
         // ---------------- 主题 ----------------
@@ -1134,8 +1128,6 @@ namespace WorkEncourager
 
         // ---------------- 设置 ----------------
 
-        private void OpenSettings() => SelectTab(MainTab.Settings);
-
         private void CloseSettings() => SelectTab(MainTab.Home);
 
         public void ShowSettingsForDebug() => SelectTab(MainTab.Settings);
@@ -1384,15 +1376,6 @@ namespace WorkEncourager
         }
 
         // ---------------- 历史统计 ----------------
-
-        private void OpenStats()
-        {
-            StatsTip.Text = "";
-            RefreshStats();
-            SelectTab(MainTab.Stats);
-        }
-
-        private void CloseStats() => SelectTab(MainTab.Home);
 
         public void ShowStatsForDebug() => SelectTab(MainTab.Stats);
 
