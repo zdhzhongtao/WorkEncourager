@@ -35,17 +35,37 @@ namespace WorkEncourager
             if (Array.IndexOf(e.Args, "--open-stats") >= 0)
                 win.ShowStatsForDebug();
 
+            // 调试用：--paused 以暂停状态启动（退出时不写回配置）
+            if (Array.IndexOf(e.Args, "--paused") >= 0)
+                win.ShowPausedForDebug();
+
             // 调试用：--shot <路径> 渲染窗口截图后退出
+            // 配合 --gap <毫秒> 可在同一个进程内连拍两张（第二张存为 <路径>.t2.png），
+            // 用来验证"暂停后数字是否真的冻结"
             int idx = Array.IndexOf(e.Args, "--shot");
             if (idx >= 0 && idx + 1 < e.Args.Length)
             {
                 string path = e.Args[idx + 1];
+                int gap = 4000;
+                int gi = Array.IndexOf(e.Args, "--gap");
+                if (gi >= 0 && gi + 1 < e.Args.Length) int.TryParse(e.Args[gi + 1], out gap);
+
                 var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
+                int step = 0;
                 t.Tick += (s, ev) =>
                 {
-                    t.Stop();
-                    try { win.SaveShot(path); } catch (Exception ex) { Console.WriteLine(ex); }
-                    Shutdown();
+                    step++;
+                    if (step == 1)
+                    {
+                        try { win.SaveShot(path); } catch (Exception ex) { Console.WriteLine(ex); }
+                        t.Interval = TimeSpan.FromMilliseconds(Math.Max(500, gap));
+                    }
+                    else
+                    {
+                        t.Stop();
+                        try { win.SaveShot(path + ".t2.png"); } catch (Exception ex) { Console.WriteLine(ex); }
+                        Shutdown();
+                    }
                 };
                 t.Start();
             }

@@ -68,19 +68,31 @@ namespace WorkEnc.Core
         /// <param name="weekdays">计薪星期（0=周日）</param>
         /// <param name="payDay">每月发薪日（1-31）</param>
         /// <param name="paused">是否已暂停计时</param>
-        /// <param name="pausedAccumSec">累计暂停秒数</param>
+        /// <param name="pausedAccumSec">此前若干次暂停期间累计的工作秒数（需在恢复时扣掉）</param>
+        /// <param name="pausedAt">
+        /// 暂停发生的时刻。暂停时所有派生数值（已赚/进度/已工作/剩余）都以该时刻为基准冻结，
+        /// 否则暂停期间工时仍随墙上时钟增长，界面数字会一直跳动。传 null 则退化为按 now 计算。
+        /// </param>
         public Snapshot Compute(DateTime now, double monthlySalary, int[] weekdays, int payDay,
-                               bool paused, double pausedAccumSec)
+                               bool paused, double pausedAccumSec, DateTime? pausedAt = null)
         {
             var snap = new Snapshot { Now = now };
 
             var baseDate = now.Date;
+
+            // 暂停：把"有效当前时间"回退到暂停那一刻，使工时、金额、进度、剩余全部冻结。
+            // 跨天暂停时改用暂停当天的作息表（例如夜班 22:00→06:00）。
+            DateTime effNow = now;
+            if (paused && pausedAt.HasValue)
+            {
+                effNow = pausedAt.Value;
+                if (effNow.Date != baseDate) baseDate = effNow.Date;
+            }
+
             snap.StartTs = _schedule.GetStartTime(baseDate);
             snap.EndTs = _schedule.GetEndTime(baseDate);
             snap.TotalSec = _schedule.GetTotalWorkSeconds(baseDate);
 
-            // 暂停：把"有效当前时间"回退到暂停时刻，并扣除此前累计的暂停时长
-            DateTime effNow = paused ? now : now;
             double workSec = _schedule.GetElapsedWorkSeconds(baseDate, effNow);
 
             // 扣除已累计的暂停时长（暂停期间不计入工作）

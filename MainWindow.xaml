@@ -12,11 +12,12 @@
         UseLayoutRounding="True" SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Ideal">
 
-  <!-- 无边框窗口的缩放边框：让四周可拖拽改变大小 -->
-  <shell:WindowChrome.WindowChrome>
-    <shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0"
-                        CornerRadius="0" UseAeroCaptionButtons="False" />
-  </shell:WindowChrome.WindowChrome>
+  <!--
+    注意：不要使用 shell:WindowChrome 来做边缘缩放。
+    AllowsTransparency=True 的窗口是分层窗口，没有非客户区（non-client area），
+    WindowChrome 的 ResizeBorderThickness 完全失效，鼠标移到边缘拖不动大小。
+    这里改用自绘的 8 向缩放热区（见文件末尾），由代码手动改 Width/Height/Left/Top。
+  -->
 
   <Window.Resources>
     <LinearGradientBrush x:Key="AccentGrad" StartPoint="0,0" EndPoint="1,1">
@@ -293,8 +294,16 @@
         </Setter.Value>
       </Setter>
     </Style>
+
+    <!-- 窗口边缘缩放热区：透明窗口无法用系统 resize 边框，这里自绘 -->
+    <Style x:Key="ResizeGrip" TargetType="Rectangle">
+      <Setter Property="Fill" Value="Transparent" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
   </Window.Resources>
 
+  <Grid x:Name="WindowRoot">
   <Grid x:Name="RootGrid" Margin="16">
     <!-- Viewbox：窗口放大缩小时内容等比自适应 -->
     <Viewbox Stretch="Uniform" StretchDirection="Both">
@@ -685,7 +694,15 @@
           </ScrollViewer>
 
           <StackPanel Grid.Row="2" Margin="0,12,0,0">
-            <TextBlock x:Name="StatsTip" FontSize="10" Foreground="#EF4444" Margin="0,0,0,0" Text="" TextWrapping="Wrap" />
+            <TextBox x:Name="StatsTip" FontSize="10" Foreground="#EF4444" Margin="0,0,0,0"
+                     Text="" TextWrapping="Wrap" IsReadOnly="True" IsReadOnlyCaretVisible="True"
+                     Background="Transparent" BorderThickness="0" Padding="0" />
+            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+              <Button x:Name="StatsCopyPathBtn" Style="{StaticResource GhostBtn}"
+                      Content="复制路径" Width="76" Height="26" />
+              <Button x:Name="StatsOpenFolderBtn" Style="{StaticResource GhostBtn}"
+                      Content="打开文件夹" Width="86" Height="26" Margin="6,0,0,0" />
+            </StackPanel>
           </StackPanel>
         </Grid>
       </Border>
@@ -854,12 +871,43 @@
               </StackPanel>
             </Grid>
 
-            <TextBlock x:Name="SettingsTip" FontSize="10" Foreground="#EF4444" Margin="2,8,0,0" Text="" TextWrapping="Wrap" />
+            <TextBox x:Name="SettingsTip" FontSize="10" Foreground="#EF4444" Margin="2,8,0,0"
+                     Text="" TextWrapping="Wrap" IsReadOnly="True" IsReadOnlyCaretVisible="True"
+                     Background="Transparent" BorderThickness="0" Padding="0" />
+            <StackPanel Orientation="Horizontal" Margin="2,6,0,0">
+              <Button x:Name="SettingsCopyPathBtn" Style="{StaticResource GhostBtn}"
+                      Content="复制路径" Width="76" Height="26" />
+              <Button x:Name="SettingsOpenFolderBtn" Style="{StaticResource GhostBtn}"
+                      Content="打开文件夹" Width="86" Height="26" Margin="6,0,0,0" />
+            </StackPanel>
           </StackPanel>
         </Grid>
       </Border>
     </Grid>
      </Grid>
     </Viewbox>
+  </Grid>
+
+  <!--
+    窗口边缘缩放热区。全部落在 RootGrid 的 16px 外圈里，不遮挡任何内容。
+    边条 12px、角落 16px，鼠标移上去会显示对应方向的缩放光标。
+  -->
+  <Rectangle x:Name="GripTop" Style="{StaticResource ResizeGrip}"
+             Height="12" VerticalAlignment="Top" Cursor="SizeNS" />
+  <Rectangle x:Name="GripBottom" Style="{StaticResource ResizeGrip}"
+             Height="12" VerticalAlignment="Bottom" Cursor="SizeNS" />
+  <Rectangle x:Name="GripLeft" Style="{StaticResource ResizeGrip}"
+             Width="12" HorizontalAlignment="Left" Cursor="SizeWE" />
+  <Rectangle x:Name="GripRight" Style="{StaticResource ResizeGrip}"
+             Width="12" HorizontalAlignment="Right" Cursor="SizeWE" />
+
+  <Rectangle x:Name="GripTopLeft" Style="{StaticResource ResizeGrip}"
+             Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Top" Cursor="SizeNWSE" />
+  <Rectangle x:Name="GripTopRight" Style="{StaticResource ResizeGrip}"
+             Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Top" Cursor="SizeNESW" />
+  <Rectangle x:Name="GripBottomLeft" Style="{StaticResource ResizeGrip}"
+             Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Bottom" Cursor="SizeNESW" />
+  <Rectangle x:Name="GripBottomRight" Style="{StaticResource ResizeGrip}"
+             Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="SizeNWSE" />
   </Grid>
 </Window>

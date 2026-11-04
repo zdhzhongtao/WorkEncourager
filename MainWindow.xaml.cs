@@ -37,6 +37,7 @@ namespace WorkEncourager
         private double _pausedAccumSec;
         private string _dayKey = "";
         private bool _loaded;
+        private bool _debugNoPersist;      // 调试用：--paused 启动时不把暂停状态写回配置
 
         private string _lastStatus = "";
         private string _lastEncText = null;
@@ -67,6 +68,17 @@ namespace WorkEncourager
             SizeChanged += (s, e) => { UpdateBar(); UpdateSizeText(); };
             Loaded += (s, e) => { _loaded = true; ApplyCompactMode(); Render(); UpdateBar(); UpdateSizeText(); };
 
+            // 窗口边缘缩放热区
+            foreach (var grip in new FrameworkElement[]
+                     { GripTop, GripBottom, GripLeft, GripRight,
+                       GripTopLeft, GripTopRight, GripBottomLeft, GripBottomRight })
+            {
+                grip.MouseLeftButtonDown += OnGripMouseDown;
+                grip.MouseMove += OnGripMouseMove;
+                grip.MouseLeftButtonUp += OnGripMouseUp;
+                grip.MouseLeave += OnGripMouseLeave;
+            }
+
             ToggleBtn.Click += OnToggleClick;
             ResetBtn.Click += OnResetClick;
             PinBtn.Click += OnPinClick;
@@ -86,6 +98,11 @@ namespace WorkEncourager
             StatsExportCsvBtn.Click += (s, e) => ExportCsv();
             StatsExportMonthlyBtn.Click += (s, e) => ExportMonthlyCsv();
 
+            SettingsCopyPathBtn.Click += (s, e) => CopyLastPath(SettingsTip);
+            SettingsOpenFolderBtn.Click += (s, e) => OpenLastFolder(SettingsTip);
+            StatsCopyPathBtn.Click += (s, e) => CopyLastPath(StatsTip);
+            StatsOpenFolderBtn.Click += (s, e) => OpenLastFolder(StatsTip);
+
             PreviewKeyDown += (s, e) =>
             {
                 if (e.Key == Key.Escape)
@@ -103,7 +120,7 @@ namespace WorkEncourager
                 _cfg.WindowHeight = ActualHeight;
                 _cfg.Opacity = Opacity;
                 _cfg.Topmost = Topmost;
-                PersistPauseState();
+                if (!_debugNoPersist) PersistPauseState();
                 SaveCfg();
                 _tracker.Save(HistoryPath);
             };
@@ -211,11 +228,26 @@ namespace WorkEncourager
             else
             {
                 _paused = false;
-                _pausedAccumSec += (DateTime.Now - _pauseAt).TotalSeconds;
+                // 累计的是"暂停期间落入工作时段的秒数"，而不是墙上时钟秒数，
+                // 这样暂停横跨午休时不会多扣工时。
+                _pausedAccumSec += PausedWorkSec(_pauseAt, DateTime.Now);
+                _pauseAt = DateTime.MinValue;
             }
             PersistPauseState();
             SaveCfg();
             Render();
+        }
+
+        /// <summary>暂停期间实际落在工作时段内的秒数（午休段不计入）。</summary>
+        private double PausedWorkSec(DateTime from, DateTime to)
+        {
+            if (to <= from) return 0;
+            if (from.Date == to.Date)
+            {
+                return _schedule.GetElapsedWorkSeconds(from.Date, to)
+                     - _schedule.GetElapsedWorkSeconds(from.Date, from);
+            }
+            return (to - from).TotalSeconds;   // 跨天暂停无法按天拆，退化为墙上时钟
         }
 
         private void OnResetClick(object sender, RoutedEventArgs e)
@@ -226,6 +258,108 @@ namespace WorkEncourager
             PersistPauseState();
             SaveCfg();
             Render();
+        }
+
+        // ---------------- 窗口边缘缩放 ----------------
+
+        private enum ResizeDir { None, Left, Right, Top, Bottom, TopLeft, TopRight, BottomLeft, BottomRight }
+
+        private static readonly Dictionary<string, ResizeDir> _gripDirs =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["GripLeft"] = ResizeDir.Left,
+                ["GripRight"] = ResizeDir.Right,
+                ["GripTop"] = ResizeDir.Top,
+                ["GripBottom"] = ResizeDir.Bottom,
+                ["GripTopLeft"] = ResizeDir.TopLeft,
+                ["GripTopRight"] = ResizeDir.TopRight,
+                ["GripBottomLeft"] = ResizeDir.BottomLeft,
+                ["GripBottomRight"] = ResizeDir.BottomRight,
+            };
+
+        private ResizeDir _resizeDir = ResizeDir.None;
+        private Point _resizeAnchor;                 // 按下时的屏幕坐标（物理像素）
+        private double _resizeStartW, _resizeStartH, _resizeStartLeft, _resizeStartTop;
+
+        private void OnGripMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement fe) return;
+            if (!_gripDirs.TryGetValue(fe.Name, out var dir)) return;
+
+            _resizeDir = dir;
+            _resizeAnchor = PointToScreen(e.GetPosition(this));
+            _resizeStartW = Width;
+            _resizeStartH = Height;
+            _resizeStartLeft = Left;
+            _resizeStartTop = Top;
+            fe.CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void OnGripMouseMove(object sender, MouseEventArgs e)
+        {
+            if (_resizeDir == ResizeDir.None) return;
+            if (e.LeftButton != MouseButtonState.Pressed) { EndResize(sender); return; }
+
+            // PointToScreen 返回物理像素，窗口尺寸用的是 DIP，需要除以 DPI 缩放
+            var dpi = VisualTreeHelper.GetDpi(this);
+            var cur = PointToScreen(e.GetPosition(this));
+            double dx = (cur.X - _resizeAnchor.X) / dpi.DpiScaleX;
+            double dy = (cur.Y - _resizeAnchor.Y) / dpi.DpiScaleY;
+
+            double w = _resizeStartW, h = _resizeStartH, l = _resizeStartLeft, t = _resizeStartTop;
+
+            bool moveLeft = _resizeDir is ResizeDir.Left or ResizeDir.TopLeft or ResizeDir.BottomLeft;
+            bool moveRight = _resizeDir is ResizeDir.Right or ResizeDir.TopRight or ResizeDir.BottomRight;
+            bool moveTop = _resizeDir is ResizeDir.Top or ResizeDir.TopLeft or ResizeDir.TopRight;
+            bool moveBottom = _resizeDir is ResizeDir.Bottom or ResizeDir.BottomLeft or ResizeDir.BottomRight;
+
+            if (moveLeft) { w = _resizeStartW - dx; l = _resizeStartLeft + dx; }
+            else if (moveRight) { w = _resizeStartW + dx; }
+            if (moveTop) { h = _resizeStartH - dy; t = _resizeStartTop + dy; }
+            else if (moveBottom) { h = _resizeStartH + dy; }
+
+            // 夹到最小/最大尺寸，同时把对边拉回来，保证锚点那一侧不移动
+            if (w < MinWidth) { if (moveLeft) l -= (MinWidth - w); w = MinWidth; }
+            if (h < MinHeight) { if (moveTop) t -= (MinHeight - h); h = MinHeight; }
+            if (!double.IsInfinity(MaxWidth) && MaxWidth > 0 && w > MaxWidth)
+            { if (moveLeft) l += (w - MaxWidth); w = MaxWidth; }
+            if (!double.IsInfinity(MaxHeight) && MaxHeight > 0 && h > MaxHeight)
+            { if (moveTop) t += (h - MaxHeight); h = MaxHeight; }
+
+            Width = w; Height = h; Left = l; Top = t;
+            e.Handled = true;
+        }
+
+        private void OnGripMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            EndResize(sender);
+            e.Handled = true;
+        }
+
+        private void OnGripMouseLeave(object sender, MouseEventArgs e)
+        {
+            // 鼠标带着拖出窗口时松开，也要结束缩放
+            if (_resizeDir != ResizeDir.None && e.LeftButton != MouseButtonState.Pressed)
+                EndResize(sender);
+        }
+
+        private void EndResize(object sender)
+        {
+            if (_resizeDir == ResizeDir.None) return;
+            _resizeDir = ResizeDir.None;
+            if (sender is FrameworkElement fe) fe.ReleaseMouseCapture();
+            SaveWindowBounds();
+        }
+
+        /// <summary>保存当前窗口位置与尺寸到配置。</summary>
+        private void SaveWindowBounds()
+        {
+            _cfg.WindowLeft = Left;
+            _cfg.WindowTop = Top;
+            _cfg.WindowWidth = ActualWidth;
+            _cfg.WindowHeight = ActualHeight;
+            SaveCfg();
         }
 
         // ---------------- 渲染 ----------------
@@ -283,7 +417,8 @@ namespace WorkEncourager
             _tracker.Advance(now, DayScheduleProvider, _paused);
 
             var st = _calc.Compute(now, _cfg.MonthlySalary ?? 0, _cfg.Weekdays, _cfg.PayDay,
-                                  _paused, _pausedAccumSec);
+                                  _paused, _pausedAccumSec,
+                                  _paused ? _pauseAt : (DateTime?)null);
 
             var todayRec = _tracker.GetOrCreate(key);
             todayRec.ScheduledSec = st.TotalSec;
@@ -324,7 +459,8 @@ namespace WorkEncourager
                 StatusDot.Fill = _bChipDot;
             }
 
-            if (st.Status == "wait") CountText.Text = "距上班 " + Clock((st.StartTs - now).TotalSeconds);
+            if (st.Status == "paused") CountText.Text = "计时已暂停";
+            else if (st.Status == "wait") CountText.Text = "距上班 " + Clock((st.StartTs - now).TotalSeconds);
             else if (st.Status == "off") CountText.Text = "今日已收工";
             else CountText.Text = "距下班 " + Clock(st.RemainSec);
 
@@ -365,7 +501,8 @@ namespace WorkEncourager
             if (CompactPanel.Visibility == Visibility.Visible)
             {
                 CompactEarned.Text = N4(st.Earned);
-                CompactCount.Text = st.Status == "wait" ? "距上班 " + Clock((st.StartTs - now).TotalSeconds)
+                CompactCount.Text = st.Status == "paused" ? "计时已暂停"
+                                : st.Status == "wait" ? "距上班 " + Clock((st.StartTs - now).TotalSeconds)
                                 : st.Status == "off" ? "今日已收工"
                                 : "距下班 " + Clock(st.RemainSec);
                 CompactStatus.Text = statusText + " · 日薪 ¥" + N4(st.DailyPay);
@@ -891,6 +1028,9 @@ namespace WorkEncourager
 
         // ---------------- 导入导出 ----------------
 
+        /// <summary>最近一次导出的文件路径，供"复制路径 / 打开文件夹"使用。</summary>
+        private string _lastExportPath = "";
+
         private void ExportConfig()
         {
             try
@@ -898,7 +1038,8 @@ namespace WorkEncourager
                 var path = Path.Combine(CfgDir, "workenc-config-" +
                     DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".json");
                 File.WriteAllText(path, ConfigStore.ExportJson(_cfg), new System.Text.UTF8Encoding(true));
-                SettingsTip.Text = "配置已导出：" + path;
+                _lastExportPath = path;
+                SettingsTip.Text = "配置已导出，路径可复制：\n" + path;
             }
             catch (Exception ex) { SettingsTip.Text = "导出失败：" + ex.Message; }
         }
@@ -939,8 +1080,9 @@ namespace WorkEncourager
                 _tracker.Save(HistoryPath);
                 var path = Path.Combine(CfgDir, "工时报表-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv");
                 CsvExporter.WriteFile(path, CsvExporter.BuildWorkReport(_tracker.Records, _calendar, _cfg.Weekdays));
+                _lastExportPath = path;
                 ShowTip(StatsLayer.Visibility == Visibility.Visible ? StatsTip : SettingsTip,
-                        "工时报表已导出：" + path);
+                        "工时报表已导出，路径可复制：\n" + path);
             }
             catch (Exception ex) { ShowTip(SettingsTip, "导出失败：" + ex.Message); }
         }
@@ -952,12 +1094,50 @@ namespace WorkEncourager
                 _tracker.Save(HistoryPath);
                 var path = Path.Combine(CfgDir, "月度汇总-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv");
                 CsvExporter.WriteFile(path, CsvExporter.BuildMonthlyReport(_tracker.Records, _calendar, _cfg.Weekdays));
-                ShowTip(StatsTip, "月度汇总已导出：" + path);
+                _lastExportPath = path;
+                ShowTip(StatsTip, "月度汇总已导出，路径可复制：\n" + path);
             }
             catch (Exception ex) { ShowTip(StatsTip, "导出失败：" + ex.Message); }
         }
 
-        private static void ShowTip(TextBlock target, string text)
+        /// <summary>把最近一次导出的路径复制到剪贴板。</summary>
+        private void CopyLastPath(TextBox tip)
+        {
+            if (string.IsNullOrEmpty(_lastExportPath))
+            {
+                ShowTip(tip, "还没有导出过文件，先点一次导出。");
+                return;
+            }
+            try
+            {
+                Clipboard.SetText(_lastExportPath);
+                ShowTip(tip, "路径已复制到剪贴板：\n" + _lastExportPath);
+            }
+            catch (Exception ex) { ShowTip(tip, "复制失败：" + ex.Message); }
+        }
+
+        /// <summary>在资源管理器中定位最近一次导出的文件。</summary>
+        private void OpenLastFolder(TextBox tip)
+        {
+            if (string.IsNullOrEmpty(_lastExportPath))
+            {
+                ShowTip(tip, "还没有导出过文件，先点一次导出。");
+                return;
+            }
+            try
+            {
+                string dir = Path.GetDirectoryName(_lastExportPath) ?? CfgDir;
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = "/select,\"" + _lastExportPath + "\"",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex) { ShowTip(tip, "打开失败：" + ex.Message); }
+        }
+
+        private static void ShowTip(TextBox target, string text)
         {
             if (target != null) target.Text = text;
         }
@@ -974,6 +1154,15 @@ namespace WorkEncourager
         private void CloseStats() => StatsLayer.Visibility = Visibility.Collapsed;
 
         public void ShowStatsForDebug() => OpenStats();
+
+        /// <summary>调试用：以暂停状态启动，且退出时不把暂停状态写回配置。</summary>
+        public void ShowPausedForDebug()
+        {
+            _paused = true;
+            _pauseAt = DateTime.Now;
+            _debugNoPersist = true;
+            Render();
+        }
 
         private void RefreshStats()
         {
