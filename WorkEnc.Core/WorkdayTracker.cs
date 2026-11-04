@@ -86,7 +86,10 @@ namespace WorkEnc.Core
         /// </summary>
         /// <param name="now">当前真实时刻</param>
         /// <param name="provider">按日期提供当日工作时段与下班时刻</param>
-        /// <param name="paused">是否暂停（暂停不计时）</param>
+        /// <param name="paused">
+        /// 是否跳过本次区间的计时。语义是"这一整段都没在上班"，
+        /// 所以暂停时必须先用 paused=false 把到暂停时刻为止的工时结算掉，再切到暂停状态。
+        /// </param>
         public double Advance(DateTime now, Func<DateTime, (List<TimeSegment> segs, DateTime endTs)> provider, bool paused)
         {
             CurrentDate = now.ToString("yyyy-MM-dd");
@@ -122,6 +125,10 @@ namespace WorkEnc.Core
                 var endTs = daySchedule.endTs;
                 if (segs != null && segs.Count > 0)
                 {
+                    // 应出勤工时由追踪器自己记录，历史日期也能保留（否则 CSV 应出勤列会是 0）
+                    double scheduled = 0;
+                    foreach (var seg in segs) scheduled += seg.Seconds;
+
                     double worked = 0;
                     foreach (var seg in segs)
                     {
@@ -130,9 +137,11 @@ namespace WorkEnc.Core
                         if (e > s) worked += (e - s).TotalSeconds;
                     }
 
+                    var rec = GetOrCreate(day.ToString("yyyy-MM-dd"));
+                    rec.ScheduledSec = scheduled;
+
                     if (worked > 0)
                     {
-                        var rec = GetOrCreate(day.ToString("yyyy-MM-dd"));
                         rec.WorkedSec += worked;
                         totalWorked += worked;
 
@@ -145,7 +154,6 @@ namespace WorkEnc.Core
                     DateTime otFrom = cursor > endTs ? cursor : endTs;
                     if (chunkEnd > otFrom)
                     {
-                        var rec = GetOrCreate(day.ToString("yyyy-MM-dd"));
                         rec.OvertimeSec += (chunkEnd - otFrom).TotalSeconds;
                     }
                 }

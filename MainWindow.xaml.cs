@@ -198,6 +198,8 @@ namespace WorkEncourager
         {
             if (!_paused)
             {
+                // 先把到此刻为止的工时结算掉，再进入暂停，否则这段工时会丢失
+                _tracker.Advance(DateTime.Now, DayScheduleProvider, false);
                 _paused = true;
                 _pauseAt = DateTime.Now;
             }
@@ -250,6 +252,13 @@ namespace WorkEncourager
             return h.ToString("00") + ":" + m.ToString("00") + ":" + ss.ToString("00");
         }
 
+        /// <summary>按日期提供当日工作时段与下班时刻，供工时追踪器使用。</summary>
+        private (List<TimeSegment>, DateTime) DayScheduleProvider(DateTime day)
+        {
+            var segs = _schedule.GetWorkSegments(day);
+            return (segs, _schedule.GetEndTime(day));
+        }
+
         private void Render()
         {
             var now = DateTime.Now;
@@ -266,11 +275,7 @@ namespace WorkEncourager
             _dayKey = key;
 
             // 追踪真实在场时长（"开着就在工作"）
-            _tracker.Advance(now, day =>
-            {
-                var segs = _schedule.GetWorkSegments(day);
-                return (segs, _schedule.GetEndTime(day));
-            }, _paused);
+            _tracker.Advance(now, DayScheduleProvider, _paused);
 
             var st = _calc.Compute(now, _cfg.MonthlySalary ?? 0, _cfg.Weekdays, _cfg.PayDay,
                                   _paused, _pausedAccumSec);
@@ -382,74 +387,96 @@ namespace WorkEncourager
 
         private void BuildEncourage(Snapshot st)
         {
-            var runs = new List<Inline>();
-            void T(string text) => runs.Add(new Run(text) { Foreground = _bEncText });
-            void B(string text) => runs.Add(new Run(text) { FontWeight = FontWeights.Bold, Foreground = _bAccentDark });
-
             string item = string.IsNullOrWhiteSpace(_cfg.GoalItem) ? "目标" : _cfg.GoalItem;
+            var tone = QuoteProvider.ParseTone(_cfg.Tone);
 
             if (st.PerSec <= 0)
             {
-                T("先去右上角「设置」里填个月薪吧");
+                SetEncourage("先去右上角「设置」里填个月薪吧", null);
+                return;
             }
-            else if (st.Status == "paused")
+            if (st.Status == "paused")
             {
-                T("计时器已暂停，开心的时光不用算钱");
+                SetEncourage("计时器已暂停，开心的时光不用算钱", null);
+                return;
             }
-            else if (st.Status == "off")
+            if (st.Status == "off")
             {
-                T("今天已经收工，一共赚到 ");
-                B("¥" + N4(st.Earned));
-                T("，去休息吧");
+                SetEncourage("今天已经收工，一共赚到 ¥" + N4(st.Earned) + "，去休息吧", "¥" + N4(st.Earned));
+                return;
             }
-            else if (st.Status == "wait")
+            if (st.Status == "wait")
             {
-                T("还没到点，距离开工还有 ");
-                B(HM((st.StartTs - st.Now).TotalSeconds));
+                SetEncourage("还没到点，距离开工还有 " + HM((st.StartTs - st.Now).TotalSeconds),
+                             HM((st.StartTs - st.Now).TotalSeconds));
+                return;
+            }
+
+            double price = _cfg.Shirt > 0 ? _cfg.Shirt : 0;
+            if (price <= 0)
+            {
+                SetEncourage("设置一个目标物单价，就知道离小目标还有多远了", null);
+                return;
+            }
+
+            int count = (int)Math.Floor(st.Earned / price);
+            double nextNeed = ((count + 1) * price - st.Earned) / st.PerSec;
+
+            QuoteScene scene;
+            string timeText;
+            string canBuyText = null;
+
+            if (nextNeed <= st.RemainSec)
+            {
+                scene = count > 0 ? QuoteScene.RepeatItem : QuoteScene.FirstItem;
+                timeText = HM(nextNeed);
             }
             else
             {
-                double price = _cfg.Shirt > 0 ? _cfg.Shirt : 0;
-                int count = price > 0 ? (int)Math.Floor(st.Earned / price) : 0;
-                double nextNeed = price > 0 ? ((count + 1) * price - st.Earned) / st.PerSec : double.MaxValue;
-
-                if (price <= 0)
-                {
-                    T("设置一个目标物单价，就知道离小目标还有多远了");
-                }
-                else if (nextNeed <= st.RemainSec)
-                {
-                    if (count > 0)
-                    {
-                        T("今天已赚回 ");
-                        B(count + " 件" + item);
-                        T("，再过 ");
-                        B(HM(nextNeed));
-                        T(" 下一件到手");
-                    }
-                    else
-                    {
-                        T("再过 ");
-                        B(HM(nextNeed));
-                        T("，一件" + item + "就赚回来了");
-                    }
-                }
-                else
-                {
-                    double canBuy = st.PerSec * st.RemainSec / price;
-                    T("再过 ");
-                    B(HM(st.RemainSec));
-                    T(" 就下班了，今天的钱还能买 ");
-                    B(canBuy.ToString("0.00", CultureInfo.InvariantCulture) + " 件" + item);
-                }
+                scene = QuoteScene.NotEnough;
+                timeText = HM(st.RemainSec);
+                canBuyText = (st.PerSec * st.RemainSec / price).ToString("0.00", CultureInfo.InvariantCulture);
             }
 
-            string text = string.Concat(runs.Select(r => ((Run)r).Text));
-            if (text == _lastEncText) return;   // 文本未变则不重建 Inline
+            string text = PickQuote(scene, () =>
+                _quotes.Get(tone, scene, item, timeText, N4(st.Earned), count, canBuyText));
+            SetEncourage(text, null);
+        }
+
+        /// <summary>语录轮换节流：同一句在 N 秒内不重复，避免每帧乱跳。</summary>
+        private readonly Dictionary<QuoteScene, (string text, DateTime at)> _lastQuote = new();
+
+        private string PickQuote(QuoteScene scene, Func<string> factory)
+        {
+            var now = DateTime.Now;
+            if (_lastQuote.TryGetValue(scene, out var last) && (now - last.at).TotalSeconds < 25)
+                return last.text;
+
+            string text = factory();
+            _lastQuote[scene] = (text, now);
+            return text;
+        }
+
+        /// <summary>设置鼓励语文本；highlight 非空时会加粗高亮该片段。</summary>
+        private void SetEncourage(string text, string highlight)
+        {
+            if (text == _lastEncText) return;
             _lastEncText = text;
 
             EncText.Inlines.Clear();
-            EncText.Inlines.AddRange(runs);
+            if (!string.IsNullOrEmpty(highlight) && text.Contains(highlight))
+            {
+                int i = text.IndexOf(highlight, StringComparison.Ordinal);
+                if (i > 0)
+                    EncText.Inlines.Add(new Run(text.Substring(0, i)) { Foreground = _bEncText });
+                EncText.Inlines.Add(new Run(highlight) { FontWeight = FontWeights.Bold, Foreground = _bAccentDark });
+                if (i + highlight.Length < text.Length)
+                    EncText.Inlines.Add(new Run(text.Substring(i + highlight.Length)) { Foreground = _bEncText });
+            }
+            else
+            {
+                EncText.Inlines.Add(new Run(text) { Foreground = _bEncText });
+            }
         }
 
         /// <summary>语录库：按语气随机取一条，用于设置面板预览。</summary>

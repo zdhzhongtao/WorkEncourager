@@ -14,49 +14,94 @@ namespace WorkEnc.Core
         Hype
     }
 
+    /// <summary>鼓励语的三种情境。</summary>
+    public enum QuoteScene
+    {
+        /// <summary>还没赚到第一件目标物。</summary>
+        FirstItem,
+        /// <summary>已经赚到多件，等下一件。</summary>
+        RepeatItem,
+        /// <summary>今天剩下的时间也买不起一件了。</summary>
+        NotEnough
+    }
+
     /// <summary>
-    /// 鼓励语录库。按语气分组，同一条文案在不同语境下动态插入数字。
+    /// 鼓励语录库。按语气 × 情境分组，模板中的数字由运行时填充。
     /// </summary>
     public class QuoteProvider
     {
-        private static readonly Dictionary<Tone, string[]> Pools = new()
+        private static readonly Dictionary<Tone, Dictionary<QuoteScene, string[]>> Pools = new()
         {
-            [Tone.Chill] = new[]
+            [Tone.Chill] = new Dictionary<QuoteScene, string[]>
             {
-                "再过 {TIME}，一件{ITEM}就赚回来了",
-                "距离下班还有 {TIME}，{ITEM}基金还差一点点",
-                "{TIME}后又是一天，{ITEM}慢慢买",
-                "今天已经赚了 {EARNED}，够 {ITEM} 犒劳自己了",
-                "离下班 {TIME}，把 {ITEM} 列入购物车吧",
-                "时间是 {TIME}，够你认真摸会儿鱼了",
-                "离下班还有 {TIME}，{ITEM}在向你招手",
-                "{EARNED} 到手，先想想今天要买几件{ITEM}",
+                [QuoteScene.FirstItem] = new[]
+                {
+                    "再过 {TIME}，一件{ITEM}就赚回来了",
+                    "距离下班还有 {TIME}，{ITEM}基金还差一点点",
+                    "{TIME}后又是一天，{ITEM}慢慢买",
+                    "离下班 {TIME}，把 {ITEM} 列入购物车吧",
+                },
+                [QuoteScene.RepeatItem] = new[]
+                {
+                    "今天已赚回 {COUNT} 件{ITEM}，再过 {TIME} 下一件到手",
+                    "{COUNT} 件{ITEM}已经在账上，距离下班还有 {TIME}",
+                    "{TIME}后收工，今天的 {ITEM} 已经拿下 {COUNT} 件",
+                },
+                [QuoteScene.NotEnough] = new[]
+                {
+                    "再过 {TIME} 就下班了，今天的钱还能买 {CANBUY} 件{ITEM}",
+                    "{TIME}后收工，{ITEM}今天先买 {CANBUY} 件吧",
+                    "距离下班 {TIME}，{ITEM} 的预算还剩 {CANBUY} 件",
+                },
             },
-            [Tone.Savage] = new[]
+            [Tone.Savage] = new Dictionary<QuoteScene, string[]>
             {
-                "再过 {TIME}，才够买一件{ITEM}，工资涨了吗",
-                "离下班 {TIME}，你今天挣了 {EARNED}，够买 {ITEM} 吗",
-                "{TIME} 后才能下班，而 {ITEM} 是按秒计价的梦想",
-                "今日已赚 {EARNED}，按这个速度买 {ITEM} 需要再等 {TIME}",
-                "别刷手机了，还有 {TIME}，你还在为 {ITEM} 努力",
-                "上班 {TIME}，摸鱼 0 秒，这就是 {ITEM} 的代价",
-                "距离下班 {TIME}，否则你买不起下一件{ITEM}",
-                "你的 {ITEM} 基金进度：{EARNED}，距离自由还有 {TIME}",
+                [QuoteScene.FirstItem] = new[]
+                {
+                    "再过 {TIME}，才够买一件{ITEM}，工资涨了吗",
+                    "离下班 {TIME}，你今天挣了 {EARNED}，够买 {ITEM} 吗",
+                    "{TIME} 后才能下班，而 {ITEM} 是按秒计价的梦想",
+                    "别刷手机了，还有 {TIME}，你还在为 {ITEM} 努力",
+                },
+                [QuoteScene.RepeatItem] = new[]
+                {
+                    "今日已赚 {EARNED}，按这个速度买 {ITEM} 需要再等 {TIME}",
+                    "{COUNT} 件{ITEM}到手，剩下 {TIME}，你确定不多赚点？",
+                    "上班 {TIME}，摸鱼 0 秒，这就是 {COUNT} 件{ITEM} 的代价",
+                },
+                [QuoteScene.NotEnough] = new[]
+                {
+                    "再过 {TIME} 就下班了，今天的钱只能买 {CANBUY} 件{ITEM}",
+                    "{TIME} 后收工，你的 {ITEM} 基金停在 {CANBUY} 件，明天继续",
+                    "距离下班 {TIME}，连一件{ITEM} 都买不起，这就是现实",
+                },
             },
-            [Tone.Hype] = new[]
+            [Tone.Hype] = new Dictionary<QuoteScene, string[]>
             {
-                "再过 {TIME}，一件{ITEM}到手，冲！",
-                "距下班还有 {TIME}，胜利在望，{ITEM} 有着落了",
-                "今天已赚 {EARNED}！再战 {TIME} 拿下 {ITEM}",
-                "最后 {TIME}，冲刺！{ITEM} 就是今天的战利品",
-                "你已经赚到了 {EARNED}，离下班还有 {TIME}，继续冲",
-                "{TIME} 后收工，那件{ITEM} 已经是你的了",
-                "目标 {ITEM}，进度 {EARNED}，剩余 {TIME}，干就完了",
-                "时间就是金钱，每一秒都在为 {ITEM} 充值",
+                [QuoteScene.FirstItem] = new[]
+                {
+                    "再过 {TIME}，一件{ITEM}到手，冲！",
+                    "距下班还有 {TIME}，胜利在望，{ITEM} 有着落了",
+                    "最后 {TIME}，冲刺！{ITEM} 就是今天的战利品",
+                    "目标 {ITEM}，进度 {EARNED}，剩余 {TIME}，干就完了",
+                },
+                [QuoteScene.RepeatItem] = new[]
+                {
+                    "已经赚到了 {EARNED}！再战 {TIME} 拿下第 {COUNT} 件{ITEM}",
+                    "{COUNT} 件{ITEM} 已到手！还有 {TIME}，继续冲！",
+                    "目标 {ITEM}，进度 {EARNED}，剩余 {TIME}，干就完了",
+                },
+                [QuoteScene.NotEnough] = new[]
+                {
+                    "再过 {TIME} 就下班了，今天能买 {CANBUY} 件{ITEM}，收工！",
+                    "{TIME} 后收工，今天的战利品是 {CANBUY} 件{ITEM}，明天翻倍",
+                    "最后一程 {TIME}！{CANBUY} 件{ITEM} 已经到手",
+                },
             },
         };
 
         private readonly Random _rng;
+        private int _lastIndex = -1;
 
         public QuoteProvider(int? seed = null)
         {
@@ -75,19 +120,30 @@ namespace WorkEnc.Core
             }
         }
 
-        /// <summary>取一条语录并填充占位符。</summary>
-        /// <param name="tone">语气</param>
-        /// <param name="item">目标物名称</param>
-        /// <param name="timeText">时间文本，如"3小时25分"</param>
-        /// <param name="earnedText">金额文本</param>
-        public string Get(Tone tone, string item, string timeText, string earnedText)
+        /// <summary>
+        /// 取一条语录并填充占位符。同一情境下连续调用会尽量避开重复（除非池里只有一条）。
+        /// </summary>
+        public string Get(Tone tone, QuoteScene scene, string item, string timeText,
+                          string earnedText, int count = 0, string canBuyText = "0")
         {
-            var pool = Pools[tone];
-            string tpl = pool[_rng.Next(pool.Length)];
+            var pool = Pools[tone][scene];
+            int idx = _rng.Next(pool.Length);
+            if (pool.Length > 1 && idx == _lastIndex) idx = (idx + 1) % pool.Length;
+            _lastIndex = idx;
+
+            string tpl = pool[idx];
             return tpl
                 .Replace("{ITEM}", string.IsNullOrWhiteSpace(item) ? "目标" : item)
                 .Replace("{TIME}", string.IsNullOrWhiteSpace(timeText) ? "一会儿" : timeText)
-                .Replace("{EARNED}", string.IsNullOrWhiteSpace(earnedText) ? "0" : earnedText);
+                .Replace("{EARNED}", string.IsNullOrWhiteSpace(earnedText) ? "0" : earnedText)
+                .Replace("{COUNT}", count > 0 ? count.ToString() : "0")
+                .Replace("{CANBUY}", string.IsNullOrWhiteSpace(canBuyText) ? "0" : canBuyText);
+        }
+
+        /// <summary>通用取法（不区分情境），用于设置面板预览等场景。</summary>
+        public string Get(Tone tone, string item, string timeText, string earnedText)
+        {
+            return Get(tone, QuoteScene.FirstItem, item, timeText, earnedText);
         }
     }
 }
