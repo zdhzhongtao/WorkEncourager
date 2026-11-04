@@ -32,6 +32,9 @@ namespace WorkEncourager
             if (Array.IndexOf(e.Args, "--open-settings") >= 0)
                 win.ShowSettingsForDebug();
 
+            if (Array.IndexOf(e.Args, "--open-stats") >= 0)
+                win.ShowStatsForDebug();
+
             // 调试用：--shot <路径> 渲染窗口截图后退出
             int idx = Array.IndexOf(e.Args, "--shot");
             if (idx >= 0 && idx + 1 < e.Args.Length)

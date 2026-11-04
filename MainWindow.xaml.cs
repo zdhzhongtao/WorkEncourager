@@ -81,12 +81,17 @@ namespace WorkEncourager
             ImportCfgBtn.Click += (s, e) => ImportConfig();
             ExportCsvBtn.Click += (s, e) => ExportCsv();
 
+            StatsBtn.Click += (s, e) => OpenStats();
+            CloseStatsBtn.Click += (s, e) => CloseStats();
+            StatsExportCsvBtn.Click += (s, e) => ExportCsv();
+            StatsExportMonthlyBtn.Click += (s, e) => ExportMonthlyCsv();
+
             PreviewKeyDown += (s, e) =>
             {
-                if (e.Key == Key.Escape && SettingsLayer.Visibility == Visibility.Visible)
+                if (e.Key == Key.Escape)
                 {
-                    CloseSettings();
-                    e.Handled = true;
+                    if (SettingsLayer.Visibility == Visibility.Visible) { CloseSettings(); e.Handled = true; }
+                    else if (StatsLayer.Visibility == Visibility.Visible) { CloseStats(); e.Handled = true; }
                 }
             };
 
@@ -569,6 +574,29 @@ namespace WorkEncourager
             FooterHint.Foreground = MakeBrush(_theme.TextFaint);
             SettingsTitleText.Foreground = _bTextPrimary;
             SettingsSubText.Foreground = _bTextMuted;
+            StatsTitleText.Foreground = _bTextPrimary;
+            StatsSubText.Foreground = _bTextMuted;
+            StatsShell.Background = MakeBrush(_theme.SettingsBg);
+            StatsShell.BorderBrush = MakeBrush(_theme.ShellBorder);
+            StatWeekCard.Background = MakeBrush(_theme.CardBg);
+            StatWeekCard.BorderBrush = MakeBrush(_theme.CardBorder);
+            StatMonthCard.Background = MakeBrush(_theme.CardBg);
+            StatMonthCard.BorderBrush = MakeBrush(_theme.CardBorder);
+            StatYearCard.Background = MakeBrush(_theme.CardBg);
+            StatYearCard.BorderBrush = MakeBrush(_theme.CardBorder);
+            StatOvertimeCard.Background = MakeBrush(_theme.CardBg);
+            StatOvertimeCard.BorderBrush = MakeBrush(_theme.CardBorder);
+            StatDetailCard.Background = MakeBrush(_theme.CardBg);
+            StatDetailCard.BorderBrush = MakeBrush(_theme.CardBorder);
+            StatWeekHours.Foreground = _bTextPrimary;
+            StatMonthHours.Foreground = _bTextPrimary;
+            StatYearHours.Foreground = _bTextPrimary;
+            StatOvertimeHours.Foreground = _bTextPrimary;
+            StatWeekEarned.Foreground = _bAccentDark;
+            StatMonthEarned.Foreground = _bAccentDark;
+            StatYearEarned.Foreground = _bAccentDark;
+            StatOvertimeDays.Foreground = _bTextMuted;
+            StatDetailText.Foreground = _bTextSecondary;
         }
 
         private void SetTheme(string name)
@@ -911,9 +939,67 @@ namespace WorkEncourager
                 _tracker.Save(HistoryPath);
                 var path = Path.Combine(CfgDir, "工时报表-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv");
                 CsvExporter.WriteFile(path, CsvExporter.BuildWorkReport(_tracker.Records, _calendar, _cfg.Weekdays));
-                SettingsTip.Text = "工时报表已导出：" + path;
+                ShowTip(StatsLayer.Visibility == Visibility.Visible ? StatsTip : SettingsTip,
+                        "工时报表已导出：" + path);
             }
-            catch (Exception ex) { SettingsTip.Text = "导出失败：" + ex.Message; }
+            catch (Exception ex) { ShowTip(SettingsTip, "导出失败：" + ex.Message); }
+        }
+
+        private void ExportMonthlyCsv()
+        {
+            try
+            {
+                _tracker.Save(HistoryPath);
+                var path = Path.Combine(CfgDir, "月度汇总-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv");
+                CsvExporter.WriteFile(path, CsvExporter.BuildMonthlyReport(_tracker.Records, _calendar, _cfg.Weekdays));
+                ShowTip(StatsTip, "月度汇总已导出：" + path);
+            }
+            catch (Exception ex) { ShowTip(StatsTip, "导出失败：" + ex.Message); }
+        }
+
+        private static void ShowTip(TextBlock target, string text)
+        {
+            if (target != null) target.Text = text;
+        }
+
+        // ---------------- 历史统计 ----------------
+
+        private void OpenStats()
+        {
+            StatsTip.Text = "";
+            RefreshStats();
+            StatsLayer.Visibility = Visibility.Visible;
+        }
+
+        private void CloseStats() => StatsLayer.Visibility = Visibility.Collapsed;
+
+        public void ShowStatsForDebug() => OpenStats();
+
+        private void RefreshStats()
+        {
+            var analyzer = new HistoryAnalyzer(_calendar);
+            var now = DateTime.Now;
+            var s = analyzer.Analyze(_tracker.Records, now, _cfg.Weekdays);
+
+            StatWeekHours.Text = (s.Week.TotalWorkedSec / 3600.0).ToString("0.00", CultureInfo.InvariantCulture);
+            StatWeekEarned.Text = "¥" + N4(s.Week.TotalEarned);
+            StatMonthHours.Text = (s.Month.TotalWorkedSec / 3600.0).ToString("0.00", CultureInfo.InvariantCulture);
+            StatMonthEarned.Text = "¥" + N4(s.Month.TotalEarned);
+            StatYearHours.Text = (s.Year.TotalWorkedSec / 3600.0).ToString("0.00", CultureInfo.InvariantCulture);
+            StatYearEarned.Text = "¥" + N4(s.Year.TotalEarned);
+            StatOvertimeHours.Text = (s.All.TotalOvertimeSec / 3600.0).ToString("0.00", CultureInfo.InvariantCulture);
+
+            int otDays = _tracker.Records.Count(r => r.OvertimeSec > 60);
+            StatOvertimeDays.Text = otDays + " 天有加班";
+
+            var sb = new List<string>();
+            sb.Add("本月出勤 " + s.Month.DayCount + " 天 / 应出勤 " + s.MonthPayDays + " 个计薪日");
+            sb.Add("日均工时 " + (s.Month.DayCount > 0 ? (s.Month.AvgWorkedSec / 3600.0).ToString("0.00") : "0.00") + " 小时");
+            if (!string.IsNullOrEmpty(s.All.BestDayDate))
+                sb.Add("最赚的一天 " + s.All.BestDayDate + "（¥" + N4(s.All.BestDayEarned) +
+                       "，" + (s.All.BestDayWorkedSec / 3600.0).ToString("0.00") + " 小时）");
+            sb.Add("累计工作 " + (s.All.TotalWorkedSec / 3600.0).ToString("0.00") + " 小时，共 " + s.All.DayCount + " 天");
+            StatDetailText.Text = string.Join("\n", sb);
         }
 
         // ---------------- 调试截图 ----------------

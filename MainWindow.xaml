@@ -328,7 +328,8 @@
           </StackPanel>
 
           <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-            <Button x:Name="PinBtn" Style="{StaticResource IconBtn}" Content="&#xE718;" ToolTip="置顶开关" />
+            <Button x:Name="StatsBtn" Style="{StaticResource IconBtn}" Content="&#xE9D9;" ToolTip="历史统计" />
+            <Button x:Name="PinBtn" Style="{StaticResource IconBtn}" Content="&#xE718;" ToolTip="置顶开关" Margin="1,0,0,0" />
             <Button x:Name="SettingsBtn" Style="{StaticResource IconBtn}" Content="&#xE713;" ToolTip="设置" Margin="1,0,0,0" />
             <Button x:Name="CloseBtn" Style="{StaticResource IconBtn}" Content="&#xE8BB;" ToolTip="关闭" Margin="1,0,0,0" />
           </StackPanel>
@@ -584,6 +585,111 @@
         </Grid>
       </Border>
     </StackPanel>
+
+    <!-- 统计层 -->
+    <Grid x:Name="StatsLayer" Visibility="Collapsed">
+      <Border x:Name="StatsShell" CornerRadius="22" Background="#FDFEFF" BorderBrush="#E7ECF3" BorderThickness="1">
+        <Border.Effect>
+          <DropShadowEffect BlurRadius="26" ShadowDepth="0" Opacity="0.18" Color="#0F172A" />
+        </Border.Effect>
+        <Grid Margin="18,16,18,16">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <Grid Grid.Row="0">
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock x:Name="StatsTitleText" Text="历史统计" FontSize="15.5" FontWeight="Bold" Foreground="#0F172A" />
+              <TextBlock x:Name="StatsSubText" Text="基于程序运行期间记录的在场时长" FontSize="10" Foreground="#8A94A6" Margin="0,1,0,0" />
+            </StackPanel>
+            <Button x:Name="CloseStatsBtn" Style="{StaticResource IconBtn}" Content="&#xE8BB;"
+                    HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="关闭" />
+          </Grid>
+
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,10,0,0">
+            <StackPanel>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="8" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border x:Name="StatWeekCard" Style="{StaticResource StatCard}">
+                  <StackPanel>
+                    <TextBlock Text="本周" FontSize="10.5" Foreground="#8A94A6" />
+                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                      <TextBlock x:Name="StatWeekHours" Text="0.00" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A" />
+                      <TextBlock Text="小时" FontSize="10" Foreground="#8A94A6" Margin="3,0,0,0" VerticalAlignment="Bottom" />
+                    </StackPanel>
+                    <TextBlock x:Name="StatWeekEarned" FontSize="10" Foreground="#C2410C" Margin="0,4,0,0" Text="¥0.0000" />
+                  </StackPanel>
+                </Border>
+                <Border x:Name="StatMonthCard" Grid.Column="2" Style="{StaticResource StatCard}">
+                  <StackPanel>
+                    <TextBlock Text="本月" FontSize="10.5" Foreground="#8A94A6" />
+                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                      <TextBlock x:Name="StatMonthHours" Text="0.00" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A" />
+                      <TextBlock Text="小时" FontSize="10" Foreground="#8A94A6" Margin="3,0,0,0" VerticalAlignment="Bottom" />
+                    </StackPanel>
+                    <TextBlock x:Name="StatMonthEarned" FontSize="10" Foreground="#C2410C" Margin="0,4,0,0" Text="¥0.0000" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+
+              <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="8" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border x:Name="StatYearCard" Style="{StaticResource StatCard}">
+                  <StackPanel>
+                    <TextBlock Text="本年" FontSize="10.5" Foreground="#8A94A6" />
+                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                      <TextBlock x:Name="StatYearHours" Text="0.00" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A" />
+                      <TextBlock Text="小时" FontSize="10" Foreground="#8A94A6" Margin="3,0,0,0" VerticalAlignment="Bottom" />
+                    </StackPanel>
+                    <TextBlock x:Name="StatYearEarned" FontSize="10" Foreground="#C2410C" Margin="0,4,0,0" Text="¥0.0000" />
+                  </StackPanel>
+                </Border>
+                <Border x:Name="StatOvertimeCard" Grid.Column="2" Style="{StaticResource StatCard}">
+                  <StackPanel>
+                    <TextBlock Text="累计加班" FontSize="10.5" Foreground="#8A94A6" />
+                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                      <TextBlock x:Name="StatOvertimeHours" Text="0.00" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A" />
+                      <TextBlock Text="小时" FontSize="10" Foreground="#8A94A6" Margin="3,0,0,0" VerticalAlignment="Bottom" />
+                    </StackPanel>
+                    <TextBlock x:Name="StatOvertimeDays" FontSize="10" Foreground="#8A94A6" Margin="0,4,0,0" Text="0 天有加班" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+
+              <Border x:Name="StatDetailCard" Style="{StaticResource StatCard}" Margin="0,8,0,0">
+                <StackPanel>
+                  <TextBlock Text="明细" FontSize="10.5" Foreground="#8A94A6" />
+                  <TextBlock x:Name="StatDetailText" Margin="0,5,0,0" FontSize="11.5" FontWeight="SemiBold"
+                             Foreground="#475467" TextWrapping="Wrap" LineHeight="18" Text="—" />
+                </StackPanel>
+              </Border>
+
+              <TextBlock Text="数据导出" Style="{StaticResource FieldLabel}" Margin="2,14,0,5" />
+              <StackPanel Orientation="Horizontal">
+                <Button x:Name="StatsExportCsvBtn" Style="{StaticResource GhostBtn}" Content="导出工时 CSV" Width="102" Height="32" />
+                <Button x:Name="StatsExportMonthlyBtn" Style="{StaticResource GhostBtn}" Content="导出月度汇总" Width="102" Height="32" Margin="6,0,0,0" />
+              </StackPanel>
+              <TextBlock FontSize="9.5" Foreground="#A5AEBD" Margin="2,6,0,0" TextWrapping="Wrap"
+                         Text="CSV 保存在 %APPDATA%\WorkEncourager\，UTF-8 BOM 编码，Excel 直接打开。" />
+            </StackPanel>
+          </ScrollViewer>
+
+          <StackPanel Grid.Row="2" Margin="0,12,0,0">
+            <TextBlock x:Name="StatsTip" FontSize="10" Foreground="#EF4444" Margin="0,0,0,0" Text="" TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+      </Border>
+    </Grid>
 
     <!-- 设置层 -->
     <Grid x:Name="SettingsLayer" Visibility="Collapsed">
