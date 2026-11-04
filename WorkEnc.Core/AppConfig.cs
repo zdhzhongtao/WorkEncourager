@@ -1,0 +1,76 @@
+using System;
+using System.Text.Json.Serialization;
+
+namespace WorkEnc.Core
+{
+    /// <summary>应用配置。可序列化为 settings.json。</summary>
+    public class AppConfig
+    {
+        /// <summary>月薪（元）。</summary>
+        public double? MonthlySalary { get; set; }
+
+        /// <summary>上班时间 HH:mm。</summary>
+        public string Start { get; set; } = "09:00";
+
+        /// <summary>下班时间 HH:mm。</summary>
+        public string End { get; set; } = "18:00";
+
+        /// <summary>午休等休息时段，格式 "12:00-13:00"。</summary>
+        public string[] Breaks { get; set; } = Array.Empty<string>();
+
+        /// <summary>目标物单价（元/件）。</summary>
+        public double Shirt { get; set; } = 69;
+
+        /// <summary>目标物名称，如"T恤""奶茶""游戏皮肤"。</summary>
+        public string GoalItem { get; set; } = "T恤";
+
+        /// <summary>每月发薪日（1-31）。</summary>
+        public int PayDay { get; set; } = 10;
+
+        /// <summary>计薪星期（0=周日）。</summary>
+        public int[] Weekdays { get; set; } = { 1, 2, 3, 4, 5 };
+
+        /// <summary>额外放假日（公司调休等），yyyy-MM-dd。</summary>
+        public string[] ExtraHolidays { get; set; } = Array.Empty<string>();
+
+        /// <summary>额外调休上班日，yyyy-MM-dd。</summary>
+        public string[] ExtraWorkdays { get; set; } = Array.Empty<string>();
+
+        /// <summary>鼓励语气：chill（佛系）/ savage（毒舌）/ hype（热血）。</summary>
+        public string Tone { get; set; } = "chill";
+
+        /// <summary>主题：light / dark。</summary>
+        public string Theme { get; set; } = "light";
+
+        /// <summary>极简模式：只显示核心数字。</summary>
+        public bool CompactMode { get; set; }
+
+        /// <summary>鼠标穿透（点击穿透窗口）。</summary>
+        public bool ClickThrough { get; set; }
+
+        /// <summary>窗口位置与状态。</summary>
+        public double? WindowLeft { get; set; }
+        public double? WindowTop { get; set; }
+        public double? WindowWidth { get; set; }
+        public double? WindowHeight { get; set; }
+        public double? Opacity { get; set; }
+        public bool Topmost { get; set; } = true;
+
+        /// <summary>暂停状态持久化：是否处于暂停。</summary>
+        public bool Paused { get; set; }
+        /// <summary>累计暂停秒数（当日）。</summary>
+        public double PausedAccumSec { get; set; }
+        /// <summary>暂停起始时刻 ISO 字符串，用于重启后接续。</summary>
+        public string PausedAt { get; set; } = "";
+        /// <summary>暂停累计所属日期 yyyy-MM-dd。</summary>
+        public string PausedDate { get; set; } = "";
+        /// <summary>上一次运行日期，用于跨天重置。</summary>
+        public string LastRunDate { get; set; } = "";
+
+        // 旧版配置字段（只读不写，用于自动迁移）
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public double? salary { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public double? hours { get; set; }
+    }
+}

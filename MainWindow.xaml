@@ -251,12 +251,56 @@
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Padding" Value="12,10,12,10" />
     </Style>
+
+    <!-- 语气/主题切换按钮 -->
+    <Style x:Key="ToggleIdle" TargetType="Button">
+      <Setter Property="Height" Value="30" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#8A94A6" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="b" CornerRadius="9" Background="#FBFCFE" BorderBrush="#E9EDF2" BorderThickness="1">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="b" Property="BorderBrush" Value="#D8DFE9" />
+                <Setter Property="Foreground" Value="#0F172A" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="ToggleActive" TargetType="Button" BasedOn="{StaticResource ToggleIdle}">
+      <Setter Property="Foreground" Value="#C2410C" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="b" CornerRadius="9" Background="#FFF3E6" BorderBrush="#FDBA74" BorderThickness="1">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="b" Property="Background" Value="#FFE8D5" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </Window.Resources>
 
   <Grid x:Name="RootGrid" Margin="16">
     <!-- Viewbox：窗口放大缩小时内容等比自适应 -->
     <Viewbox Stretch="Uniform" StretchDirection="Both">
      <Grid Width="424">
+    <!-- 完整面板 -->
+    <StackPanel x:Name="FullPanel">
     <!-- 主面板 -->
     <Border x:Name="Shell" CornerRadius="22" Background="#EDFFFFFF" BorderBrush="#E7ECF3" BorderThickness="1">
       <Border.Effect>
@@ -279,8 +323,8 @@
           </Border>
 
           <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-            <TextBlock Text="上班鼓励器" FontSize="15.5" FontWeight="Bold" Foreground="#0F172A" />
-            <TextBlock Text="每一秒都在进账" FontSize="10" Foreground="#8A94A6" Margin="0,1,0,0" />
+            <TextBlock x:Name="TitleText" Text="上班鼓励器" FontSize="15.5" FontWeight="Bold" Foreground="#0F172A" />
+            <TextBlock x:Name="SubTitleText" Text="每一秒都在进账" FontSize="10" Foreground="#8A94A6" Margin="0,1,0,0" />
           </StackPanel>
 
           <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
@@ -307,7 +351,7 @@
 
         <!-- 金额区 -->
         <Grid Margin="0,12,0,0">
-          <TextBlock Text="今日已赚" FontSize="11" Foreground="#8A94A6" VerticalAlignment="Center" />
+          <TextBlock x:Name="AmountLabel" Text="今日已赚" FontSize="11" Foreground="#8A94A6" VerticalAlignment="Center" />
           <Border x:Name="CountChip" HorizontalAlignment="Right" CornerRadius="9" Background="#FFF7ED"
                   BorderBrush="#FED7AA" BorderThickness="1" Padding="8,3,9,3">
             <TextBlock x:Name="CountText" FontSize="10.5" FontWeight="SemiBold" Foreground="#B45309"
@@ -328,14 +372,14 @@
           </TextBlock>
         </StackPanel>
 
-        <Border Background="#FBFCFE" BorderBrush="#EFF2F7" BorderThickness="1" CornerRadius="10" Padding="10,7" Margin="0,8,0,0">
+        <Border x:Name="SpeedCard" Background="#FBFCFE" BorderBrush="#EFF2F7" BorderThickness="1" CornerRadius="10" Padding="10,7" Margin="0,8,0,0">
           <StackPanel>
             <Grid>
-              <TextBlock Text="当前赚钱速度" FontSize="11" Foreground="#8A94A6" VerticalAlignment="Center" />
+              <TextBlock x:Name="SpeedLabel" Text="当前赚钱速度" FontSize="11" Foreground="#8A94A6" VerticalAlignment="Center" />
               <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                 <TextBlock x:Name="RateText" Text="0.0000" FontSize="13" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A"
                            Typography.NumeralAlignment="Tabular" />
-                <TextBlock Text="元/秒" FontSize="10.5" Foreground="#8A94A6" Margin="4,0,0,0" VerticalAlignment="Center" />
+                <TextBlock x:Name="UnitText" Text="元/秒" FontSize="10.5" Foreground="#8A94A6" Margin="4,0,0,0" VerticalAlignment="Center" />
               </StackPanel>
             </Grid>
             <TextBlock x:Name="DailyTipText" Margin="0,4,0,0" FontSize="10" Foreground="#A5AEBD"
@@ -344,7 +388,7 @@
         </Border>
 
         <!-- 鼓励语 -->
-        <Border Background="#FFF8F1" BorderBrush="#FBE3C7" BorderThickness="1" CornerRadius="12" Padding="11,9" Margin="0,10,0,0">
+        <Border x:Name="EncCard" Background="#FFF8F1" BorderBrush="#FBE3C7" BorderThickness="1" CornerRadius="12" Padding="11,9" Margin="0,10,0,0">
           <Grid>
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="Auto" />
@@ -367,11 +411,11 @@
           <Button x:Name="ResetBtn" Grid.Column="1" Style="{StaticResource GhostBtn}" Content="重置" Width="66" Margin="8,0,0,0" />
         </Grid>
 
-        <Border Height="1" Background="#F1F4F8" Margin="0,14,0,12" />
+        <Border x:Name="Divider" Height="1" Background="#F1F4F8" Margin="0,14,0,12" />
 
         <!-- 进度 -->
         <Grid>
-          <TextBlock Text="今日工时进度" FontSize="11.5" FontWeight="SemiBold" Foreground="#475467" VerticalAlignment="Center" />
+          <TextBlock x:Name="ProgressLabel" Text="今日工时进度" FontSize="11.5" FontWeight="SemiBold" Foreground="#475467" VerticalAlignment="Center" />
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
             <TextBlock x:Name="PctText" Text="0.0" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="#F97316" />
             <TextBlock Text="%" FontSize="10.5" FontWeight="SemiBold" Foreground="#F59E0B" VerticalAlignment="Bottom" Margin="1,0,0,2" />
@@ -392,14 +436,14 @@
 
         <Grid Margin="0,8,0,0">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock Text="已工作" FontSize="11" Foreground="#8A94A6" />
+            <TextBlock x:Name="WorkedLabel" Text="已工作" FontSize="11" Foreground="#8A94A6" />
             <TextBlock x:Name="WorkedText" Text="0.00" FontSize="11.5" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A" Margin="4,0,0,0" />
-            <TextBlock Text="/" FontSize="11" Foreground="#8A94A6" Margin="4,0,0,0" />
+            <TextBlock x:Name="TotalLabel" Text="/" FontSize="11" Foreground="#8A94A6" Margin="4,0,0,0" />
             <TextBlock x:Name="TotalText" Text="8.0" FontSize="11.5" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A" Margin="4,0,0,0" />
             <TextBlock Text="小时" FontSize="11" Foreground="#8A94A6" Margin="3,0,0,0" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-            <TextBlock Text="剩余" FontSize="11" Foreground="#8A94A6" />
+            <TextBlock x:Name="RemainLabel" Text="剩余" FontSize="11" Foreground="#8A94A6" />
             <TextBlock x:Name="RemainText" Text="8.00" FontSize="11.5" FontWeight="Bold" FontFamily="Consolas" Foreground="#475467" Margin="4,0,0,0" />
             <TextBlock Text="小时" FontSize="11" Foreground="#8A94A6" Margin="3,0,0,0" />
           </StackPanel>
@@ -416,9 +460,15 @@
             <ColumnDefinition Width="*" />
           </Grid.ColumnDefinitions>
 
-          <Border Grid.Row="0" Grid.ColumnSpan="2" Style="{StaticResource StatCard}">
+          <Border x:Name="MonthCard" Grid.Row="0" Grid.ColumnSpan="2" Style="{StaticResource StatCard}">
             <StackPanel>
-              <TextBlock x:Name="MonthLabel" Text="本月累计" FontSize="10.5" Foreground="#8A94A6" />
+              <Grid>
+                <TextBlock x:Name="MonthLabel" Text="本月累计" FontSize="10.5" Foreground="#8A94A6" VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                  <TextBlock x:Name="MonthPctText" Text="0.0" FontSize="12" FontWeight="Bold" FontFamily="Consolas" Foreground="#F97316" />
+                  <TextBlock Text="% 月薪" FontSize="9.5" Foreground="#A5AEBD" Margin="2,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+              </Grid>
               <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                 <TextBlock Text="¥" FontSize="12" FontWeight="Bold" Foreground="#F97316" VerticalAlignment="Bottom" Margin="0,0,4,2" />
                 <TextBlock x:Name="MonthText" Text="0.0000" FontSize="19" FontWeight="Bold" FontFamily="Consolas"
@@ -431,26 +481,36 @@
                   </TextBlock.Foreground>
                 </TextBlock>
               </StackPanel>
-              <TextBlock Text="已过的日子按满勤补算，本月只计已赚，不含亏损" FontSize="9.5" Foreground="#A5AEBD"
+              <Border x:Name="MonthBarHost" Height="6" CornerRadius="3" Background="#F1F4F8" Margin="0,7,0,0">
+                <Border x:Name="MonthBarFill" Width="0" CornerRadius="3" HorizontalAlignment="Left">
+                  <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                      <GradientStop Color="#FB923C" Offset="0" />
+                      <GradientStop Color="#F43F5E" Offset="1" />
+                    </LinearGradientBrush>
+                  </Border.Background>
+                </Border>
+              </Border>
+              <TextBlock x:Name="MonthNote" FontSize="9.5" Foreground="#A5AEBD"
                          TextWrapping="Wrap" Margin="0,5,0,0" />
             </StackPanel>
           </Border>
 
-          <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource StatCard}" Margin="0,8,4,0">
+          <Border x:Name="HourlyCard" Grid.Row="1" Grid.Column="0" Style="{StaticResource StatCard}" Margin="0,8,4,0">
             <StackPanel>
-              <TextBlock Text="时薪" FontSize="10.5" Foreground="#8A94A6" />
+              <TextBlock x:Name="HourlyLabel" Text="时薪" FontSize="10.5" Foreground="#8A94A6" />
               <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                 <TextBlock Text="¥" FontSize="11" FontWeight="Bold" Foreground="#8A94A6" VerticalAlignment="Bottom" Margin="0,0,3,1" />
                 <TextBlock x:Name="HourlyText" Text="0.0000" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A"
                            Typography.NumeralAlignment="Tabular" />
               </StackPanel>
-              <TextBlock x:Name="HourlyNote" FontSize="9.5" Foreground="#A5AEBD" Margin="0,4,0,0" Text="日薪 ÷ 打卡工时" />
+              <TextBlock x:Name="HourlyNote" FontSize="9.5" Foreground="#A5AEBD" Margin="0,4,0,0" Text="日薪 ÷ 计薪工时" />
             </StackPanel>
           </Border>
 
-          <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource StatCard}" Margin="4,8,0,0">
+          <Border x:Name="FullCard" Grid.Row="1" Grid.Column="1" Style="{StaticResource StatCard}" Margin="4,8,0,0">
             <StackPanel>
-              <TextBlock Text="今日满勤可得" FontSize="10.5" Foreground="#8A94A6" />
+              <TextBlock x:Name="FullLabel" Text="今日满勤可得" FontSize="10.5" Foreground="#8A94A6" />
               <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                 <TextBlock Text="¥" FontSize="11" FontWeight="Bold" Foreground="#8A94A6" VerticalAlignment="Bottom" Margin="0,0,3,1" />
                 <TextBlock x:Name="FullText" Text="0.0000" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A"
@@ -461,14 +521,73 @@
           </Border>
         </Grid>
 
-        <TextBlock Text="拖动任意空白处移动窗口 · 设置自动保存" FontSize="9.5" Foreground="#B4BCC9"
+        <!-- 发薪日 + 实际在场时长 -->
+        <Grid Margin="0,8,0,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+
+          <Border x:Name="PayDayCard" Grid.Column="0" Style="{StaticResource StatCard}">
+            <StackPanel>
+              <TextBlock x:Name="PayDayText" Text="距发薪 -- 天" FontSize="12.5" FontWeight="Bold" Foreground="#C2410C" />
+              <TextBlock x:Name="PayDaySubText" FontSize="9.5" Foreground="#8A94A6" Margin="0,3,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border x:Name="ActualWorkedCard" Grid.Column="2" Style="{StaticResource StatCard}">
+            <StackPanel>
+              <TextBlock x:Name="ActualWorkedLabel" Text="今日实际在场" FontSize="10.5" Foreground="#8A94A6" />
+              <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                <TextBlock x:Name="ActualWorkedText" Text="0.00" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A"
+                           Typography.NumeralAlignment="Tabular" />
+                <TextBlock Text="小时" FontSize="10" Foreground="#8A94A6" Margin="3,0,0,0" VerticalAlignment="Bottom" />
+              </StackPanel>
+              <TextBlock FontSize="9.5" Foreground="#A5AEBD" Margin="0,4,0,0" Text="程序开着即在岗，用于 CSV 报表" />
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <TextBlock x:Name="FooterHint" Text="拖动任意空白处移动窗口 · 设置自动保存" FontSize="9.5" Foreground="#B4BCC9"
                    HorizontalAlignment="Center" Margin="0,12,0,0" />
       </StackPanel>
     </Border>
+    </StackPanel>
+
+    <!-- 极简模式面板 -->
+    <StackPanel x:Name="CompactPanel" Visibility="Collapsed">
+      <Border x:Name="CompactShell" CornerRadius="20" Background="#EDFFFFFF" BorderBrush="#E7ECF3" BorderThickness="1">
+        <Border.Effect>
+          <DropShadowEffect BlurRadius="22" ShadowDepth="0" Opacity="0.18" Color="#0F172A" />
+        </Border.Effect>
+        <Grid Margin="16,14,16,14">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <Grid>
+            <TextBlock x:Name="CompactTitle" Text="上班鼓励器" FontSize="11.5" FontWeight="Bold" Foreground="#0F172A" />
+            <TextBlock x:Name="CompactCount" HorizontalAlignment="Right" FontSize="10" FontFamily="Consolas"
+                       FontWeight="SemiBold" Foreground="#C2410C" Text="距下班 00:00:00" />
+          </Grid>
+
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
+            <TextBlock Text="¥" FontSize="15" FontWeight="Bold" Foreground="#F97316" VerticalAlignment="Bottom" Margin="0,0,4,3" />
+            <TextBlock x:Name="CompactEarned" Text="0.0000" FontSize="27" FontWeight="Bold" FontFamily="Consolas"
+                       Typography.NumeralAlignment="Tabular" Foreground="#F97316" VerticalAlignment="Bottom" />
+          </StackPanel>
+
+          <TextBlock x:Name="CompactStatus" Grid.Row="2" FontSize="10" Foreground="#8A94A6" Margin="0,4,0,0" Text="上班中" />
+        </Grid>
+      </Border>
+    </StackPanel>
 
     <!-- 设置层 -->
     <Grid x:Name="SettingsLayer" Visibility="Collapsed">
-      <Border CornerRadius="22" Background="#FDFEFF" BorderBrush="#E7ECF3" BorderThickness="1">
+      <Border x:Name="SettingsShell" CornerRadius="22" Background="#FDFEFF" BorderBrush="#E7ECF3" BorderThickness="1">
         <Border.Effect>
           <DropShadowEffect BlurRadius="26" ShadowDepth="0" Opacity="0.18" Color="#0F172A" />
         </Border.Effect>
@@ -481,8 +600,8 @@
 
           <Grid Grid.Row="0">
             <StackPanel VerticalAlignment="Center">
-              <TextBlock Text="设置" FontSize="15.5" FontWeight="Bold" Foreground="#0F172A" />
-              <TextBlock Text="数据只保存在本机" FontSize="10" Foreground="#8A94A6" Margin="0,1,0,0" />
+              <TextBlock x:Name="SettingsTitleText" Text="设置" FontSize="15.5" FontWeight="Bold" Foreground="#0F172A" />
+              <TextBlock x:Name="SettingsSubText" Text="数据只保存在本机" FontSize="10" Foreground="#8A94A6" Margin="0,1,0,0" />
             </StackPanel>
             <Button x:Name="CloseSettingsBtn" Style="{StaticResource IconBtn}" Content="&#xE8BB;"
                     HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="关闭" />
@@ -511,8 +630,58 @@
               <TextBox x:Name="InEnd" Style="{StaticResource Input}" />
             </StackPanel>
           </Grid>
+
+          <TextBlock Text="午休时段（可留空，格式 12:00-13:00）" Style="{StaticResource FieldLabel}" Margin="2,10,0,5" />
+          <TextBox x:Name="InBreak" Style="{StaticResource Input}" />
           <TextBlock x:Name="AutoHoursText" FontSize="10" Foreground="#475467" Margin="2,7,0,0"
-                     Text="每日工时 9.0 小时（09:00 → 18:00）" />
+                     Text="每日计薪工时 9.0 小时（09:00 → 18:00，无午休）" />
+
+          <Grid Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="12" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+              <TextBlock Text="目标物名称" Style="{StaticResource FieldLabel}" />
+              <TextBox x:Name="InGoalItem" Style="{StaticResource Input}" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+              <TextBlock Text="每月发薪日" Style="{StaticResource FieldLabel}" />
+              <TextBox x:Name="InPayDay" Style="{StaticResource Input}" />
+            </StackPanel>
+          </Grid>
+
+          <TextBlock Text="目标物单价（元 / 件）" Style="{StaticResource FieldLabel}" Margin="2,10,0,5" />
+          <TextBox x:Name="InShirt" Style="{StaticResource Input}" />
+
+          <TextBlock Text="本月计薪日" Style="{StaticResource FieldLabel}" Margin="2,12,0,5" />
+          <StackPanel Orientation="Horizontal">
+            <ToggleButton x:Name="Dw1" Style="{StaticResource DowTgl}" Content="一" />
+            <ToggleButton x:Name="Dw2" Style="{StaticResource DowTgl}" Content="二" />
+            <ToggleButton x:Name="Dw3" Style="{StaticResource DowTgl}" Content="三" />
+            <ToggleButton x:Name="Dw4" Style="{StaticResource DowTgl}" Content="四" />
+            <ToggleButton x:Name="Dw5" Style="{StaticResource DowTgl}" Content="五" />
+            <ToggleButton x:Name="Dw6" Style="{StaticResource DowTgl}" Content="六" />
+            <ToggleButton x:Name="Dw0" Style="{StaticResource DowTgl}" Content="日" />
+          </StackPanel>
+          <TextBlock FontSize="9.5" Foreground="#A5AEBD" Margin="2,6,0,0"
+                     Text="已内置 2026 年法定节假日与调休安排（国办发明电〔2025〕7号），本月累计会自动扣除假日、加上调休上班日。" />
+
+          <TextBlock Text="鼓励语气" Style="{StaticResource FieldLabel}" Margin="2,12,0,5" />
+          <StackPanel Orientation="Horizontal">
+            <Button x:Name="ToneChillBtn" Style="{StaticResource ToggleIdle}" Content="佛系" Width="62" />
+            <Button x:Name="ToneSavageBtn" Style="{StaticResource ToggleIdle}" Content="毒舌" Width="62" Margin="6,0,0,0" />
+            <Button x:Name="ToneHypeBtn" Style="{StaticResource ToggleIdle}" Content="热血" Width="62" Margin="6,0,0,0" />
+          </StackPanel>
+
+          <TextBlock Text="界面主题" Style="{StaticResource FieldLabel}" Margin="2,12,0,5" />
+          <StackPanel Orientation="Horizontal">
+            <Button x:Name="ThemeLightBtn" Style="{StaticResource ToggleIdle}" Content="浅色" Width="62" />
+            <Button x:Name="ThemeDarkBtn" Style="{StaticResource ToggleIdle}" Content="深色" Width="62" Margin="6,0,0,0" />
+            <Button x:Name="CompactToggleBtn" Style="{StaticResource ToggleIdle}" Content="极简模式" Width="80" Margin="6,0,0,0" />
+            <Button x:Name="ClickThroughToggleBtn" Style="{StaticResource ToggleIdle}" Content="鼠标穿透" Width="80" Margin="6,0,0,0" />
+          </StackPanel>
 
           <Grid Margin="0,12,0,0">
             <Grid.ColumnDefinitions>
@@ -545,20 +714,6 @@
             </StackPanel>
           </Grid>
 
-          <TextBlock Text="鼓励物单价（元 / 件T恤）" Style="{StaticResource FieldLabel}" Margin="2,10,0,5" />
-          <TextBox x:Name="InShirt" Style="{StaticResource Input}" />
-
-          <TextBlock Text="本月计薪日" Style="{StaticResource FieldLabel}" Margin="2,12,0,5" />
-          <StackPanel Orientation="Horizontal">
-            <ToggleButton x:Name="Dw1" Style="{StaticResource DowTgl}" Content="一" />
-            <ToggleButton x:Name="Dw2" Style="{StaticResource DowTgl}" Content="二" />
-            <ToggleButton x:Name="Dw3" Style="{StaticResource DowTgl}" Content="三" />
-            <ToggleButton x:Name="Dw4" Style="{StaticResource DowTgl}" Content="四" />
-            <ToggleButton x:Name="Dw5" Style="{StaticResource DowTgl}" Content="五" />
-            <ToggleButton x:Name="Dw6" Style="{StaticResource DowTgl}" Content="六" />
-            <ToggleButton x:Name="Dw0" Style="{StaticResource DowTgl}" Content="日" />
-          </StackPanel>
-
           <Border Margin="0,14,0,0" Background="#FBFCFE"
                   BorderBrush="#EFF2F7" BorderThickness="1" CornerRadius="12" Padding="12,10">
             <StackPanel>
@@ -568,9 +723,18 @@
             </StackPanel>
           </Border>
 
+          <TextBlock Text="数据导出与导入" Style="{StaticResource FieldLabel}" Margin="2,14,0,5" />
+          <StackPanel Orientation="Horizontal">
+            <Button x:Name="ExportCsvBtn" Style="{StaticResource GhostBtn}" Content="导出工时 CSV" Width="102" Height="32" />
+            <Button x:Name="ExportCfgBtn" Style="{StaticResource GhostBtn}" Content="导出配置" Width="82" Height="32" Margin="6,0,0,0" />
+            <Button x:Name="ImportCfgBtn" Style="{StaticResource GhostBtn}" Content="导入配置" Width="82" Height="32" Margin="6,0,0,0" />
+          </StackPanel>
+          <TextBlock FontSize="9.5" Foreground="#A5AEBD" Margin="2,6,0,0" TextWrapping="Wrap"
+                     Text="CSV 按天记录实际在场时长与当日已赚，可直接用 Excel 打开做工时报表。" />
+
           <TextBlock TextWrapping="Wrap" Margin="2,10,2,0"
                      FontSize="10" Foreground="#A5AEBD" LineHeight="17"
-                     Text="提示：透明度与窗体大小随时可调；拖动窗体边框可自由缩放，内容会等比适配。调整后立即生效。" />
+                     Text="提示：程序运行且处于上班时段内即视为在岗，实际在场时长会累计进 CSV 报表；午休时段不计入计薪工时。" />
 
           </StackPanel>
           </ScrollViewer>
@@ -584,7 +748,7 @@
               </StackPanel>
             </Grid>
 
-            <TextBlock x:Name="SettingsTip" FontSize="10" Foreground="#EF4444" Margin="2,8,0,0" Text="" />
+            <TextBlock x:Name="SettingsTip" FontSize="10" Foreground="#EF4444" Margin="2,8,0,0" Text="" TextWrapping="Wrap" />
           </StackPanel>
         </Grid>
       </Border>
