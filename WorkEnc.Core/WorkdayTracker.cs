@@ -48,6 +48,22 @@ namespace WorkEnc.Core
     {
         private readonly Dictionary<string, DayRecord> _records = new(StringComparer.Ordinal);
 
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            WriteIndented = true,
+            PropertyNameCaseInsensitive = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        /// <summary>
+        /// 两次 tick 之间允许的最大间隔（秒）。超过就认为机器睡过 / 时钟跳变，
+        /// 只把最后这么多秒计入工作，而不是把整段休眠算成干活。
+        ///
+        /// 默认 0 = 关闭（保持纯计算语义）；应用层会把它设为 90 秒来开启保护。
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public double MaxGapSeconds { get; set; }
+
         /// <summary>最近一次 tick 的真实时刻（用于计算增量）。</summary>
         private DateTime _lastTick = DateTime.MinValue;
 
@@ -106,6 +122,15 @@ namespace WorkEnc.Core
                 _lastTick = now;
                 return 0;
             }
+
+            // 睡眠 / 休眠 / 系统时间跳变：不允许把整段空档算成工时。
+            // 只认最后 MaxGapSeconds 秒，其余丢弃（与"关机不追补"的语义保持一致）。
+            double gap = (now - from).TotalSeconds;
+            if (MaxGapSeconds > 0 && gap > MaxGapSeconds)
+            {
+                from = now.AddSeconds(-MaxGapSeconds);
+            }
+
             _lastTick = now;
 
             if (paused || provider == null) return 0;
@@ -179,36 +204,20 @@ namespace WorkEnc.Core
         {
             try
             {
-                var dir = Path.GetDirectoryName(path);
-                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                var json = JsonSerializer.Serialize(this, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-                });
-                File.WriteAllText(path, json);
+                AtomicFile.WriteJson(path, this, JsonOptions);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                AtomicFile.ErrorHandler?.Invoke("工时记录保存失败: " + path, ex);
+            }
         }
 
         public static WorkdayTracker Load(string path)
         {
-            var t = new WorkdayTracker();
-            try
-            {
-                if (!File.Exists(path)) return t;
-                var json = File.ReadAllText(path);
-                var loaded = JsonSerializer.Deserialize<WorkdayTracker>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-                if (loaded == null) return t;
-                t._records.Clear();
-                foreach (var kv in loaded._records) t._records[kv.Key] = kv.Value;
-                // _lastTick 不恢复，重启后从"此刻"开始计时，不追补关机期间的空档
-                t._lastTick = DateTime.MinValue;
-            }
-            catch { }
+            var t = AtomicFile.ReadJson<WorkdayTracker>(path, JsonOptions);
+            if (t == null) return new WorkdayTracker();
+            // _lastTick 不恢复，重启后从"此刻"开始计时，不追补关机期间的空档
+            t._lastTick = DateTime.MinValue;
             return t;
         }
     }

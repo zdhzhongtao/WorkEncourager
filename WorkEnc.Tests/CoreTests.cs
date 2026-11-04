@@ -183,6 +183,20 @@ namespace WorkEnc.Tests
         }
 
         [Fact]
+        public void Advance_LongGap_ClampsToMaxGap()
+        {
+            var t = new WorkdayTracker { MaxGapSeconds = 90 };
+            var day = new DateTime(2026, 11, 4);
+            var p = Provider("09:00", "18:00");
+
+            t.Advance(day.AddHours(9), p, false);
+            // 模拟休眠 3 小时：只应记最后 90 秒，而不是整段
+            double d = t.Advance(day.AddHours(12), p, false);
+
+            Assert.Equal(90, d, 1);
+        }
+
+        [Fact]
         public void Advance_OnlyCountsOverlapWithSegments()
         {
             var t = new WorkdayTracker();

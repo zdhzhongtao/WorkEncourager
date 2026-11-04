@@ -19,35 +19,25 @@ namespace WorkEnc.Core
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
         };
 
-        /// <summary>读取配置；不存在或损坏时返回默认配置。</summary>
+        /// <summary>读取配置；不存在或损坏时返回默认配置（损坏文件会被隔离，并尝试从 .bak 恢复）。</summary>
         public static AppConfig Load(string path)
         {
-            AppConfig cfg;
-            try
-            {
-                if (File.Exists(path))
-                {
-                    var json = File.ReadAllText(path);
-                    cfg = JsonSerializer.Deserialize<AppConfig>(json, Options) ?? new AppConfig();
-                }
-                else cfg = new AppConfig();
-            }
-            catch { cfg = new AppConfig(); }
-
+            var cfg = AtomicFile.ReadJson<AppConfig>(path, Options) ?? new AppConfig();
             Migrate(cfg);
             return cfg;
         }
 
-        /// <summary>保存配置。</summary>
+        /// <summary>保存配置（临时文件 + 原子替换，并保留 .bak 备份）。</summary>
         public static void Save(string path, AppConfig cfg)
         {
             try
             {
-                var dir = Path.GetDirectoryName(path);
-                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                File.WriteAllText(path, JsonSerializer.Serialize(cfg, Options));
+                AtomicFile.WriteJson(path, cfg, Options);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                AtomicFile.ErrorHandler?.Invoke("配置保存失败: " + path, ex);
+            }
         }
 
         /// <summary>旧版配置迁移 + 合法性兜底。</summary>

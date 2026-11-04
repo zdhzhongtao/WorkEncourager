@@ -18,13 +18,18 @@ namespace WorkEncourager
     {
         private static readonly string CfgDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WorkEncourager");
-        /// <summary>配置文件路径。调试模式下走独立子目录，不污染用户真实数据。</summary>
-        private readonly string CfgPath =
-            Path.Combine(App.DebugMode ? Path.Combine(CfgDir, "debug") : CfgDir, "settings.json");
+
+        /// <summary>
+        /// 数据目录。调试模式下走独立子目录，不污染用户真实数据。
+        /// 配置、历史、导出的 CSV、日志全部落在这里。
+        /// </summary>
+        private static readonly string DataDir = App.DebugMode ? Path.Combine(CfgDir, "debug") : CfgDir;
+
+        /// <summary>配置文件路径。</summary>
+        private readonly string CfgPath = Path.Combine(DataDir, "settings.json");
 
         /// <summary>工时历史路径。</summary>
-        private readonly string HistoryPath =
-            Path.Combine(App.DebugMode ? Path.Combine(CfgDir, "debug") : CfgDir, "history.json");
+        private readonly string HistoryPath = Path.Combine(DataDir, "history.json");
 
         private const double DefaultWidth = 432;
         private const double DefaultHeight = 388;
@@ -60,6 +65,16 @@ namespace WorkEncourager
 
         private readonly string[] _weekNames = { "星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六" };
 
+        // ---------------- 托盘常驻 ----------------
+
+        private TrayIcon _tray;
+        /// <summary>true 表示真的退出；false 时点关闭只是隐藏到托盘。</summary>
+        private bool _reallyExit;
+        private bool _hiddenOnce;
+        private DateTime _lastHistorySave = DateTime.Now;
+        private DateTime _trayTipAt = DateTime.MinValue;
+        private int _showInstanceMsg;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -67,7 +82,9 @@ namespace WorkEncourager
             ApplyTheme();
             ApplyTopmost();
             ApplyOpacity();
-            ApplyClickThrough();
+            // 注意：鼠标穿透不能在构造函数里设——此时窗口句柄还没创建，
+            // SetWindowLong 会拿不到 HWND，配置里的穿透状态会被静默丢掉（v1.0.0 的 bug）。
+            // 真正的应用时机在 Loaded（见下方）。
             RestoreViewState();
 
             _timer.Interval = TimeSpan.FromMilliseconds(200);
@@ -77,7 +94,16 @@ namespace WorkEncourager
             Shell.MouseLeftButtonDown += OnDragArea;
             MiniShell.MouseLeftButtonDown += OnDragArea;
             SizeChanged += (s, e) => { UpdateBar(); UpdateSizeText(); };
-            Loaded += (s, e) => { _loaded = true; ApplyViewMode(); Render(); UpdateBar(); UpdateSizeText(); };
+            Loaded += (s, e) =>
+            {
+                _loaded = true;
+                ApplyViewMode();
+                // 句柄已就绪，这时设置穿透才会真正生效
+                ApplyClickThrough();
+                Render();
+                UpdateBar();
+                UpdateSizeText();
+            };
 
             // 窗口边缘缩放热区
             foreach (var grip in new FrameworkElement[]
@@ -93,7 +119,7 @@ namespace WorkEncourager
             ToggleBtn.Click += OnToggleClick;
             ResetBtn.Click += OnResetClick;
             PinBtn.Click += OnPinClick;
-            CloseBtn.Click += (s, e) => Close();
+            CloseBtn.Click += (s, e) => HideToTray();
             MiniBtn.Click += (s, e) => SetViewMode(AppViewMode.Mini);
             MiniExpandBtn.Click += (s, e) => SetViewMode(AppViewMode.Full);
             MiniShell.AddHandler(UIElement.MouseLeftButtonDownEvent,
@@ -130,28 +156,26 @@ namespace WorkEncourager
 
             Closing += (s, e) =>
             {
-                _cfg.Opacity = Opacity;
-                _cfg.Topmost = Topmost;
-                _cfg.ViewMode = ViewState.ToText(_viewMode);
-                _cfg.ActiveTab = ViewState.ToText(_tab);
-                if (_viewMode == AppViewMode.Mini)
+                // 关闭按钮 = 隐藏到托盘，不是退出。真正退出走托盘右键菜单（或系统关机）。
+                if (!_reallyExit)
                 {
-                    _cfg.MiniLeft = Left;
-                    _cfg.MiniTop = Top;
-                    _cfg.MiniWidth = ActualWidth;
-                    _cfg.MiniHeight = ActualHeight;
+                    e.Cancel = true;
+                    HideToTray();
+                    return;
                 }
-                else
-                {
-                    _cfg.WindowLeft = Left;
-                    _cfg.WindowTop = Top;
-                    _cfg.WindowWidth = ActualWidth;
-                    _cfg.WindowHeight = ActualHeight;
-                }
+
+                RememberBounds();
                 if (!_debugNoPersist) PersistPauseState();
                 SaveCfg();
                 _tracker.Save(HistoryPath);
+
+                _tray?.Dispose();
+                _tray = null;
             };
+
+            // 注销 / 关机时不能被"隐藏到托盘"拦住，否则系统关不掉机
+            if (Application.Current != null)
+                Application.Current.SessionEnding += (s, e) => _reallyExit = true;
 
             InSalary.TextChanged += (s, e) => UpdatePreview();
             InStart.TextChanged += (s, e) => { UpdateAutoHours(); UpdatePreview(); };
@@ -180,6 +204,151 @@ namespace WorkEncourager
             MiniToggleBtn.Click += (s, e) => SetViewMode(
                 _viewMode == AppViewMode.Mini ? AppViewMode.Full : AppViewMode.Mini);
             ClickThroughToggleBtn.Click += (s, e) => ToggleClickThrough();
+
+            InitTray();
+
+            // 跨不同缩放比的显示器移动后位置可能落到屏幕外，这里兜一次底
+            DpiChanged += (s, e) =>
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(EnsureWindowVisible));
+        }
+
+        // ---------------- 托盘常驻 ----------------
+
+        private void InitTray()
+        {
+            try
+            {
+                _tray = new TrayIcon();
+                _tray.ToggleRequested += ToggleWindowVisibility;
+                _tray.ModeSwitchRequested += () =>
+                {
+                    ShowFromTray();
+                    SetViewMode(_viewMode == AppViewMode.Mini ? AppViewMode.Full : AppViewMode.Mini);
+                };
+                _tray.SettingsRequested += () =>
+                {
+                    ShowFromTray();
+                    // 穿透状态下窗口根本点不到，先进设置就得恢复可点击，否则是个死路
+                    if (_cfg.ClickThrough)
+                    {
+                        _cfg.ClickThrough = false;
+                        ApplyClickThrough();
+                        SaveCfg();
+                    }
+                    SelectTab(MainTab.Settings);
+                };
+                _tray.ExitRequested += ExitApp;
+                _tray.SetWindowVisible(IsVisible);
+                _tray.SetMode(_viewMode == AppViewMode.Mini);
+            }
+            catch (Exception ex)
+            {
+                // 托盘创建失败不能导致主程序起不来
+                Log.Error("创建托盘图标失败", ex);
+            }
+        }
+
+        /// <summary>左键点托盘：可见就收起来，隐藏就弹回来。</summary>
+        private void ToggleWindowVisibility()
+        {
+            if (IsVisible) HideToTray();
+            else ShowFromTray();
+        }
+
+        /// <summary>
+        /// 隐藏到托盘：只是不显示窗口，计时器继续跑。
+        /// 这是"关闭按钮"的新语义——真正退出走托盘右键菜单。
+        /// </summary>
+        private void HideToTray()
+        {
+            if (!IsVisible) return;
+
+            // 先把当前几何状态落盘（Hide 不会触发 Closing）
+            RememberBounds();
+            SaveCfg();
+
+            Hide();
+            _tray?.SetWindowVisible(false);
+
+            if (!_hiddenOnce)
+            {
+                _hiddenOnce = true;
+                _tray?.ShowBalloon("还在后台计时",
+                    "窗口已隐藏，计时不会停。左键点托盘图标可以唤回来，右键可退出。");
+            }
+        }
+
+        /// <summary>从托盘恢复窗口并置前。</summary>
+        private void ShowFromTray()
+        {
+            if (!IsVisible) Show();
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+
+            // 隐藏期间可能换过显示器/改了分辨率
+            EnsureWindowVisible();
+
+            Topmost = false;
+            Topmost = _cfg.Topmost;
+            Activate();
+            _tray?.SetWindowVisible(true);
+        }
+
+        /// <summary>真正退出（走托盘右键菜单）。</summary>
+        private void ExitApp()
+        {
+            _reallyExit = true;
+            Close();
+        }
+
+        /// <summary>把当前窗口位置/尺寸写进配置对象（不落盘）。</summary>
+        private void RememberBounds()
+        {
+            _cfg.Opacity = Opacity;
+            _cfg.Topmost = Topmost;
+            _cfg.ViewMode = ViewState.ToText(_viewMode);
+            _cfg.ActiveTab = ViewState.ToText(_tab);
+            if (_viewMode == AppViewMode.Mini)
+            {
+                _cfg.MiniLeft = Left;
+                _cfg.MiniTop = Top;
+                _cfg.MiniWidth = ActualWidth;
+                _cfg.MiniHeight = ActualHeight;
+            }
+            else
+            {
+                _cfg.WindowLeft = Left;
+                _cfg.WindowTop = Top;
+                _cfg.WindowWidth = ActualWidth;
+                _cfg.WindowHeight = ActualHeight;
+            }
+        }
+
+        /// <summary>
+        /// 收到第二个实例的广播后，把窗口显示出来（单实例注册在 App 里）。
+        /// </summary>
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            try
+            {
+                var src = (System.Windows.Interop.HwndSource)PresentationSource.FromVisual(this);
+                if (src != null)
+                {
+                    _showInstanceMsg = Win32.WM_SHOW_INSTANCE;
+                    src.AddHook(WndProc);
+                }
+            }
+            catch (Exception ex) { Log.Error("注册窗口消息钩子失败", ex); }
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (_showInstanceMsg != 0 && msg == _showInstanceMsg)
+            {
+                ShowFromTray();
+                handled = true;
+            }
+            return IntPtr.Zero;
         }
 
         // ---------------- 配置 ----------------
@@ -191,6 +360,8 @@ namespace WorkEncourager
             _schedule = ConfigStore.BuildSchedule(_cfg);
             _calc = new SalaryCalculator(_schedule, _calendar);
             _tracker = WorkdayTracker.Load(HistoryPath);
+            // 开启休眠保护：tick 间隔超过 90 秒视为机器睡过，不把睡眠时间算成工时
+            _tracker.MaxGapSeconds = 90;
             _userResizedFull = _cfg.FullResized;
             _userResizedMini = _cfg.MiniResized;
             RestorePauseState();
@@ -448,6 +619,37 @@ namespace WorkEncourager
             return (segs, _schedule.GetEndTime(day));
         }
 
+        /// <summary>
+        /// 每 60 秒把工时写盘一次。
+        /// v1.0.0 只在退出时写，被强杀 / 断电就丢掉一整天数据。
+        /// </summary>
+        private void PersistPeriodically(DateTime now)
+        {
+            if (App.DebugMode) return;
+            if ((now - _lastHistorySave).TotalSeconds < 60) return;
+            _lastHistorySave = now;
+            _tracker.Save(HistoryPath);
+        }
+
+        /// <summary>更新托盘悬停提示（5 秒一次，避免频繁调 Shell_NotifyIcon）。</summary>
+        private void UpdateTrayTip(DateTime now, Snapshot st, string statusText = null)
+        {
+            if (_tray == null) return;
+            if ((now - _trayTipAt).TotalSeconds < 5) return;
+            _trayTipAt = now;
+            _tray.UpdateTip("上班鼓励器 · " + (statusText ?? StatusLabel(st.Status)) + " · 今日已赚 ¥" + N4(st.Earned));
+            _tray.SetMode(_viewMode == AppViewMode.Mini);
+        }
+
+        private static string StatusLabel(string status) => status switch
+        {
+            "paused" => "已暂停",
+            "rest" => "休息日",
+            "off" => "已下班",
+            "wait" => "待上班",
+            _ => "上班中"
+        };
+
         private void Render()
         {
             var now = DateTime.Now;
@@ -465,6 +667,18 @@ namespace WorkEncourager
 
             // 追踪真实在场时长（"开着就在工作"）
             _tracker.Advance(now, DayScheduleProvider, _paused);
+
+            // 窗口隐藏在托盘里时只维护数据，不去碰任何 UI 元素：
+            // 既省 CPU，也避免对不可见元素做无意义的布局失效。
+            if (!IsVisible)
+            {
+                var hidden = _calc.Compute(now, _cfg.MonthlySalary ?? 0, _cfg.Weekdays, _cfg.PayDay,
+                                           _paused, _pausedAccumSec,
+                                           _paused ? _pauseAt : (DateTime?)null);
+                PersistPeriodically(now);
+                UpdateTrayTip(now, hidden);
+                return;
+            }
 
             var st = _calc.Compute(now, _cfg.MonthlySalary ?? 0, _cfg.Weekdays, _cfg.PayDay,
                                   _paused, _pausedAccumSec,
@@ -485,6 +699,7 @@ namespace WorkEncourager
             switch (st.Status)
             {
                 case "paused": statusText = "已暂停"; break;
+                case "rest": statusText = "休息日"; break;
                 case "off": statusText = "已下班"; break;
                 case "wait": statusText = "待上班"; break;
                 default: statusText = "上班中"; break;
@@ -497,6 +712,7 @@ namespace WorkEncourager
                 {
                     case "paused":
                         _bChipBg = MakeBrush(_theme.ChipPausedBg); _bChipFg = MakeBrush(_theme.ChipPausedFg); _bChipDot = MakeBrush(_theme.ChipPausedDot); break;
+                    case "rest":
                     case "off":
                         _bChipBg = MakeBrush(_theme.ChipOffBg); _bChipFg = MakeBrush(_theme.ChipOffFg); _bChipDot = MakeBrush(_theme.ChipOffDot); break;
                     case "wait":
@@ -510,6 +726,7 @@ namespace WorkEncourager
             }
 
             if (st.Status == "paused") CountText.Text = "计时已暂停";
+            else if (st.Status == "rest") CountText.Text = "今天休息 · 加班工时照常记录";
             else if (st.Status == "wait") CountText.Text = "距上班 " + Clock((st.StartTs - now).TotalSeconds);
             else if (st.Status == "off") CountText.Text = "今日已收工";
             else CountText.Text = "距下班 " + Clock(st.RemainSec);
@@ -552,6 +769,7 @@ namespace WorkEncourager
             {
                 MiniEarned.Text = N4(st.Earned);
                 MiniCount.Text = st.Status == "paused" ? "计时已暂停"
+                              : st.Status == "rest" ? "今天休息"
                               : st.Status == "wait" ? "距上班 " + Clock((st.StartTs - now).TotalSeconds)
                               : st.Status == "off" ? "今日已收工"
                               : "距下班 " + Clock(st.RemainSec);
@@ -560,6 +778,9 @@ namespace WorkEncourager
                 MiniDot.Fill = _bChipDot;
                 UpdateMiniBar(st.Pct);
             }
+
+            PersistPeriodically(now);
+            UpdateTrayTip(now, st, statusText);
 
             BuildEncourage(st);
         }
@@ -602,6 +823,11 @@ namespace WorkEncourager
             if (st.Status == "paused")
             {
                 SetEncourage("计时器已暂停，开心的时光不用算钱", null);
+                return;
+            }
+            if (st.Status == "rest")
+            {
+                SetEncourage("今天休息，不用算钱。真要加班，工时也照常记着", null);
                 return;
             }
             if (st.Status == "off")
@@ -861,6 +1087,7 @@ namespace WorkEncourager
 
             UpdateSizeText();
             UpdateViewButtons();
+            _tray?.SetMode(mini);
         }
 
         /// <summary>按当前视图模式设置窗口允许缩到的最小尺寸。</summary>
@@ -871,15 +1098,49 @@ namespace WorkEncourager
             MinHeight = min.H;
         }
 
+        /// <summary>
+        /// 窗口矩形是否还有足够面积落在虚拟桌面内。
+        ///
+        /// 用虚拟桌面（所有显示器合起来的矩形）而不是主屏 WorkArea：
+        /// v1.0.0 只比对主屏，摆在副屏上的窗口重启后会被硬拽回主屏。
+        /// </summary>
+        private static bool IsOnAnyScreen(double left, double top, double w, double h)
+        {
+            double vl = SystemParameters.VirtualScreenLeft;
+            double vt = SystemParameters.VirtualScreenTop;
+            double vr = vl + SystemParameters.VirtualScreenWidth;
+            double vb = vt + SystemParameters.VirtualScreenHeight;
+
+            double visW = Math.Min(left + w, vr) - Math.Max(left, vl);
+            double visH = Math.Min(top + h, vb) - Math.Max(top, vt);
+            return visW >= 80 && visH >= 60;
+        }
+
+        /// <summary>把窗口拉回主屏右下角（落屏 / 换显示器时的兜底）。</summary>
+        private void EnsureWindowVisible()
+        {
+            double w = ActualWidth > 0 ? ActualWidth : Width;
+            double h = ActualHeight > 0 ? ActualHeight : Height;
+            if (w <= 0 || h <= 0) return;
+            if (IsOnAnyScreen(Left, Top, w, h)) return;
+
+            var wa = SystemParameters.WorkArea;
+            Left = Math.Max(wa.Left, wa.Right - w - 24);
+            Top = _viewMode == AppViewMode.Mini ? Math.Max(wa.Top, wa.Bottom - h - 24) : wa.Top + 90;
+        }
+
         /// <summary>恢复迷你挂件的位置（与完整模式分开记）。</summary>
         private void RestoreMiniPosition()
         {
             var wa = SystemParameters.WorkArea;
-            double w = Width;
+            double w = Width, h = Height;
             double left = _cfg.MiniLeft ?? (wa.Right - w - 24);
-            double top = _cfg.MiniTop ?? (wa.Bottom - 130);
-            if (left < wa.Left - 40 || left > wa.Right - 80) left = wa.Right - w - 24;
-            if (top < wa.Top - 10 || top > wa.Bottom - 60) top = wa.Bottom - 130;
+            double top = _cfg.MiniTop ?? (wa.Bottom - h - 24);
+            if (!IsOnAnyScreen(left, top, w, h))
+            {
+                left = wa.Right - w - 24;
+                top = wa.Bottom - h - 24;
+            }
             Left = left;
             Top = top;
         }
@@ -888,11 +1149,14 @@ namespace WorkEncourager
         private void RestoreFullPosition()
         {
             var wa = SystemParameters.WorkArea;
-            double w = Width;
+            double w = Width, h = Height;
             double left = _cfg.WindowLeft ?? (wa.Right - w - 24);
             double top = _cfg.WindowTop ?? (wa.Top + 90);
-            if (left < wa.Left - 40 || left > wa.Right - 80) left = wa.Right - w - 24;
-            if (top < wa.Top - 10 || top > wa.Bottom - 120) top = wa.Top + 90;
+            if (!IsOnAnyScreen(left, top, w, h))
+            {
+                left = wa.Right - w - 24;
+                top = wa.Top + 90;
+            }
             Left = left;
             Top = top;
         }
@@ -1016,9 +1280,20 @@ namespace WorkEncourager
             SaveCfg();
         }
 
+        /// <summary>把配置里的穿透状态应用到窗口，并同步按钮外观。</summary>
         private void ApplyClickThrough()
         {
-            Win32.SetClickThrough(this, _cfg.ClickThrough);
+            if (!Win32.SetClickThrough(this, _cfg.ClickThrough) && _cfg.ClickThrough)
+                Log.Info("鼠标穿透延后应用：窗口句柄尚未创建");
+
+            UpdateClickThroughButton();
+        }
+
+        /// <summary>穿透开关的选中态。v1.0.0 完全没同步，用户看不出开没开。</summary>
+        private void UpdateClickThroughButton()
+        {
+            if (ClickThroughToggleBtn == null) return;
+            ClickThroughToggleBtn.Style = (Style)FindResource(_cfg.ClickThrough ? "ToggleActive" : "ToggleIdle");
         }
 
         // ---------------- 置顶 / 透明度 / 位置 ----------------
@@ -1137,10 +1412,14 @@ namespace WorkEncourager
             InSalary.Text = (c.MonthlySalary ?? 6000).ToString("0.##", CultureInfo.InvariantCulture);
             InStart.Text = c.Start;
             InEnd.Text = c.End;
-            InBreak.Text = c.Breaks != null && c.Breaks.Length > 0 ? c.Breaks[0] : "";
+            // 多段午休全部回填（v1.0.0 只取第一段，保存时会把其余段覆盖掉）
+            InBreak.Text = c.Breaks != null ? string.Join(", ", c.Breaks) : "";
+            InExtraHolidays.Text = c.ExtraHolidays != null ? string.Join(", ", c.ExtraHolidays) : "";
+            InExtraWorkdays.Text = c.ExtraWorkdays != null ? string.Join(", ", c.ExtraWorkdays) : "";
             InShirt.Text = c.Shirt.ToString("0.##", CultureInfo.InvariantCulture);
             InGoalItem.Text = c.GoalItem;
             InPayDay.Text = c.PayDay.ToString(CultureInfo.InvariantCulture);
+            UpdateCalendarHint();
 
             var map = new Dictionary<int, ToggleButton>
             {
@@ -1149,6 +1428,42 @@ namespace WorkEncourager
             };
             foreach (var kv in map)
                 kv.Value.IsChecked = Array.IndexOf(c.Weekdays, kv.Key) >= 0;
+        }
+
+        /// <summary>把逗号 / 分号 / 空格分隔的输入拆成条目。</summary>
+        private static IEnumerable<string> SplitList(string s) =>
+            (s ?? "")
+                .Split(new[] { ',', '，', ';', '；', '\n', '\r', ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .Where(x => x.Length > 0);
+
+        /// <summary>解析日期列表，统一存成 yyyy-MM-dd；失败时通过 bad 返回第一个坏值。</summary>
+        private static bool TryParseDateList(string s, out List<string> dates, out string bad)
+        {
+            dates = new List<string>();
+            bad = "";
+            foreach (var item in SplitList(s))
+            {
+                if (!DateTime.TryParse(item, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) &&
+                    !DateTime.TryParse(item, CultureInfo.CurrentCulture, DateTimeStyles.None, out d))
+                {
+                    bad = item;
+                    return false;
+                }
+                string key = d.ToString("yyyy-MM-dd");
+                if (!dates.Contains(key)) dates.Add(key);
+            }
+            return true;
+        }
+
+        /// <summary>当前年度没有内置节假日数据时，提示用户补充自定义日期。</summary>
+        private void UpdateCalendarHint()
+        {
+            if (CalendarHintText == null) return;
+            int y = DateTime.Now.Year;
+            CalendarHintText.Text = PayCalendar.HasBuiltInData(y)
+                ? ""
+                : "注意：" + y + " 年暂无内置节假日数据，法定假日会被当成工作日算进月累计，请在上方补充自定义放假日。";
         }
 
         private static double ParseNum(string s)
@@ -1177,12 +1492,11 @@ namespace WorkEncourager
             if (!WorkSchedule.TryParseMinutes(InEnd.Text, out _)) return null;
             var sch = new WorkSchedule { Start = InStart.Text.Trim(), End = InEnd.Text.Trim() };
             var breaks = new List<string>();
-            string bt = (InBreak.Text ?? "").Trim();
-            if (bt.Length > 0)
+            foreach (var seg in SplitList(InBreak.Text))
             {
-                var p = bt.Split('-');
+                var p = seg.Split('-');
                 if (p.Length == 2 && WorkSchedule.TryParseMinutes(p[0], out _) && WorkSchedule.TryParseMinutes(p[1], out _))
-                    breaks.Add(bt);
+                    breaks.Add(seg);
             }
             sch.Breaks = breaks;
             double sec = sch.GetTotalWorkSeconds(DateTime.Today);
@@ -1215,14 +1529,18 @@ namespace WorkEncourager
             if (sh == eh) { SettingsTip.Text = "上班时间和下班时间不能相同"; return; }
 
             var breaks = new List<string>();
-            string brkText = (InBreak.Text ?? "").Trim();
-            if (brkText.Length > 0)
+            foreach (var seg in SplitList(InBreak.Text))
             {
-                var p = brkText.Split('-');
+                var p = seg.Split('-');
                 if (p.Length != 2 || !WorkSchedule.TryParseMinutes(p[0], out _) || !WorkSchedule.TryParseMinutes(p[1], out _))
-                { SettingsTip.Text = "午休格式不对，例如 12:00-13:00"; return; }
-                breaks.Add(brkText);
+                { SettingsTip.Text = "午休格式不对，例如 12:00-13:00（多段用逗号隔开）"; return; }
+                breaks.Add(p[0].Trim() + "-" + p[1].Trim());
             }
+
+            if (!TryParseDateList(InExtraHolidays.Text, out var holidays, out string badHoliday))
+            { SettingsTip.Text = "自定义放假日格式不对：" + badHoliday + "（例 2027-01-01）"; return; }
+            if (!TryParseDateList(InExtraWorkdays.Text, out var workdays, out string badWorkday))
+            { SettingsTip.Text = "自定义调休上班日格式不对：" + badWorkday + "（例 2027-01-04）"; return; }
 
             double shirt = ParseNum(InShirt.Text);
             if (double.IsNaN(shirt) || shirt <= 0) { SettingsTip.Text = "目标物单价需大于 0"; return; }
@@ -1245,6 +1563,8 @@ namespace WorkEncourager
             _cfg.Start = WorkSchedule.FormatMinutes(sh);
             _cfg.End = WorkSchedule.FormatMinutes(eh);
             _cfg.Breaks = breaks.ToArray();
+            _cfg.ExtraHolidays = holidays.ToArray();
+            _cfg.ExtraWorkdays = workdays.ToArray();
             _cfg.Shirt = shirt;
             _cfg.GoalItem = string.IsNullOrWhiteSpace(InGoalItem.Text) ? "T恤" : InGoalItem.Text.Trim();
             _cfg.PayDay = payDay;
@@ -1268,7 +1588,7 @@ namespace WorkEncourager
         {
             try
             {
-                var path = Path.Combine(CfgDir, "workenc-config-" +
+                var path = Path.Combine(DataDir, "workenc-config-" +
                     DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".json");
                 File.WriteAllText(path, ConfigStore.ExportJson(_cfg), new System.Text.UTF8Encoding(true));
                 _lastExportPath = path;
@@ -1285,21 +1605,30 @@ namespace WorkEncourager
                 {
                     Title = "选择要导入的配置文件",
                     Filter = "配置文件 (*.json)|*.json|所有文件 (*.*)|*.*",
-                    InitialDirectory = CfgDir
+                    InitialDirectory = DataDir
                 };
                 if (dlg.ShowDialog(this) != true) return;
                 var cfg = ConfigStore.ImportJson(File.ReadAllText(dlg.FileName));
                 if (cfg == null) { SettingsTip.Text = "配置文件格式不对，导入失败"; return; }
                 _cfg = cfg;
                 RebuildCalc();
-                SaveCfg();
+
+                // 导入的每一项都要真正生效（v1.0.0 漏了置顶、穿透与视图模式）
                 ApplyTheme();
-                FillSettings(_cfg);
+                ApplyTopmost();
                 ApplyOpacity();
-                UpdateAutoHours();
-                UpdatePreview();
+                ApplyClickThrough();
+                ApplyMinSize();
+                SetViewMode(ViewState.ParseViewMode(_cfg.ViewMode));
+
+                FillSettings(_cfg);
+                SelectTab(ViewState.ParseTab(_cfg.ActiveTab));
                 UpdateToneButtons();
                 UpdateThemeButtons();
+                UpdateAutoHours();
+                UpdatePreview();
+
+                SaveCfg();
                 SettingsTip.Text = "配置已导入并保存";
                 Render();
             }
@@ -1311,7 +1640,7 @@ namespace WorkEncourager
             try
             {
                 _tracker.Save(HistoryPath);
-                var path = Path.Combine(CfgDir, "工时报表-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv");
+                var path = Path.Combine(DataDir, "工时报表-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv");
                 CsvExporter.WriteFile(path, CsvExporter.BuildWorkReport(_tracker.Records, _calendar, _cfg.Weekdays));
                 _lastExportPath = path;
                 ShowTip(_tab == MainTab.Stats ? StatsTip : SettingsTip,
@@ -1325,7 +1654,7 @@ namespace WorkEncourager
             try
             {
                 _tracker.Save(HistoryPath);
-                var path = Path.Combine(CfgDir, "月度汇总-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv");
+                var path = Path.Combine(DataDir, "月度汇总-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv");
                 CsvExporter.WriteFile(path, CsvExporter.BuildMonthlyReport(_tracker.Records, _calendar, _cfg.Weekdays));
                 _lastExportPath = path;
                 ShowTip(StatsTip, "月度汇总已导出，路径可复制：\n" + path);
@@ -1359,7 +1688,7 @@ namespace WorkEncourager
             }
             try
             {
-                string dir = Path.GetDirectoryName(_lastExportPath) ?? CfgDir;
+                string dir = Path.GetDirectoryName(_lastExportPath) ?? DataDir;
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = "explorer.exe",

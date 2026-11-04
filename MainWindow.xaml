@@ -5,7 +5,7 @@
         Width="432" Height="388" MinWidth="260" MinHeight="130"
         SizeToContent="Manual"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        ResizeMode="CanResize" Topmost="True" ShowInTaskbar="True"
+        ResizeMode="CanResize" Topmost="True" ShowInTaskbar="False"
         WindowStartupLocation="Manual"
         FontFamily="Microsoft YaHei UI"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
@@ -397,7 +397,7 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                   <Button x:Name="MiniBtn" Style="{StaticResource IconBtn}" Content="&#xE8A7;" ToolTip="缩成桌面小挂件" />
                   <Button x:Name="PinBtn" Style="{StaticResource IconBtn}" Content="&#xE718;" ToolTip="置顶开关" Margin="1,0,0,0" />
-                  <Button x:Name="CloseBtn" Style="{StaticResource IconBtn}" Content="&#xE8BB;" ToolTip="关闭" Margin="1,0,0,0" />
+                  <Button x:Name="CloseBtn" Style="{StaticResource IconBtn}" Content="&#xE8BB;" ToolTip="隐藏到托盘（计时继续跑）" Margin="1,0,0,0" />
                 </StackPanel>
               </Grid>
 
@@ -747,7 +747,7 @@
                       </StackPanel>
                     </Grid>
 
-                    <TextBlock Text="午休时段（可留空，格式 12:00-13:00）" Style="{StaticResource FieldLabel}" Margin="2,9,0,4" />
+                    <TextBlock Text="午休时段（留空即不午休，多段用逗号分隔）" Style="{StaticResource FieldLabel}" Margin="2,9,0,4" />
                     <TextBox x:Name="InBreak" Style="{StaticResource Input}" />
                     <TextBlock x:Name="AutoHoursText" FontSize="9.5" Foreground="#475467" Margin="2,6,0,0"
                                Text="每日计薪工时 9.0 小时（09:00 → 18:00，无午休）" />
@@ -783,6 +783,13 @@
                     </StackPanel>
                     <TextBlock FontSize="9" Foreground="#A5AEBD" Margin="2,5,0,0" TextWrapping="Wrap" LineHeight="14"
                                Text="已内置 2026 年法定节假日与调休安排（国办发明电〔2025〕7号），本月累计会自动扣除假日、加上调休上班日。" />
+
+                    <TextBlock Text="自定义放假日（yyyy-MM-dd，逗号分隔）" Style="{StaticResource FieldLabel}" Margin="2,9,0,4" />
+                    <TextBox x:Name="InExtraHolidays" Style="{StaticResource Input}" />
+                    <TextBlock Text="自定义调休上班日（yyyy-MM-dd，逗号分隔）" Style="{StaticResource FieldLabel}" Margin="2,7,0,4" />
+                    <TextBox x:Name="InExtraWorkdays" Style="{StaticResource Input}" />
+                    <TextBlock x:Name="CalendarHintText" FontSize="9" Foreground="#D97706" Margin="2,5,0,0"
+                               TextWrapping="Wrap" LineHeight="14" Text="" />
 
                     <TextBlock Text="鼓励语气" Style="{StaticResource FieldLabel}" Margin="2,10,0,4" />
                     <StackPanel Orientation="Horizontal">

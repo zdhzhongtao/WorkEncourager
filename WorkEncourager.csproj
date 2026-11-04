@@ -4,18 +4,22 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!-- 托盘图标用 WinForms 的 NotifyIcon（跨 Windows 版本最稳）；ImplicitUsings 关闭，避免命名空间污染 -->
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>WorkEncourager</AssemblyName>
     <RootNamespace>WorkEncourager</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.0.0</Version>
+    <Version>2.0.1</Version>
     <Company>zhend</Company>
     <Product>上班鼓励器</Product>
     <AssemblyTitle>上班鼓励器</AssemblyTitle>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
     <DebugType>none</DebugType>
+    <!-- WinForms 只在托盘图标里用，DPI 感知仍由 app.manifest 的 PerMonitorV2 负责（WPF 需要它） -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
