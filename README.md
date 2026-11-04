@@ -3,7 +3,7 @@
 一个常驻桌面的「上班鼓励器」悬浮窗，实时计算你上班期间已经赚到多少钱，并生成工时报表。
 
 ![WPF / Windows](https://img.shields.io/badge/.NET-10.0-blue)
-![Tests](https://img.shields.io/badge/tests-129%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-130%20passed-brightgreen)
 
 ## 文档
 
@@ -34,7 +34,7 @@
 - **透明度可调**：45% ~ 100% 滑块实时调节
 - **窗体可缩放**：拖边缘自由缩放，或用 小/中/大 预设；内容等比自适应（Viewbox）
 - **深色模式**：深色配色切换
-- **鼠标穿透**：悬浮窗不挡下面的工作时可切换为点击穿透
+- **鼠标穿透**：内容区点击穿透到下层，**标题栏始终可点**；`Ctrl+Alt+X` 全局热键、托盘菜单、按住 Alt 三条退路，不会再点不回来
 - **暂停即冻结**：关闭计时器后金额/进度/倒计时全部停住，恢复瞬间不跳变
 - **休息日识别**：周末与法定假日显示「休息日」，工时照记但不并入本月累计
 - **设置可自定义**：月薪、上班/下班时间、**多段**午休、目标物名称与单价、发薪日、计薪日（周一~周日多选）、**自定义放假日 / 调休上班日**
@@ -88,7 +88,7 @@ WorkEnc/
 ├── MainWindow.xaml.cs              界面逻辑与事件
 ├── TrayIcon.cs                     系统托盘图标（WinForms NotifyIcon 封装）
 ├── Log.cs                          运行日志（追加写、自动轮转）
-├── Win32.cs                        鼠标穿透、单实例广播消息
+├── Win32.cs                        穿透命中测试、全局热键、单实例广播
 ├── app.manifest                    PerMonitorV2 DPI 感知
 ├── app.ico / make-icon.js          图标与生成脚本
 ├── docs/                           文档
@@ -107,7 +107,7 @@ WorkEnc/
 │   ├── CsvExporter.cs              CSV 报表生成
 │   ├── QuoteProvider.cs            语录库
 │   └── Theme.cs                    主题配色
-└── WorkEnc.Tests/                  xUnit 单元测试（129 个）
+└── WorkEnc.Tests/                  xUnit 单元测试（130 个）
 ```
 
 ## 构建与测试
@@ -168,7 +168,8 @@ dotnet publish WorkEncourager.csproj -c Release -r win-x64 \
 - 仅支持 Windows（WPF）
 - 框架依赖版本需要目标机器安装 .NET 10 Desktop Runtime；需要免安装请用自包含发布
 - 透明度调节会让整个窗体（含文字）一起变淡，这是 WPF 窗口级透明度的固有限制
-- 鼠标穿透开启后无法直接拖动窗口，需先在设置里关掉
+- 鼠标穿透只让内容区穿透，顶部标题栏保留可点（否则一开就锁死，v1.0.1 踩过这个坑）
+- 窗口最小 320×240（迷你 200×86），再小标题栏按钮就点不中了
 - 标题栏的 × 只隐藏到托盘，真正退出要走托盘右键菜单（防止误点丢计时）
 - Win11 默认把新托盘图标收进 `^` 折叠区，需要手动拖到任务栏才会常显
 - 暂无开机自启与全局快捷键（v1.0.1 未包含）

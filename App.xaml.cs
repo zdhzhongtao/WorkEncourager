@@ -56,8 +56,8 @@ namespace WorkEncourager
                 if (parts.Length == 2 &&
                     double.TryParse(parts[0], out double sw) && double.TryParse(parts[1], out double sh2))
                 {
-                    win.Width = Math.Max(260, sw);
-                    win.Height = Math.Max(130, sh2);
+                    win.Width = Math.Max(ViewState.FullMinWidth, sw);
+                    win.Height = Math.Max(ViewState.FullMinHeight, sh2);
                 }
             }
 

@@ -15,6 +15,7 @@ namespace WorkEncourager
         private readonly NotifyIcon _ni;
         private readonly ToolStripMenuItem _toggleItem;
         private readonly ToolStripMenuItem _modeItem;
+        private readonly ToolStripMenuItem _clickThroughItem;
         private DateTime _lastClickUtc = DateTime.MinValue;
         private string _lastTip = "";
         private bool _disposed;
@@ -24,6 +25,12 @@ namespace WorkEncourager
 
         /// <summary>切换 迷你挂件 / 完整界面。</summary>
         public event Action ModeSwitchRequested;
+
+        /// <summary>开关鼠标穿透（穿透后点不到窗口时的救命入口之一）。</summary>
+        public event Action ClickThroughToggleRequested;
+
+        /// <summary>把窗口尺寸和位置恢复默认（窗口被拖到不可用时的兜底）。</summary>
+        public event Action ResetWindowRequested;
 
         /// <summary>直接打开设置页。</summary>
         public event Action SettingsRequested;
@@ -35,6 +42,7 @@ namespace WorkEncourager
         {
             _toggleItem = new ToolStripMenuItem("隐藏到托盘", null, (s, e) => ToggleRequested?.Invoke());
             _modeItem = new ToolStripMenuItem("切换为迷你挂件", null, (s, e) => ModeSwitchRequested?.Invoke());
+            _clickThroughItem = new ToolStripMenuItem("开启鼠标穿透", null, (s, e) => ClickThroughToggleRequested?.Invoke());
 
             var menu = new ContextMenuStrip
             {
@@ -43,6 +51,8 @@ namespace WorkEncourager
             };
             menu.Items.Add(_toggleItem);
             menu.Items.Add(_modeItem);
+            menu.Items.Add(_clickThroughItem);
+            menu.Items.Add(new ToolStripMenuItem("重置窗口大小与位置", null, (s, e) => ResetWindowRequested?.Invoke()));
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("打开设置", null, (s, e) => SettingsRequested?.Invoke()));
             menu.Items.Add(new ToolStripSeparator());
@@ -89,6 +99,13 @@ namespace WorkEncourager
         {
             if (_disposed) return;
             _modeItem.Text = mini ? "切换为完整界面" : "切换为迷你挂件";
+        }
+
+        /// <summary>按当前穿透状态更新菜单文案。</summary>
+        public void SetClickThrough(bool enabled)
+        {
+            if (_disposed) return;
+            _clickThroughItem.Text = enabled ? "关闭鼠标穿透" : "开启鼠标穿透";
         }
 
         /// <summary>首次隐藏到托盘时给个气泡提示，告诉用户程序还在跑。</summary>
