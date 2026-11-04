@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -18,11 +18,16 @@ namespace WorkEncourager
     {
         private static readonly string CfgDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WorkEncourager");
-        private static readonly string CfgPath = Path.Combine(CfgDir, "settings.json");
-        private static readonly string HistoryPath = Path.Combine(CfgDir, "history.json");
+        /// <summary>配置文件路径。调试模式下走独立子目录，不污染用户真实数据。</summary>
+        private readonly string CfgPath =
+            Path.Combine(App.DebugMode ? Path.Combine(CfgDir, "debug") : CfgDir, "settings.json");
 
-        private const double DefaultWidth = 456;
-        private const double DefaultHeight = 644;
+        /// <summary>工时历史路径。</summary>
+        private readonly string HistoryPath =
+            Path.Combine(App.DebugMode ? Path.Combine(CfgDir, "debug") : CfgDir, "history.json");
+
+        private const double DefaultWidth = 432;
+        private const double DefaultHeight = 388;
 
         private AppConfig _cfg = new AppConfig();
         private PayCalendar _calendar = new PayCalendar();
@@ -43,6 +48,12 @@ namespace WorkEncourager
         private string _lastEncText = null;
         private double _lastPct = double.NaN;
 
+        // 视图状态
+        private AppViewMode _viewMode = AppViewMode.Full;
+        private MainTab _tab = MainTab.Home;
+        private bool _userResizedFull;     // 用户在完整模式下手动拖过窗体边框
+        private bool _userResizedMini;     // 用户在迷你模式下手动拖过窗体边框
+
         private Theme _theme = Theme.Light();
         private Brush _bTextPrimary, _bTextSecondary, _bTextMuted, _bAccent, _bAccentDark, _bEncText;
         private Brush _bChipBg, _bChipFg, _bChipDot;
@@ -57,16 +68,16 @@ namespace WorkEncourager
             ApplyTopmost();
             ApplyOpacity();
             ApplyClickThrough();
-            RestoreSize();
-            RestorePosition();
+            RestoreViewState();
 
             _timer.Interval = TimeSpan.FromMilliseconds(200);
             _timer.Tick += (s, e) => Render();
             _timer.Start();
 
             Shell.MouseLeftButtonDown += OnDragArea;
+            MiniShell.MouseLeftButtonDown += OnDragArea;
             SizeChanged += (s, e) => { UpdateBar(); UpdateSizeText(); };
-            Loaded += (s, e) => { _loaded = true; ApplyCompactMode(); Render(); UpdateBar(); UpdateSizeText(); };
+            Loaded += (s, e) => { _loaded = true; ApplyViewMode(); Render(); UpdateBar(); UpdateSizeText(); };
 
             // 窗口边缘缩放热区
             foreach (var grip in new FrameworkElement[]
@@ -83,18 +94,23 @@ namespace WorkEncourager
             ResetBtn.Click += OnResetClick;
             PinBtn.Click += OnPinClick;
             CloseBtn.Click += (s, e) => Close();
-            SettingsBtn.Click += (s, e) => OpenSettings();
+            MiniBtn.Click += (s, e) => SetViewMode(AppViewMode.Mini);
+            MiniExpandBtn.Click += (s, e) => SetViewMode(AppViewMode.Full);
+            MiniShell.AddHandler(UIElement.MouseLeftButtonDownEvent,
+                new MouseButtonEventHandler(OnMiniShellMouseDown));
 
-            CloseSettingsBtn.Click += (s, e) => CloseSettings();
-            CancelBtn.Click += (s, e) => CloseSettings();
+            TabHomeBtn.Click += (s, e) => SelectTab(MainTab.Home);
+            TabDetailBtn.Click += (s, e) => SelectTab(MainTab.Detail);
+            TabStatsBtn.Click += (s, e) => SelectTab(MainTab.Stats);
+            TabSettingsBtn.Click += (s, e) => SelectTab(MainTab.Settings);
+
+            CancelBtn.Click += (s, e) => SelectTab(MainTab.Home);
             SaveBtn.Click += (s, e) => SaveSettings();
             DefaultBtn.Click += (s, e) => FillSettings(new AppConfig());
             ExportCfgBtn.Click += (s, e) => ExportConfig();
             ImportCfgBtn.Click += (s, e) => ImportConfig();
             ExportCsvBtn.Click += (s, e) => ExportCsv();
 
-            StatsBtn.Click += (s, e) => OpenStats();
-            CloseStatsBtn.Click += (s, e) => CloseStats();
             StatsExportCsvBtn.Click += (s, e) => ExportCsv();
             StatsExportMonthlyBtn.Click += (s, e) => ExportMonthlyCsv();
 
@@ -107,19 +123,31 @@ namespace WorkEncourager
             {
                 if (e.Key == Key.Escape)
                 {
-                    if (SettingsLayer.Visibility == Visibility.Visible) { CloseSettings(); e.Handled = true; }
-                    else if (StatsLayer.Visibility == Visibility.Visible) { CloseStats(); e.Handled = true; }
+                    if (_viewMode == AppViewMode.Mini) { SetViewMode(AppViewMode.Full); e.Handled = true; }
+                    else if (_tab != MainTab.Home) { SelectTab(MainTab.Home); e.Handled = true; }
                 }
             };
 
             Closing += (s, e) =>
             {
-                _cfg.WindowLeft = Left;
-                _cfg.WindowTop = Top;
-                _cfg.WindowWidth = ActualWidth;
-                _cfg.WindowHeight = ActualHeight;
                 _cfg.Opacity = Opacity;
                 _cfg.Topmost = Topmost;
+                _cfg.ViewMode = ViewState.ToText(_viewMode);
+                _cfg.ActiveTab = ViewState.ToText(_tab);
+                if (_viewMode == AppViewMode.Mini)
+                {
+                    _cfg.MiniLeft = Left;
+                    _cfg.MiniTop = Top;
+                    _cfg.MiniWidth = ActualWidth;
+                    _cfg.MiniHeight = ActualHeight;
+                }
+                else
+                {
+                    _cfg.WindowLeft = Left;
+                    _cfg.WindowTop = Top;
+                    _cfg.WindowWidth = ActualWidth;
+                    _cfg.WindowHeight = ActualHeight;
+                }
                 if (!_debugNoPersist) PersistPauseState();
                 SaveCfg();
                 _tracker.Save(HistoryPath);
@@ -139,17 +167,18 @@ namespace WorkEncourager
                 Opacity = OpacitySlider.Value;
                 OpacityValueText.Text = Math.Round(Opacity * 100).ToString() + "%";
             };
-            ResetSizeBtn.Click += (s, e) => { Width = DefaultWidth; Height = DefaultHeight; UpdateSizeText(); };
-            SizeSmallBtn.Click += (s, e) => SetSize(392, 556);
-            SizeMidBtn.Click += (s, e) => SetSize(456, 644);
-            SizeBigBtn.Click += (s, e) => SetSize(600, 820);
+            ResetSizeBtn.Click += (s, e) => { SetSize(ViewState.FullWindowWidth, ViewState.FullWindowHeight(_tab)); UpdateSizeText(); };
+            SizeSmallBtn.Click += (s, e) => SetSize(340, 300);
+            SizeMidBtn.Click += (s, e) => SetSize(ViewState.FullWindowWidth, ViewState.FullWindowHeight(_tab));
+            SizeBigBtn.Click += (s, e) => SetSize(560, 620);
 
             ToneChillBtn.Click += (s, e) => SetTone("chill");
             ToneSavageBtn.Click += (s, e) => SetTone("savage");
             ToneHypeBtn.Click += (s, e) => SetTone("hype");
             ThemeLightBtn.Click += (s, e) => SetTheme("light");
             ThemeDarkBtn.Click += (s, e) => SetTheme("dark");
-            CompactToggleBtn.Click += (s, e) => ToggleCompact();
+            MiniToggleBtn.Click += (s, e) => SetViewMode(
+                _viewMode == AppViewMode.Mini ? AppViewMode.Full : AppViewMode.Mini);
             ClickThroughToggleBtn.Click += (s, e) => ToggleClickThrough();
         }
 
@@ -162,10 +191,17 @@ namespace WorkEncourager
             _schedule = ConfigStore.BuildSchedule(_cfg);
             _calc = new SalaryCalculator(_schedule, _calendar);
             _tracker = WorkdayTracker.Load(HistoryPath);
+            _userResizedFull = _cfg.FullResized;
+            _userResizedMini = _cfg.MiniResized;
             RestorePauseState();
         }
 
-        private void SaveCfg() => ConfigStore.Save(CfgPath, _cfg);
+        private void SaveCfg()
+        {
+            // 调试模式下不落盘，避免调试参数污染下次运行的状态
+            if (App.DebugMode) return;
+            ConfigStore.Save(CfgPath, _cfg);
+        }
 
         /// <summary>把暂停状态写回配置，实现"重启后接着算"。</summary>
         private void PersistPauseState()
@@ -352,13 +388,27 @@ namespace WorkEncourager
             SaveWindowBounds();
         }
 
-        /// <summary>保存当前窗口位置与尺寸到配置。</summary>
+        /// <summary>保存当前窗口位置与尺寸到配置（完整模式与迷你模式分开记）。</summary>
         private void SaveWindowBounds()
         {
-            _cfg.WindowLeft = Left;
-            _cfg.WindowTop = Top;
-            _cfg.WindowWidth = ActualWidth;
-            _cfg.WindowHeight = ActualHeight;
+            if (_viewMode == AppViewMode.Mini)
+            {
+                _userResizedMini = true;
+                _cfg.MiniResized = true;
+                _cfg.MiniLeft = Left;
+                _cfg.MiniTop = Top;
+                _cfg.MiniWidth = ActualWidth;
+                _cfg.MiniHeight = ActualHeight;
+            }
+            else
+            {
+                _userResizedFull = true;
+                _cfg.FullResized = true;
+                _cfg.WindowLeft = Left;
+                _cfg.WindowTop = Top;
+                _cfg.WindowWidth = ActualWidth;
+                _cfg.WindowHeight = ActualHeight;
+            }
             SaveCfg();
         }
 
@@ -497,18 +547,28 @@ namespace WorkEncourager
             ToggleBtn.Content = _paused ? "开启计时器" : "关闭计时器";
             ToggleBtn.Style = (Style)FindResource(_paused ? "GreenBtn" : "PrimaryBtn");
 
-            // 极简面板
-            if (CompactPanel.Visibility == Visibility.Visible)
+            // 迷你挂件
+            if (_viewMode == AppViewMode.Mini)
             {
-                CompactEarned.Text = N4(st.Earned);
-                CompactCount.Text = st.Status == "paused" ? "计时已暂停"
-                                : st.Status == "wait" ? "距上班 " + Clock((st.StartTs - now).TotalSeconds)
-                                : st.Status == "off" ? "今日已收工"
-                                : "距下班 " + Clock(st.RemainSec);
-                CompactStatus.Text = statusText + " · 日薪 ¥" + N4(st.DailyPay);
+                MiniEarned.Text = N4(st.Earned);
+                MiniCount.Text = st.Status == "paused" ? "计时已暂停"
+                              : st.Status == "wait" ? "距上班 " + Clock((st.StartTs - now).TotalSeconds)
+                              : st.Status == "off" ? "今日已收工"
+                              : "距下班 " + Clock(st.RemainSec);
+                MiniDot.Fill = _bChipDot;
+                UpdateMiniBar(st.Pct);
             }
 
             BuildEncourage(st);
+        }
+
+        /// <summary>更新迷你挂件底部的进度条。</summary>
+        private void UpdateMiniBar(double pct)
+        {
+            if (MiniViewbox.Visibility != Visibility.Visible) return;
+            double w = MiniBarHost2.ActualWidth;
+            if (w <= 0) return;
+            MiniBarFill.Width = Math.Max(0, w * Math.Max(0, Math.Min(100, pct)) / 100.0);
         }
 
         private void UpdateBar(double pct = double.NaN)
@@ -646,8 +706,9 @@ namespace WorkEncourager
 
             Shell.Background = MakeBrush(_theme.ShellBg);
             Shell.BorderBrush = MakeBrush(_theme.ShellBorder);
-            SettingsShell.Background = MakeBrush(_theme.SettingsBg);
-            SettingsShell.BorderBrush = MakeBrush(_theme.ShellBorder);
+            MiniShell.Background = MakeBrush(_theme.ShellBg);
+            MiniShell.BorderBrush = MakeBrush(_theme.ShellBorder);
+            TabBar.Background = MakeBrush(_theme.TabBarBg);
 
             TitleText.Foreground = _bTextPrimary;
             SubTitleText.Foreground = _bTextMuted;
@@ -709,12 +770,8 @@ namespace WorkEncourager
             ActualWorkedText.Foreground = _bTextPrimary;
 
             FooterHint.Foreground = MakeBrush(_theme.TextFaint);
-            SettingsTitleText.Foreground = _bTextPrimary;
-            SettingsSubText.Foreground = _bTextMuted;
-            StatsTitleText.Foreground = _bTextPrimary;
-            StatsSubText.Foreground = _bTextMuted;
-            StatsShell.Background = MakeBrush(_theme.SettingsBg);
-            StatsShell.BorderBrush = MakeBrush(_theme.ShellBorder);
+            DetailFooterHint.Foreground = MakeBrush(_theme.TextFaint);
+            UpdateTabButtons();
             StatWeekCard.Background = MakeBrush(_theme.CardBg);
             StatWeekCard.BorderBrush = MakeBrush(_theme.CardBorder);
             StatMonthCard.Background = MakeBrush(_theme.CardBg);
@@ -767,29 +824,193 @@ namespace WorkEncourager
             ThemeDarkBtn.Style = (Style)FindResource(_cfg.Theme == "dark" ? "ToggleActive" : "ToggleIdle");
         }
 
-        private void ToggleCompact()
+        // ---------------- 视图模式（完整 / 迷你挂件） ----------------
+
+        private void SetViewMode(AppViewMode mode)
         {
-            _cfg.CompactMode = !_cfg.CompactMode;
-            ApplyCompactMode();
+            if (_viewMode == mode && _loaded) return;
+            _viewMode = mode;
+            _cfg.ViewMode = ViewState.ToText(mode);
+            ApplyViewMode();
             SaveCfg();
         }
 
-        private void ApplyCompactMode()
+        /// <summary>应用当前视图模式：切换两个画布的可见性与窗口尺寸。</summary>
+        private void ApplyViewMode()
         {
-            if (_cfg.CompactMode)
+            bool mini = _viewMode == AppViewMode.Mini;
+
+            FullViewbox.Visibility = mini ? Visibility.Collapsed : Visibility.Visible;
+            MiniViewbox.Visibility = mini ? Visibility.Visible : Visibility.Collapsed;
+
+            // 最小尺寸必须先放开，否则 WPF 会把 Width/Height 往上夹：
+            // 迷你挂件设计尺寸（252×108）比完整模式的最小尺寸小，
+            // 不先改 Min 就会被撑成 260×130。
+            ApplyMinSize();
+
+            if (mini)
             {
-                FullPanel.Visibility = Visibility.Collapsed;
-                CompactPanel.Visibility = Visibility.Visible;
-                Width = 268; Height = 132;
+                var sz = ViewState.WindowSize(AppViewMode.Mini, _cfg.MiniWidth, _cfg.MiniHeight,
+                                              MainTab.Home, _userResizedMini);
+                Width = sz.W;
+                Height = sz.H;
+                RestoreMiniPosition();
             }
             else
             {
-                FullPanel.Visibility = Visibility.Visible;
-                CompactPanel.Visibility = Visibility.Collapsed;
-                Width = _cfg.WindowWidth ?? DefaultWidth;
-                Height = _cfg.WindowHeight ?? DefaultHeight;
+                var sz = ViewState.WindowSize(AppViewMode.Full, _cfg.WindowWidth, _cfg.WindowHeight,
+                                              _tab, _userResizedFull);
+                Width = sz.W;
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(FitCanvasHeight));
+                RestoreFullPosition();
             }
+
             UpdateSizeText();
+            UpdateViewButtons();
+        }
+
+        /// <summary>按当前视图模式设置窗口允许缩到的最小尺寸。</summary>
+        private void ApplyMinSize()
+        {
+            var min = ViewState.MinSize(_viewMode);
+            MinWidth = min.W;
+            MinHeight = min.H;
+        }
+
+        /// <summary>恢复迷你挂件的位置（与完整模式分开记）。</summary>
+        private void RestoreMiniPosition()
+        {
+            var wa = SystemParameters.WorkArea;
+            double w = Width;
+            double left = _cfg.MiniLeft ?? (wa.Right - w - 24);
+            double top = _cfg.MiniTop ?? (wa.Bottom - 130);
+            if (left < wa.Left - 40 || left > wa.Right - 80) left = wa.Right - w - 24;
+            if (top < wa.Top - 10 || top > wa.Bottom - 60) top = wa.Bottom - 130;
+            Left = left;
+            Top = top;
+        }
+
+        /// <summary>恢复完整模式窗口的位置。</summary>
+        private void RestoreFullPosition()
+        {
+            var wa = SystemParameters.WorkArea;
+            double w = Width;
+            double left = _cfg.WindowLeft ?? (wa.Right - w - 24);
+            double top = _cfg.WindowTop ?? (wa.Top + 90);
+            if (left < wa.Left - 40 || left > wa.Right - 80) left = wa.Right - w - 24;
+            if (top < wa.Top - 10 || top > wa.Bottom - 120) top = wa.Top + 90;
+            Left = left;
+            Top = top;
+        }
+
+        // ---------------- Tab 切换 ----------------
+
+        private void SelectTab(MainTab tab)
+        {
+            if (_viewMode == AppViewMode.Mini) SetViewMode(AppViewMode.Full);
+
+            _tab = tab;
+            _cfg.ActiveTab = ViewState.ToText(tab);
+
+            HomePanel.Visibility = tab == MainTab.Home ? Visibility.Visible : Visibility.Collapsed;
+            DetailPanel.Visibility = tab == MainTab.Detail ? Visibility.Visible : Visibility.Collapsed;
+            StatsPanel.Visibility = tab == MainTab.Stats ? Visibility.Visible : Visibility.Collapsed;
+            SettingsScroll.Visibility = tab == MainTab.Settings ? Visibility.Visible : Visibility.Collapsed;
+
+            if (tab == MainTab.Settings)
+            {
+                FillSettings(_cfg);
+                SettingsTip.Text = "";
+                ApplyOpacity();
+                UpdateAutoHours();
+                UpdatePreview();
+                UpdateSizeText();
+                UpdateToneButtons();
+                UpdateThemeButtons();
+            }
+
+            if (tab == MainTab.Stats) RefreshStats();
+
+            // 设置页内容很长，限制在固定高度内，超出部分滚动
+            SettingsScroll.MaxHeight = tab == MainTab.Settings ? 430 : double.PositiveInfinity;
+
+            UpdateTabButtons();
+
+            // 切换 Tab 时按该页的实际内容高度调整画布与窗口。
+            // 内容测量需要布局已完成，所以推迟到下一帧再执行。
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(FitCanvasHeight));
+
+            SaveCfg();
+        }
+
+        /// <summary>
+        /// 按当前 Tab 内容的实际高度撑开画布，让内容完整显示且不出现多余滚动条。
+        ///
+        /// 画布宽度固定 400，内容按这个宽度排版；高度由布局实测得出
+        /// （ShellGrid.ActualHeight），不依赖手算常数，以后加内容也不会算错。
+        /// 窗口高度跟着画布走（宽度固定时 Viewbox 缩放比为 1:1）。
+        /// </summary>
+        private void FitCanvasHeight()
+        {
+            if (_viewMode != AppViewMode.Full) return;
+
+            // 等布局完成后再读实际高度
+            if (ShellGrid.ActualHeight <= 0)
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(FitCanvasHeight));
+                return;
+            }
+
+            // ShellGrid 的上下 margin 是 13 + 12
+            double canvasH = Math.Ceiling(ShellGrid.ActualHeight + 25);
+
+            // 设置页内容很长，限制在合理高度，超出部分滚动
+            if (_tab == MainTab.Settings)
+            {
+                double maxH = 430 + 25 + 25 + 30 + 11 + 11;
+                if (canvasH > maxH) canvasH = maxH;
+            }
+
+            if (Math.Abs(FullCanvas.Height - canvasH) > 0.5)
+            {
+                FullCanvas.Height = canvasH;
+                // 画布变了，布局还没跟上，下一帧再校正
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(FitCanvasHeight));
+                return;
+            }
+
+            if (!_userResizedFull)
+            {
+                double target = canvasH + ViewState.EdgeMargin * 2;
+                if (Math.Abs(Height - target) > 0.5) Height = target;
+            }
+        }
+
+        /// <summary>给选中的 Tab 加高亮底色，其余为无底色。</summary>
+        private void UpdateTabButtons()
+        {
+            var buttons = new[]
+            {
+                (TabHomeBtn, MainTab.Home),
+                (TabDetailBtn, MainTab.Detail),
+                (TabStatsBtn, MainTab.Stats),
+                (TabSettingsBtn, MainTab.Settings)
+            };
+            foreach (var (btn, tab) in buttons)
+            {
+                bool active = tab == _tab;
+                btn.Background = active ? MakeBrush(_theme.TabActiveBg) : Brushes.Transparent;
+                btn.BorderBrush = active ? MakeBrush(_theme.TabActiveBorder) : Brushes.Transparent;
+                btn.Foreground = active ? MakeBrush(_theme.TabActiveFg) : MakeBrush(_theme.TabIdleFg);
+            }
+        }
+
+        /// <summary>更新"迷你挂件"按钮的选中态。</summary>
+        private void UpdateViewButtons()
+        {
+            bool mini = _viewMode == AppViewMode.Mini;
+            MiniToggleBtn.Style = (Style)FindResource(mini ? "ToggleActive" : "ToggleIdle");
+            MiniToggleBtn.Content = mini ? "完整界面" : "迷你挂件";
         }
 
         // ---------------- 鼠标穿透 ----------------
@@ -838,66 +1059,86 @@ namespace WorkEncourager
         {
             Width = w;
             Height = h;
+            _userResizedFull = true;
+            _cfg.FullResized = true;
             UpdateSizeText();
         }
 
-        private void RestoreSize()
+        /// <summary>从配置恢复视图模式与 Tab（启动时调用）。</summary>
+        private void RestoreViewState()
         {
-            double w = _cfg.WindowWidth ?? DefaultWidth;
-            double h = _cfg.WindowHeight ?? DefaultHeight;
-            if (w < 360) w = DefaultWidth;
-            if (h < 400) h = DefaultHeight;
-            Width = w;
-            Height = h;
+            _viewMode = ViewState.ParseViewMode(_cfg.ViewMode);
+            _tab = ViewState.ParseTab(_cfg.ActiveTab);
+
+            HomePanel.Visibility = _tab == MainTab.Home ? Visibility.Visible : Visibility.Collapsed;
+            DetailPanel.Visibility = _tab == MainTab.Detail ? Visibility.Visible : Visibility.Collapsed;
+            StatsPanel.Visibility = _tab == MainTab.Stats ? Visibility.Visible : Visibility.Collapsed;
+            SettingsScroll.Visibility = _tab == MainTab.Settings ? Visibility.Visible : Visibility.Collapsed;
+
+            ApplyMinSize();
+
+            if (_viewMode == AppViewMode.Mini)
+            {
+                var sz = ViewState.WindowSize(AppViewMode.Mini, _cfg.MiniWidth, _cfg.MiniHeight,
+                                              MainTab.Home, _userResizedMini);
+                Width = sz.W;
+                Height = sz.H;
+            }
+            else
+            {
+                var sz = ViewState.WindowSize(AppViewMode.Full, _cfg.WindowWidth, _cfg.WindowHeight,
+                                              _tab, _userResizedFull);
+                Width = sz.W;
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(FitCanvasHeight));
+            }
         }
 
         private void UpdateSizeText()
         {
             if (SizeText == null) return;
+            if (_viewMode == AppViewMode.Mini)
+            {
+                SizeText.Text = "迷你挂件 · 双击展开完整界面";
+                return;
+            }
             SizeText.Text = Math.Round(ActualWidth) + " × " + Math.Round(ActualHeight) +
                             "（拖动窗体边框可缩放）";
         }
 
         private void OnDragArea(object sender, MouseButtonEventArgs e)
         {
-            if (SettingsLayer.Visibility == Visibility.Visible) return;
             if (e.ChangedButton != MouseButton.Left) return;
             try { DragMove(); } catch { }
-            _cfg.WindowLeft = Left;
-            _cfg.WindowTop = Top;
+            if (_viewMode == AppViewMode.Mini)
+            {
+                _cfg.MiniLeft = Left;
+                _cfg.MiniTop = Top;
+            }
+            else
+            {
+                _cfg.WindowLeft = Left;
+                _cfg.WindowTop = Top;
+            }
             SaveCfg();
         }
 
-        private void RestorePosition()
+        /// <summary>迷你挂件上双击展开完整界面（单击仍用于拖动窗口）。</summary>
+        private void OnMiniShellMouseDown(object sender, MouseButtonEventArgs e)
         {
-            var wa = SystemParameters.WorkArea;
-            double w = Width;
-            double left = _cfg.WindowLeft ?? (wa.Right - w - 24);
-            double top = _cfg.WindowTop ?? (wa.Top + 90);
-            if (left < wa.Left - 40 || left > wa.Right - 80) left = wa.Right - w - 24;
-            if (top < wa.Top - 10 || top > wa.Bottom - 120) top = wa.Top + 90;
-            Left = left;
-            Top = top;
+            if (e.ClickCount >= 2 && e.ChangedButton == MouseButton.Left)
+            {
+                e.Handled = true;
+                SetViewMode(AppViewMode.Full);
+            }
         }
 
         // ---------------- 设置 ----------------
 
-        private void OpenSettings()
-        {
-            FillSettings(_cfg);
-            SettingsTip.Text = "";
-            ApplyOpacity();
-            UpdateAutoHours();
-            UpdatePreview();
-            UpdateSizeText();
-            UpdateToneButtons();
-            UpdateThemeButtons();
-            SettingsLayer.Visibility = Visibility.Visible;
-        }
+        private void OpenSettings() => SelectTab(MainTab.Settings);
 
-        private void CloseSettings() => SettingsLayer.Visibility = Visibility.Collapsed;
+        private void CloseSettings() => SelectTab(MainTab.Home);
 
-        public void ShowSettingsForDebug() => OpenSettings();
+        public void ShowSettingsForDebug() => SelectTab(MainTab.Settings);
 
         private void FillSettings(AppConfig c)
         {
@@ -1081,7 +1322,7 @@ namespace WorkEncourager
                 var path = Path.Combine(CfgDir, "工时报表-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv");
                 CsvExporter.WriteFile(path, CsvExporter.BuildWorkReport(_tracker.Records, _calendar, _cfg.Weekdays));
                 _lastExportPath = path;
-                ShowTip(StatsLayer.Visibility == Visibility.Visible ? StatsTip : SettingsTip,
+                ShowTip(_tab == MainTab.Stats ? StatsTip : SettingsTip,
                         "工时报表已导出，路径可复制：\n" + path);
             }
             catch (Exception ex) { ShowTip(SettingsTip, "导出失败：" + ex.Message); }
@@ -1148,12 +1389,16 @@ namespace WorkEncourager
         {
             StatsTip.Text = "";
             RefreshStats();
-            StatsLayer.Visibility = Visibility.Visible;
+            SelectTab(MainTab.Stats);
         }
 
-        private void CloseStats() => StatsLayer.Visibility = Visibility.Collapsed;
+        private void CloseStats() => SelectTab(MainTab.Home);
 
-        public void ShowStatsForDebug() => OpenStats();
+        public void ShowStatsForDebug() => SelectTab(MainTab.Stats);
+
+        public void ShowDetailForDebug() => SelectTab(MainTab.Detail);
+
+        public void ShowMiniForDebug() => SetViewMode(AppViewMode.Mini);
 
         /// <summary>调试用：以暂停状态启动，且退出时不把暂停状态写回配置。</summary>
         public void ShowPausedForDebug()

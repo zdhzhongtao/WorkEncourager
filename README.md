@@ -3,7 +3,7 @@
 一个常驻桌面的「上班鼓励器」悬浮窗，实时计算你上班期间已经赚到多少钱，并生成工时报表。
 
 ![WPF / Windows](https://img.shields.io/badge/.NET-10.0-blue)
-![Tests](https://img.shields.io/badge/tests-83%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-128%20passed-brightgreen)
 
 ## 文档
 
@@ -14,6 +14,7 @@
 
 ## 特性
 
+- **两种形态**：完整界面（主页/明细/统计/设置 4 个 Tab）与**迷你挂件**（252×112 的桌面小卡片，双击展开）
 - **无边框半透明悬浮窗**，永远置顶（可关），按住空白处任意拖动，位置/大小自动记忆
 - **边缘可拖动缩放**：鼠标移到窗口最外圈（上下左右边缘或四角）出现缩放光标即可拖动改大小
 - **实时金额**：今日已赚金额按秒累加，保留 4 位小数
@@ -29,7 +30,7 @@
 - **历史统计**：本周/本月/本年累计工时与收入、加班合计、最赚的一天
 - **透明度可调**：45% ~ 100% 滑块实时调节
 - **窗体可缩放**：拖边缘自由缩放，或用 小/中/大 预设；内容等比自适应（Viewbox）
-- **深色模式 / 极简模式**：深色配色切换；极简模式只显示一个数字的小挂件（268×132）
+- **深色模式**：深色配色切换
 - **鼠标穿透**：悬浮窗不挡下面的工作时可切换为点击穿透
 - **暂停即冻结**：关闭计时器后金额/进度/倒计时全部停住，恢复瞬间不跳变
 - **设置可自定义**：月薪、上班/下班时间、午休时段、目标物名称与单价、发薪日、计薪日（周一~周日多选）
@@ -66,16 +67,16 @@
 - 暂停期间不计入
 - 超出下班时间的部分单独计为加班
 
-设置保存在 `%APPDATA%\WorkEncureur\settings.json`，历史记录在同目录 `history.json`，均不上传任何服务器。
+设置保存在 `%APPDATA%\WorkEncourager\settings.json`，历史记录在同目录 `history.json`，均不上传任何服务器。
 
 ## 项目结构
 
 ```
 WorkEnc/
 ├── WorkEnc.slnx                    解决方案
-├── WorkEncourageur.csproj          WPF 主程序
+├── WorkEncourager.csproj          WPF 主程序
 ├── App.xaml / App.xaml.cs          入口与命令行参数
-├── MainWindow.xaml                 界面布局（主面板 / 统计面板 / 设置面板 / 极简面板）
+├── MainWindow.xaml                 界面布局（完整界面 4 Tab / 迷你挂件）
 ├── MainWindow.xaml.cs              界面逻辑与事件
 ├── Win32.cs                        鼠标穿透（WS_EX_TRANSPARENT）
 ├── app.manifest                    PerMonitorV2 DPI 感知
@@ -86,6 +87,7 @@ WorkEnc/
 ├── WorkEnc.Core/                   纯逻辑类库（无 UI 依赖，可独立测试）
 │   ├── AppConfig.cs                配置模型
 │   ├── ConfigStore.cs              配置读写与版本迁移
+│   ├── ViewState.cs                视图模式 / Tab / 窗口尺寸计算
 │   ├── WorkSchedule.cs             作息表（上下班 + 午休多时段）
 │   ├── PayCalendar.cs              法定节假日与调休日历
 │   ├── SalaryCalculator.cs         薪资与工时计算
@@ -94,7 +96,7 @@ WorkEnc/
 │   ├── CsvExporter.cs              CSV 报表生成
 │   ├── QuoteProvider.cs            语录库
 │   └── Theme.cs                    主题配色
-└── WorkEnc.Tests/                  xUnit 单元测试（83 个）
+└── WorkEnc.Tests/                  xUnit 单元测试（128 个）
 ```
 
 ## 构建与测试
@@ -104,14 +106,14 @@ WorkEnc/
 dotnet test WorkEnc.Tests/WorkEnc.Tests.csproj
 
 # 编译
-dotnet build WorkEncourageur.csproj -c Release
+dotnet build WorkEncourager.csproj -c Release
 
 # 发布为单文件 exe（框架依赖，约 280 KB）
-dotnet publish WorkEncourageur.csproj -c Release -r win-x64 \
+dotnet publish WorkEncourager.csproj -c Release -r win-x64 \
   --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 
 # 发布为自包含单文件（任意机器可运行，约 80 MB）
-dotnet publish WorkEncourageur.csproj -c Release -r win-x64 \
+dotnet publish WorkEncourager.csproj -c Release -r win-x64 \
   --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
 
@@ -120,13 +122,19 @@ dotnet publish WorkEncourageur.csproj -c Release -r win-x64 \
 | 参数 | 说明 |
 | --- | --- |
 | `--size 宽x高` | 指定初始窗口尺寸，例如 `--size 700x900` |
-| `--open-settings` | 启动即打开设置面板 |
-| `--open-stats` | 启动即打开历史统计面板 |
+| `--open-settings` | 启动即打开「设置」Tab |
+| `--open-stats` | 启动即打开「统计」Tab |
+| `--open-detail` | 启动即打开「明细」Tab |
+| `--mini` | 启动即进入迷你挂件模式 |
+| `--paused` | 以暂停状态启动（退出时不写回配置） |
 | `--shot <路径>` | 用 `RenderTargetBitmap` 渲染窗口截图后退出 |
+| `--gap <毫秒>` | 配合 `--shot` 连拍两张（第二张存为 `<路径>.t2.png`） |
 
 ```bash
-./WorkEncourageur.exe --open-stats --shot stats.png
+./WorkEncourager.exe --open-stats --shot stats.png
 ```
+
+> 带 `--` 开头的参数进入**调试模式**：配置与历史改写到 `%APPDATA%\WorkEncourager\debug\` 子目录，绝不碰真实数据，且退出时不落盘。
 
 ## CSV 报表格式
 

@@ -44,6 +44,17 @@ namespace WorkEnc.Core
         public string ShadowColor { get; set; } = "#0F172A";
         public double ShadowOpacity { get; set; } = 0.18;
 
+        /// <summary>Tab 条底色。</summary>
+        public string TabBarBg { get; set; } = "#F1F4F8";
+        /// <summary>选中 Tab 的底色。</summary>
+        public string TabActiveBg { get; set; } = "#FFFFFF";
+        /// <summary>选中 Tab 的边框色。</summary>
+        public string TabActiveBorder { get; set; } = "#FED7AA";
+        /// <summary>选中 Tab 的文字色。</summary>
+        public string TabActiveFg { get; set; } = "#C2410C";
+        /// <summary>未选中 Tab 的文字色。</summary>
+        public string TabIdleFg { get; set; } = "#8A94A6";
+
         public static Theme Light() => new Theme();
 
         public static Theme Dark() => new Theme
@@ -81,6 +92,11 @@ namespace WorkEnc.Core
             ChipPausedBg = "#33F59E0B",
             ChipPausedFg = "#FCD34D",
             ChipPausedDot = "#FBBF24",
+            TabBarBg = "#1FFFFFFF",
+            TabActiveBg = "#33FFFFFF",
+            TabActiveBorder = "#4DF97316",
+            TabActiveFg = "#FDBA74",
+            TabIdleFg = "#8794A8",
             ShadowColor = "#000000",
             ShadowOpacity = 0.45
         };

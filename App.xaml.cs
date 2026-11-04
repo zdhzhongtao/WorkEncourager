@@ -6,10 +6,18 @@ namespace WorkEncourager
 {
     public partial class App : Application
     {
+        /// <summary>
+        /// 调试模式：以 -- 开头的参数启动时置为 true。
+        /// 调试运行使用独立的配置与历史文件，绝不碰用户真实数据。
+        /// </summary>
+        public static bool DebugMode { get; private set; }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
             DispatcherUnhandledException += OnUnhandled;
+
+            DebugMode = HasDebugFlag(e.Args);
 
             var win = new MainWindow();
             MainWindow = win;
@@ -22,8 +30,8 @@ namespace WorkEncourager
                 if (parts.Length == 2 &&
                     double.TryParse(parts[0], out double sw) && double.TryParse(parts[1], out double sh2))
                 {
-                    win.Width = Math.Max(360, sw);
-                    win.Height = Math.Max(400, sh2);
+                    win.Width = Math.Max(260, sw);
+                    win.Height = Math.Max(130, sh2);
                 }
             }
 
@@ -35,7 +43,14 @@ namespace WorkEncourager
             if (Array.IndexOf(e.Args, "--open-stats") >= 0)
                 win.ShowStatsForDebug();
 
-            // 调试用：--paused 以暂停状态启动（退出时不写回配置）
+            if (Array.IndexOf(e.Args, "--open-detail") >= 0)
+                win.ShowDetailForDebug();
+
+            // 调试用：--mini 以迷你挂件模式启动
+            if (Array.IndexOf(e.Args, "--mini") >= 0)
+                win.ShowMiniForDebug();
+
+            // 调试用：--paused 以暂停状态启动（退出时不把暂停状态写回配置）
             if (Array.IndexOf(e.Args, "--paused") >= 0)
                 win.ShowPausedForDebug();
 
@@ -69,6 +84,15 @@ namespace WorkEncourager
                 };
                 t.Start();
             }
+        }
+
+        /// <summary>判断是否带调试参数。</summary>
+        private static bool HasDebugFlag(string[] args)
+        {
+            if (args == null) return false;
+            foreach (var a in args)
+                if (a != null && a.StartsWith("--", StringComparison.Ordinal)) return true;
+            return false;
         }
 
         private void OnUnhandled(object sender, DispatcherUnhandledExceptionEventArgs e)

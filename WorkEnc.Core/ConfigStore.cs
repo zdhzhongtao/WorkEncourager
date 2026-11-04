@@ -79,6 +79,32 @@ namespace WorkEnc.Core
             if (!WorkSchedule.TryParseMinutes(cfg.End, out _)) cfg.End = "18:00";
             if (string.IsNullOrWhiteSpace(cfg.Tone)) cfg.Tone = "chill";
             if (string.IsNullOrWhiteSpace(cfg.Theme)) cfg.Theme = "light";
+
+            // 旧版本配置升级：窗口尺寸是针对旧的大布局存的，直接清掉让它按新布局自适应
+            if (string.IsNullOrWhiteSpace(cfg.ViewMode))
+            {
+                cfg.ViewMode = "full";
+                cfg.WindowWidth = null;
+                cfg.WindowHeight = null;
+                cfg.MiniWidth = null;
+                cfg.MiniHeight = null;
+                cfg.ActiveTab = "home";
+                cfg.FullResized = false;
+                cfg.MiniResized = false;
+            }
+
+            // 存下来的尺寸如果比该模式的最小尺寸还小，说明是旧版本残留，直接丢掉
+            if (cfg.WindowWidth.HasValue && cfg.WindowWidth.Value < ViewState.FullMinWidth)
+                cfg.WindowWidth = null;
+            if (cfg.WindowHeight.HasValue && cfg.WindowHeight.Value < ViewState.FullMinHeight)
+                cfg.WindowHeight = null;
+            if (cfg.MiniWidth.HasValue && cfg.MiniWidth.Value < ViewState.MiniMinWidth)
+                cfg.MiniWidth = null;
+            if (cfg.MiniHeight.HasValue && cfg.MiniHeight.Value < ViewState.MiniMinHeight)
+                cfg.MiniHeight = null;
+
+            cfg.ViewMode = ViewState.ToText(ViewState.ParseViewMode(cfg.ViewMode));
+            cfg.ActiveTab = ViewState.ToText(ViewState.ParseTab(cfg.ActiveTab));
         }
 
         /// <summary>构造用于计算日历的 PayCalendar（带用户自定义日期）。</summary>

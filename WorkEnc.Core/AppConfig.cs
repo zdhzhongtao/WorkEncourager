@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text.Json.Serialization;
 
 namespace WorkEnc.Core
@@ -45,6 +45,12 @@ namespace WorkEnc.Core
         /// <summary>极简模式：只显示核心数字。</summary>
         public bool CompactMode { get; set; }
 
+        /// <summary>视图模式：full（完整多 Tab）/ mini（桌面小挂件）。空值表示旧版本配置，首次升级时重置布局。</summary>
+        public string ViewMode { get; set; } = "";
+
+        /// <summary>上次停留的主 Tab：home / detail / stats / settings。</summary>
+        public string ActiveTab { get; set; } = "home";
+
         /// <summary>鼠标穿透（点击穿透窗口）。</summary>
         public bool ClickThrough { get; set; }
 
@@ -55,6 +61,18 @@ namespace WorkEnc.Core
         public double? WindowHeight { get; set; }
         public double? Opacity { get; set; }
         public bool Topmost { get; set; } = true;
+
+        /// <summary>迷你模式窗口位置与大小（与完整模式分开记）。</summary>
+        public double? MiniLeft { get; set; }
+        public double? MiniTop { get; set; }
+        public double? MiniWidth { get; set; }
+        public double? MiniHeight { get; set; }
+
+        /// <summary>用户是否手动拖过完整模式的窗体边框。只有拖过才沿用自定义高度。</summary>
+        public bool FullResized { get; set; }
+
+        /// <summary>用户是否手动拖过迷你挂件的边框。</summary>
+        public bool MiniResized { get; set; }
 
         /// <summary>暂停状态持久化：是否处于暂停。</summary>
         public bool Paused { get; set; }
