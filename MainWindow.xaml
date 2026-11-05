@@ -361,9 +361,12 @@
   <Grid>
     <Grid Margin="16">
 
-      <!-- ================= 完整模式 ================= -->
-      <Viewbox x:Name="FullViewbox" Stretch="Uniform" StretchDirection="Both">
-       <Grid x:Name="FullCanvas" Width="400" Height="356" Background="Transparent">
+      <!-- ================= 完整模式 =================
+           这里刻意不用 Viewbox：Viewbox 会把整个界面等比缩放，
+           窗口一小文字就跟着变小、窗口一宽内容又不跟着铺开（两边留白，看着矮胖）。
+           现在改成普通 Grid，文字永远是设定字号，宽度跟着窗口走，高度由内容决定。 -->
+      <Grid x:Name="FullViewbox" Background="Transparent">
+       <Grid x:Name="FullCanvas" Background="Transparent" VerticalAlignment="Top">
         <Border x:Name="Shell" CornerRadius="20" Background="#EDFFFFFF" BorderBrush="#E7ECF3" BorderThickness="1">
             <Border.Effect>
               <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.18" Color="#0F172A" />
@@ -901,7 +904,7 @@
             </Grid>
           </Border>
        </Grid>
-      </Viewbox>
+      </Grid>
 
       <!-- ================= 迷你挂件 ================= -->
       <Viewbox x:Name="MiniViewbox" Stretch="Uniform" StretchDirection="Both" Visibility="Collapsed">

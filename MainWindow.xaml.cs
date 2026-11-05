@@ -59,6 +59,7 @@ namespace WorkEncourager
         private AppViewMode _viewMode = AppViewMode.Full;
         private MainTab _tab = MainTab.Home;
         private bool _userResizedFull;     // 用户在完整模式下手动拖过窗体边框
+        private double _lastCanvasWidth = -1;   // 上次内容区宽度，用来判断是"拖宽"还是"变高"
         private bool _userResizedMini;     // 用户在迷你模式下手动拖过窗体边框
 
         private Theme _theme = Theme.Light();
@@ -225,10 +226,13 @@ namespace WorkEncourager
                 _cfg.Opacity = Opacity;   // 幽灵模式需要用这个值作为"正常"基准
                 OpacityValueText.Text = Math.Round(Opacity * 100).ToString() + "%";
             };
-            ResetSizeBtn.Click += (s, e) => { SetSize(ViewState.FullWindowWidth, ViewState.FullWindowHeight(_tab)); UpdateSizeText(); };
-            SizeSmallBtn.Click += (s, e) => SetSize(340, 300);
-            SizeMidBtn.Click += (s, e) => SetSize(ViewState.FullWindowWidth, ViewState.FullWindowHeight(_tab));
-            SizeBigBtn.Click += (s, e) => SetSize(560, 620);
+            // 尺寸预设只改宽度：高度由内容决定（见 SetWidth 的注释）
+            ResetSizeBtn.Click += (s, e) => SetWidth(ViewState.FullWindowWidth);
+            SizeSmallBtn.Click += (s, e) => SetWidth(360);
+            SizeMidBtn.Click += (s, e) => SetWidth(ViewState.FullWindowWidth);
+            SizeBigBtn.Click += (s, e) => SetWidth(560);
+
+            FullCanvas.SizeChanged += OnCanvasSizeChanged;
 
             ToneChillBtn.Click += (s, e) => SetTone("chill");
             ToneSavageBtn.Click += (s, e) => SetTone("savage");

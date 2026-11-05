@@ -316,13 +316,39 @@ namespace WorkEncourager
             }
         }
 
-        private void SetSize(double w, double h)
+        /// <summary>
+        /// 只设定完整界面的宽度，高度交给内容决定。
+        ///
+        /// 以前是宽高一起定死，配上 Viewbox 的等比缩放，拖小了文字就糊成一团。
+        /// 现在宽度自由、高度贴合内容，所以"尺寸预设"只改宽度。
+        /// </summary>
+        private void SetWidth(double w)
         {
-            Width = w;
-            Height = h;
-            _userResizedFull = true;
-            _cfg.FullResized = true;
+            w = Math.Max(ViewState.FullMinWidth, w);
+
+            _cfg.WindowWidth = w;
+            _cfg.WindowHeight = null;
+            _cfg.FullResized = false;
+            _userResizedFull = false;      // 高度重新交给 FitCanvasHeight
+
+            if (_viewMode == AppViewMode.Full)
+            {
+                Width = w;
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(FitCanvasHeight));
+            }
+
             UpdateSizeText();
+            SaveCfg();
+        }
+
+        /// <summary>画布宽度变了（用户拖宽窗口）→ 内容重排后高度会变，重算一次。</summary>
+        private void OnCanvasSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (_viewMode != AppViewMode.Full) return;
+            if (Math.Abs(e.NewSize.Width - _lastCanvasWidth) < 0.5) return;   // 只关心宽度变化
+
+            _lastCanvasWidth = e.NewSize.Width;
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(FitCanvasHeight));
         }
 
         /// <summary>从配置恢复视图模式与 Tab（启动时调用）。</summary>

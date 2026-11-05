@@ -312,11 +312,12 @@ namespace WorkEncourager
         }
 
         /// <summary>
-        /// 按当前 Tab 内容的实际高度撑开画布，让内容完整显示且不出现多余滚动条。
+        /// 按当前 Tab 的内容算出需要多高，并把它设成窗口的高度下限。
         ///
-        /// 画布宽度固定 400，内容按这个宽度排版；高度由布局实测得出
-        /// （ShellGrid.ActualHeight），不依赖手算常数，以后加内容也不会算错。
-        /// 窗口高度跟着画布走（宽度固定时 Viewbox 缩放比为 1:1）。
+        /// 去掉 Viewbox 之后，界面不再整体缩放，文字始终保持设定字号。
+        /// 宽度是自由的（拉宽内容会跟着铺开），高度则"够用就好"：
+        /// 内容需要多高，窗口最小就多高，用户拖不矮到裁切内容。
+        /// 设置页内容很长，用内部的 ScrollViewer 滚动，所以给它一个上限。
         /// </summary>
         private void FitCanvasHeight()
         {
@@ -330,28 +331,21 @@ namespace WorkEncourager
             }
 
             // ShellGrid 的上下 margin 是 13 + 12
-            double canvasH = Math.Ceiling(ShellGrid.ActualHeight + 25);
+            double need = Math.Ceiling(ShellGrid.ActualHeight + 25);
 
-            // 设置页内容很长，限制在合理高度，超出部分滚动
             if (_tab == MainTab.Settings)
             {
                 double maxH = 430 + 25 + 25 + 30 + 11 + 11;
-                if (canvasH > maxH) canvasH = maxH;
+                if (need > maxH) need = maxH;
             }
 
-            if (Math.Abs(FullCanvas.Height - canvasH) > 0.5)
-            {
-                FullCanvas.Height = canvasH;
-                // 画布变了，布局还没跟上，下一帧再校正
-                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(FitCanvasHeight));
-                return;
-            }
+            double minH = need + ViewState.EdgeMargin * 2;
 
-            if (!_userResizedFull)
-            {
-                double target = canvasH + ViewState.EdgeMargin * 2;
-                if (Math.Abs(Height - target) > 0.5) Height = target;
-            }
+            // 内容高度 = 窗口高度下限，拖不矮
+            if (Math.Abs(MinHeight - minH) > 0.5) MinHeight = minH;
+
+            // 用户没手动定过高度时，窗口高度贴合内容
+            if (!_userResizedFull && Math.Abs(Height - minH) > 0.5) Height = minH;
         }
 
         /// <summary>给选中的 Tab 加高亮底色，其余为无底色。</summary>
