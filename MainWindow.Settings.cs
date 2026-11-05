@@ -344,8 +344,14 @@ namespace WorkEncourager
             // 内容高度 = 窗口高度下限，拖不矮
             if (Math.Abs(MinHeight - minH) > 0.5) MinHeight = minH;
 
-            // 用户没手动定过高度时，窗口高度贴合内容
-            if (!_userResizedFull && Math.Abs(Height - minH) > 0.5) Height = minH;
+            // 窗口高度是否还"跟着内容走"：
+            // 用户从没手动调过高度，或者当前高度正好等于上次自动贴合的值（说明这次也是自动撑出来的），
+            // 就跟着内容缩放；反之（用户自己拖过高）就保持用户的选择。
+            if (_lastAutoHeight < 0) _lastAutoHeight = Height;
+            bool followsContent = !_userResizedFull || Math.Abs(Height - _lastAutoHeight) < 2;
+
+            if (followsContent && Math.Abs(Height - minH) > 0.5) Height = minH;
+            _lastAutoHeight = minH;
         }
 
         /// <summary>给选中的 Tab 加高亮底色，其余为无底色。</summary>

@@ -60,6 +60,7 @@ namespace WorkEncourager
         private MainTab _tab = MainTab.Home;
         private bool _userResizedFull;     // 用户在完整模式下手动拖过窗体边框
         private double _lastCanvasWidth = -1;   // 上次内容区宽度，用来判断是"拖宽"还是"变高"
+        private double _lastAutoHeight = -1;    // 上次自动贴合的内容高度，用来判断窗口高度该不该跟着变
         private bool _userResizedMini;     // 用户在迷你模式下手动拖过窗体边框
 
         private Theme _theme = Theme.Light();
