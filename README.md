@@ -90,7 +90,11 @@ WorkEnc/
 ├── WorkEncourager.csproj          WPF 主程序
 ├── App.xaml / App.xaml.cs          入口与命令行参数
 ├── MainWindow.xaml                 界面布局（完整界面 4 Tab / 迷你挂件）
-├── MainWindow.xaml.cs              界面逻辑与事件
+├── MainWindow.xaml.cs              核心：字段、构造、配置读写、暂停、渲染
+├── MainWindow.Tray.cs              托盘常驻 / 鼠标穿透 / 全局热键 / 单实例消息
+├── MainWindow.Layout.cs            窗口缩放 / 位置记忆 / 多屏 / 幽灵模式 / 边缘吸附
+├── MainWindow.Settings.cs          主题 / 视图模式 / Tab 切换 / 设置页
+├── MainWindow.Data.cs              导入导出 / 备份恢复 / 语录 / 更新检查 / 统计 / 截图
 ├── TrayIcon.cs                     系统托盘图标（WinForms NotifyIcon 封装）
 ├── UpdateChecker.cs                GitHub Release 版本检查
 ├── Log.cs                          运行日志（追加写、自动轮转）
