@@ -16,6 +16,7 @@ namespace WorkEncourager
         private readonly ToolStripMenuItem _toggleItem;
         private readonly ToolStripMenuItem _modeItem;
         private readonly ToolStripMenuItem _clickThroughItem;
+        private readonly ToolStripMenuItem _pauseItem;
         private DateTime _lastClickUtc = DateTime.MinValue;
         private string _lastTip = "";
         private bool _disposed;
@@ -28,6 +29,9 @@ namespace WorkEncourager
 
         /// <summary>开关鼠标穿透（穿透后点不到窗口时的救命入口之一）。</summary>
         public event Action ClickThroughToggleRequested;
+
+        /// <summary>暂停 / 恢复计时。</summary>
+        public event Action PauseToggleRequested;
 
         /// <summary>把窗口尺寸和位置恢复默认（窗口被拖到不可用时的兜底）。</summary>
         public event Action ResetWindowRequested;
@@ -43,6 +47,7 @@ namespace WorkEncourager
             _toggleItem = new ToolStripMenuItem("隐藏到托盘", null, (s, e) => ToggleRequested?.Invoke());
             _modeItem = new ToolStripMenuItem("切换为迷你挂件", null, (s, e) => ModeSwitchRequested?.Invoke());
             _clickThroughItem = new ToolStripMenuItem("开启鼠标穿透", null, (s, e) => ClickThroughToggleRequested?.Invoke());
+            _pauseItem = new ToolStripMenuItem("暂停计时", null, (s, e) => PauseToggleRequested?.Invoke());
 
             var menu = new ContextMenuStrip
             {
@@ -51,6 +56,7 @@ namespace WorkEncourager
             };
             menu.Items.Add(_toggleItem);
             menu.Items.Add(_modeItem);
+            menu.Items.Add(_pauseItem);
             menu.Items.Add(_clickThroughItem);
             menu.Items.Add(new ToolStripMenuItem("重置窗口大小与位置", null, (s, e) => ResetWindowRequested?.Invoke()));
             menu.Items.Add(new ToolStripSeparator());
@@ -99,6 +105,13 @@ namespace WorkEncourager
         {
             if (_disposed) return;
             _modeItem.Text = mini ? "切换为完整界面" : "切换为迷你挂件";
+        }
+
+        /// <summary>按当前暂停状态更新菜单文案。</summary>
+        public void SetPaused(bool paused)
+        {
+            if (_disposed) return;
+            _pauseItem.Text = paused ? "恢复计时" : "暂停计时";
         }
 
         /// <summary>按当前穿透状态更新菜单文案。</summary>

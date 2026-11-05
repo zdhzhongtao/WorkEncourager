@@ -3,7 +3,7 @@
 一个常驻桌面的「上班鼓励器」悬浮窗，实时计算你上班期间已经赚到多少钱，并生成工时报表。
 
 ![WPF / Windows](https://img.shields.io/badge/.NET-10.0-blue)
-![Tests](https://img.shields.io/badge/tests-130%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-146%20passed-brightgreen)
 
 ## 文档
 
@@ -15,7 +15,12 @@
 ## 特性
 
 - **两种形态**：完整界面（主页/明细/统计/设置 4 个 Tab）与**迷你挂件**（252×112 的桌面小卡片，双击展开）
-- **常驻托盘**：不占任务栏，点 × 只隐藏窗口、计时继续跑；托盘左键唤回、右键切换形态 / 打开设置 / 真正退出
+- **常驻托盘**：不占任务栏，点 × 只隐藏窗口、计时继续跑；托盘左键唤回、右键切换形态 / 暂停计时 / 开关穿透 / 重置窗口 / 打开设置 / 真正退出
+- **幽灵模式**：鼠标离开窗口自动变淡，移回恢复（设置里开关）
+- **迷你挂件边缘吸附**：拖到屏幕边自动贴住（设置里开关）
+- **工时导入**：点按钮选 CSV，按日期增量合并；自动记住上次导入目录
+- **语录可编辑**：导出一份 CSV，Excel 直接改，保存后 5 秒内热加载
+- **一键备份 / 恢复**：配置 + 工时 + 语录打包成 zip，恢复前自动留一份原数据
 - **无边框半透明悬浮窗**，永远置顶（可关），按住空白处任意拖动，位置/大小自动记忆
 - **边缘可拖动缩放**：鼠标移到窗口最外圈（上下左右边缘或四角）出现缩放光标即可拖动改大小
 - **单实例**：重复启动只会激活已在运行的实例，不会出现两份数据互相覆盖
@@ -87,6 +92,7 @@ WorkEnc/
 ├── MainWindow.xaml                 界面布局（完整界面 4 Tab / 迷你挂件）
 ├── MainWindow.xaml.cs              界面逻辑与事件
 ├── TrayIcon.cs                     系统托盘图标（WinForms NotifyIcon 封装）
+├── UpdateChecker.cs                GitHub Release 版本检查
 ├── Log.cs                          运行日志（追加写、自动轮转）
 ├── Win32.cs                        穿透命中测试、全局热键、单实例广播
 ├── app.manifest                    PerMonitorV2 DPI 感知
@@ -98,6 +104,8 @@ WorkEnc/
 │   ├── AppConfig.cs                配置模型
 │   ├── ConfigStore.cs              配置读写与版本迁移
 │   ├── AtomicFile.cs               原子写入 / 备份回退 / 损坏隔离
+│   ├── WorkLogImporter.cs          外部工时文件（CSV/TXT）解析
+│   ├── QuoteStore.cs               自定义语录的 CSV 读写与合并
 │   ├── ViewState.cs                视图模式 / Tab / 窗口尺寸计算
 │   ├── WorkSchedule.cs             作息表（上下班 + 午休多时段）
 │   ├── PayCalendar.cs              法定节假日与调休日历
@@ -107,7 +115,8 @@ WorkEnc/
 │   ├── CsvExporter.cs              CSV 报表生成
 │   ├── QuoteProvider.cs            语录库
 │   └── Theme.cs                    主题配色
-└── WorkEnc.Tests/                  xUnit 单元测试（130 个）
+├── .github/workflows/ci.yml        GitHub Actions：编译 + 测试 + 发布产物
+└── WorkEnc.Tests/                  xUnit 单元测试（146 个）
 ```
 
 ## 构建与测试

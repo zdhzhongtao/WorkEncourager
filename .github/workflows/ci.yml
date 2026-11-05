@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'release/**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: 还原依赖
+        run: dotnet restore WorkEnc.Tests/WorkEnc.Tests.csproj
+
+      - name: 编译
+        run: dotnet build WorkEncourager.csproj -c Release --no-restore
+
+      - name: 跑单元测试
+        run: dotnet test WorkEnc.Tests/WorkEnc.Tests.csproj -c Release --logger "trx;LogFileName=test-results.trx"
+
+      - name: 发布单文件
+        run: >
+          dotnet publish WorkEncourager.csproj -c Release -r win-x64
+          --self-contained false -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true -o out
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorkEncourager-win-x64
+          path: out/WorkEncourager.exe
+          if-no-files-found: error
+
+      - name: 上传测试结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/test-results.trx'
+          if-no-files-found: ignore

@@ -809,8 +809,12 @@
                       <Button x:Name="MiniToggleBtn" Style="{StaticResource ToggleIdle}" Content="迷你挂件" Width="76" />
                       <Button x:Name="ClickThroughToggleBtn" Style="{StaticResource ToggleIdle}" Content="鼠标穿透" Width="76" Margin="6,0,0,0" />
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                      <Button x:Name="GhostModeBtn" Style="{StaticResource ToggleIdle}" Content="幽灵模式" Width="76" />
+                      <Button x:Name="SnapEdgeBtn" Style="{StaticResource ToggleIdle}" Content="边缘吸附" Width="76" Margin="6,0,0,0" />
+                    </StackPanel>
                     <TextBlock FontSize="9" Foreground="#A5AEBD" Margin="2,5,0,0" TextWrapping="Wrap" LineHeight="14"
-                               Text="迷你挂件只显示金额与进度条，双击可展开完整界面；鼠标穿透让挂件不挡下面的工作。" />
+                               Text="迷你挂件只显示金额与进度条，双击可展开完整界面；鼠标穿透让挂件不挡下面的工作。幽灵模式：鼠标离开自动变淡；边缘吸附：挂件拖到屏幕边会自动贴住。" />
 
                     <Grid Margin="0,10,0,0">
                       <Grid.ColumnDefinitions>
@@ -856,6 +860,19 @@
                       <Button x:Name="ExportCsvBtn" Style="{StaticResource GhostBtn}" Content="导出工时 CSV" Width="100" Height="30" />
                       <Button x:Name="ExportCfgBtn" Style="{StaticResource GhostBtn}" Content="导出配置" Width="76" Height="30" Margin="6,0,0,0" />
                       <Button x:Name="ImportCfgBtn" Style="{StaticResource GhostBtn}" Content="导入配置" Width="76" Height="30" Margin="6,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                      <Button x:Name="BackupAllBtn" Style="{StaticResource GhostBtn}" Content="备份全部数据" Width="100" Height="30" />
+                      <Button x:Name="RestoreAllBtn" Style="{StaticResource GhostBtn}" Content="从备份恢复" Width="100" Height="30" Margin="6,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                      <Button x:Name="ImportWorkLogBtn" Style="{StaticResource GhostBtn}" Content="导入工时数据…" Width="110" Height="30" />
+                      <Button x:Name="EditQuotesBtn" Style="{StaticResource GhostBtn}" Content="编辑语录…" Width="90" Height="30" Margin="6,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                      <Button x:Name="CheckUpdateBtn" Style="{StaticResource GhostBtn}" Content="检查更新" Width="90" Height="30" />
+                      <TextBlock x:Name="VersionText" FontSize="9.5" Foreground="#8A94A6"
+                                 VerticalAlignment="Center" Margin="8,0,0,0" Text="v—" />
                     </StackPanel>
 
                     <Grid Margin="0,10,0,0">

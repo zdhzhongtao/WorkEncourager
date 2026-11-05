@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -92,6 +94,10 @@ namespace WorkEncourager
         private bool _clickThroughHinted;
         private IntPtr _hwnd = IntPtr.Zero;
 
+        /// <summary>用户语录文件（CSV，Excel 可直接编辑）。</summary>
+        private string _quotePath;
+        private DateTime _quoteStamp = DateTime.MinValue;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -120,6 +126,8 @@ namespace WorkEncourager
                 Render();
                 UpdateBar();
                 UpdateSizeText();
+
+                _ = CheckUpdateSilentlyAsync();
 
                 // 恢复的配置里穿透是开着的：一启动就把怎么关说清楚，别让人再摸黑
                 if (_cfg.ClickThrough && !_clickThroughHinted)
@@ -214,6 +222,7 @@ namespace WorkEncourager
             {
                 if (!_loaded) return;
                 Opacity = OpacitySlider.Value;
+                _cfg.Opacity = Opacity;   // 幽灵模式需要用这个值作为"正常"基准
                 OpacityValueText.Text = Math.Round(Opacity * 100).ToString() + "%";
             };
             ResetSizeBtn.Click += (s, e) => { SetSize(ViewState.FullWindowWidth, ViewState.FullWindowHeight(_tab)); UpdateSizeText(); };
@@ -229,6 +238,19 @@ namespace WorkEncourager
             MiniToggleBtn.Click += (s, e) => SetViewMode(
                 _viewMode == AppViewMode.Mini ? AppViewMode.Full : AppViewMode.Mini);
             ClickThroughToggleBtn.Click += (s, e) => ToggleClickThrough();
+            GhostModeBtn.Click += (s, e) => ToggleGhostMode();
+            SnapEdgeBtn.Click += (s, e) => ToggleSnapEdge();
+            BackupAllBtn.Click += (s, e) => BackupAll();
+            RestoreAllBtn.Click += (s, e) => RestoreAll();
+            ImportWorkLogBtn.Click += (s, e) => ImportWorkLog();
+            EditQuotesBtn.Click += (s, e) => EditQuotes();
+            CheckUpdateBtn.Click += (s, e) => CheckUpdate();
+
+            if (VersionText != null) VersionText.Text = "v" + UpdateChecker.CurrentVersion;
+
+            // 幽灵模式靠这两个事件判断鼠标是否在窗口里
+            MouseEnter += (s, e) => SetGhostFaded(false);
+            MouseLeave += (s, e) => SetGhostFaded(true);
 
             InitTray();
 
@@ -263,11 +285,13 @@ namespace WorkEncourager
                     SelectTab(MainTab.Settings);
                 };
                 _tray.ClickThroughToggleRequested += ToggleClickThrough;
+                _tray.PauseToggleRequested += () => OnToggleClick(null, null);
                 _tray.ResetWindowRequested += ResetWindowLayout;
                 _tray.ExitRequested += ExitApp;
                 _tray.SetWindowVisible(IsVisible);
                 _tray.SetMode(_viewMode == AppViewMode.Mini);
                 _tray.SetClickThrough(_cfg.ClickThrough);
+                _tray.SetPaused(_paused);
             }
             catch (Exception ex)
             {
@@ -331,16 +355,21 @@ namespace WorkEncourager
         /// <summary>把当前窗口位置/尺寸写进配置对象（不落盘）。</summary>
         private void RememberBounds()
         {
-            _cfg.Opacity = Opacity;
+            // 注意：不能写 _cfg.Opacity = Opacity。
+            // 幽灵模式淡化时 Opacity 是临时值，存进去下次启动就变成"默认很淡"。
+            // 滑块改动时已经实时同步过 _cfg.Opacity，这里保持原值即可。
             _cfg.Topmost = Topmost;
             _cfg.ViewMode = ViewState.ToText(_viewMode);
             _cfg.ActiveTab = ViewState.ToText(_tab);
+
+            var screen = ScreenOfWindow();
             if (_viewMode == AppViewMode.Mini)
             {
                 _cfg.MiniLeft = Left;
                 _cfg.MiniTop = Top;
                 _cfg.MiniWidth = ActualWidth;
                 _cfg.MiniHeight = ActualHeight;
+                if (screen != null) _cfg.MiniScreen = screen.DeviceName;
             }
             else
             {
@@ -348,7 +377,49 @@ namespace WorkEncourager
                 _cfg.WindowTop = Top;
                 _cfg.WindowWidth = ActualWidth;
                 _cfg.WindowHeight = ActualHeight;
+                if (screen != null) _cfg.WindowScreen = screen.DeviceName;
             }
+        }
+
+        /// <summary>当前窗口所在的显示器；句柄还没建时返回 null。</summary>
+        private System.Windows.Forms.Screen ScreenOfWindow()
+        {
+            try
+            {
+                var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                if (h == IntPtr.Zero) return null;
+                return System.Windows.Forms.Screen.FromHandle(h);
+            }
+            catch { return null; }
+        }
+
+        /// <summary>
+        /// 取指定显示器的工作区（DIP）。找不到就回主屏。
+        /// 副屏的物理像素按主屏缩放比换算成 DIP —— 多屏同缩放比时完全准确，
+        /// 不同缩放比时略有偏差，但外面还有 IsOnAnyScreen 兜底，窗口不会丢。
+        /// </summary>
+        private static Rect WorkAreaOf(string deviceName)
+        {
+            Rect fallback = SystemParameters.WorkArea;
+            if (string.IsNullOrEmpty(deviceName)) return fallback;
+
+            try
+            {
+                var screens = System.Windows.Forms.Screen.AllScreens;
+                var target = screens.FirstOrDefault(x =>
+                    string.Equals(x.DeviceName, deviceName, StringComparison.OrdinalIgnoreCase));
+                if (target == null || target.Primary) return fallback;
+
+                var primary = screens.FirstOrDefault(x => x.Primary);
+                if (primary == null) return fallback;
+
+                double kx = SystemParameters.WorkArea.Width / Math.Max(1.0, primary.WorkingArea.Width);
+                double ky = SystemParameters.WorkArea.Height / Math.Max(1.0, primary.WorkingArea.Height);
+
+                var a = target.WorkingArea;
+                return new Rect(a.Left * kx, a.Top * ky, a.Width * kx, a.Height * ky);
+            }
+            catch { return fallback; }
         }
 
         /// <summary>
@@ -464,6 +535,8 @@ namespace WorkEncourager
             _tracker.MaxGapSeconds = 90;
             _userResizedFull = _cfg.FullResized;
             _userResizedMini = _cfg.MiniResized;
+            _quotePath = Path.Combine(DataDir, "quotes.csv");
+            LoadQuotesIfChanged(force: true);
             RestorePauseState();
         }
 
@@ -542,6 +615,7 @@ namespace WorkEncourager
             }
             PersistPauseState();
             SaveCfg();
+            _tray?.SetPaused(_paused);
             Render();
         }
 
@@ -734,9 +808,13 @@ namespace WorkEncourager
         /// <summary>更新托盘悬停提示（5 秒一次，避免频繁调 Shell_NotifyIcon）。</summary>
         private void UpdateTrayTip(DateTime now, Snapshot st, string statusText = null)
         {
-            if (_tray == null) return;
             if ((now - _trayTipAt).TotalSeconds < 5) return;
             _trayTipAt = now;
+
+            // 用户可能刚用 Excel 改完语录，这里顺便热加载
+            LoadQuotesIfChanged();
+
+            if (_tray == null) return;
             _tray.UpdateTip("上班鼓励器 · " + (statusText ?? StatusLabel(st.Status)) + " · 今日已赚 ¥" + N4(st.Earned));
             _tray.SetMode(_viewMode == AppViewMode.Mini);
         }
@@ -1232,7 +1310,7 @@ namespace WorkEncourager
         /// <summary>恢复迷你挂件的位置（与完整模式分开记）。</summary>
         private void RestoreMiniPosition()
         {
-            var wa = SystemParameters.WorkArea;
+            var wa = WorkAreaOf(_cfg.MiniScreen);
             double w = Width, h = Height;
             double left = _cfg.MiniLeft ?? (wa.Right - w - 24);
             double top = _cfg.MiniTop ?? (wa.Bottom - h - 24);
@@ -1248,7 +1326,7 @@ namespace WorkEncourager
         /// <summary>恢复完整模式窗口的位置。</summary>
         private void RestoreFullPosition()
         {
-            var wa = SystemParameters.WorkArea;
+            var wa = WorkAreaOf(_cfg.WindowScreen);
             double w = Width, h = Height;
             double left = _cfg.WindowLeft ?? (wa.Right - w - 24);
             double top = _cfg.WindowTop ?? (wa.Top + 90);
@@ -1285,6 +1363,7 @@ namespace WorkEncourager
                 UpdateSizeText();
                 UpdateToneButtons();
                 UpdateThemeButtons();
+                UpdateFeatureButtons();
             }
 
             if (tab == MainTab.Stats) RefreshStats();
@@ -1450,6 +1529,91 @@ namespace WorkEncourager
             Log.Info("已通过托盘重置窗口大小与位置");
         }
 
+        // ---------------- 幽灵模式 / 边缘吸附 ----------------
+
+        /// <summary>幽灵模式：鼠标离开窗口时淡下去，移回来恢复。</summary>
+        private void ToggleGhostMode()
+        {
+            _cfg.GhostMode = !_cfg.GhostMode;
+            SaveCfg();
+            UpdateFeatureButtons();
+
+            if (_cfg.GhostMode) SetGhostFaded(!IsMouseOver);   // 立刻按当前位置生效
+            else Opacity = NormalOpacity();
+        }
+
+        /// <summary>把窗口切到"淡出"或"正常"。只在幽灵模式开启、且没开穿透时生效。</summary>
+        private void SetGhostFaded(bool faded)
+        {
+            if (!_cfg.GhostMode) return;
+            if (_cfg.ClickThrough) return;   // 穿透后收不到鼠标事件，淡出会一直卡在淡的状态
+
+            double normal = NormalOpacity();
+            double target = faded ? Math.Min(normal, Math.Max(0.12, _cfg.GhostOpacity)) : normal;
+            if (Math.Abs(Opacity - target) > 0.001) Opacity = target;
+        }
+
+        /// <summary>用户设定的正常不透明度（夹到 0.3~1，与滑块下限一致）。</summary>
+        private double NormalOpacity()
+        {
+            double op = _cfg.Opacity ?? 0.97;
+            if (op < 0.3) op = 0.3;
+            if (op > 1) op = 1;
+            return op;
+        }
+
+        /// <summary>边缘吸附开关：只对迷你挂件生效。</summary>
+        private void ToggleSnapEdge()
+        {
+            _cfg.SnapToEdge = !_cfg.SnapToEdge;
+            SaveCfg();
+            UpdateFeatureButtons();
+            if (_cfg.SnapToEdge) SnapMiniToEdge();
+        }
+
+        /// <summary>
+        /// 迷你挂件松手后，离屏幕边缘够近就贴上去。
+        /// 用主屏工作区判断，副屏窗口直接跳过（避免坐标系统混淆）。
+        /// </summary>
+        private void SnapMiniToEdge()
+        {
+            if (!_cfg.SnapToEdge || _viewMode != AppViewMode.Mini) return;
+
+            var wa = SystemParameters.WorkArea;
+            double w = ActualWidth, h = ActualHeight;
+            if (w <= 0 || h <= 0) return;
+
+            // 只处理完全落在主屏工作区里的窗口
+            if (Left < wa.Left - 1 || Top < wa.Top - 1 ||
+                Left + w > wa.Right + 1 || Top + h > wa.Bottom + 1) return;
+
+            const double threshold = 28;   // 离边缘多近算"想贴边"
+            const double gap = 6;          // 贴上后留的缝
+
+            double left = Left, top = Top;
+
+            if (left - wa.Left < threshold) left = wa.Left + gap;
+            else if (wa.Right - (left + w) < threshold) left = wa.Right - w - gap;
+
+            if (top - wa.Top < threshold) top = wa.Top + gap;
+            else if (wa.Bottom - (top + h) < threshold) top = wa.Bottom - h - gap;
+
+            if (Math.Abs(left - Left) > 0.5 || Math.Abs(top - Top) > 0.5)
+            {
+                Left = left;
+                Top = top;
+            }
+        }
+
+        /// <summary>同步设置页两个开关的选中态。</summary>
+        private void UpdateFeatureButtons()
+        {
+            if (GhostModeBtn != null)
+                GhostModeBtn.Style = (Style)FindResource(_cfg.GhostMode ? "ToggleActive" : "ToggleIdle");
+            if (SnapEdgeBtn != null)
+                SnapEdgeBtn.Style = (Style)FindResource(_cfg.SnapToEdge ? "ToggleActive" : "ToggleIdle");
+        }
+
         // ---------------- 置顶 / 透明度 / 位置 ----------------
 
         private void ApplyTopmost()
@@ -1532,6 +1696,8 @@ namespace WorkEncourager
         {
             if (e.ChangedButton != MouseButton.Left) return;
             try { DragMove(); } catch { }
+            SnapMiniToEdge();   // 迷你挂件松手后贴边（开关打开时才生效）
+
             if (_viewMode == AppViewMode.Mini)
             {
                 _cfg.MiniLeft = Left;
@@ -1737,6 +1903,310 @@ namespace WorkEncourager
 
         /// <summary>最近一次导出的文件路径，供"复制路径 / 打开文件夹"使用。</summary>
         private string _lastExportPath = "";
+
+        /// <summary>进备份包的文件清单。</summary>
+        private static readonly string[] BackupFiles = { "settings.json", "history.json", "quotes.json" };
+
+        // ---------------- 版本更新 ----------------
+
+        /// <summary>手动检查更新：失败给原因，有新版本直接打开下载页。</summary>
+        private async void CheckUpdate()
+        {
+            CheckUpdateBtn.IsEnabled = false;
+            SettingsTip.Text = "正在检查更新…";
+            try
+            {
+                var (tag, url, error) = await UpdateChecker.GetLatestAsync();
+                if (tag == null)
+                {
+                    SettingsTip.Text = "检查失败：" + (error ?? "未知原因")
+                        + "\n可以手动打开：" + UpdateChecker.RepoUrl;
+                    _lastExportPath = UpdateChecker.RepoUrl;
+                    return;
+                }
+
+                if (UpdateChecker.IsNewer(tag, UpdateChecker.CurrentVersion))
+                {
+                    SettingsTip.Text = "发现新版本 " + tag + "（当前 v" + UpdateChecker.CurrentVersion + "）\n" + url;
+                    _lastExportPath = url;
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = url,
+                        UseShellExecute = true
+                    });
+                }
+                else
+                {
+                    SettingsTip.Text = "已是最新版本 v" + UpdateChecker.CurrentVersion;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("检查更新失败", ex);
+                SettingsTip.Text = "检查失败：" + ex.Message;
+            }
+            finally
+            {
+                CheckUpdateBtn.IsEnabled = true;
+            }
+        }
+
+        /// <summary>启动时静默查一次，有新版本才提示，失败完全不打扰。</summary>
+        private async System.Threading.Tasks.Task CheckUpdateSilentlyAsync()
+        {
+            try
+            {
+                var (tag, _, _) = await UpdateChecker.GetLatestAsync(6);
+                if (tag == null) return;
+
+                if (UpdateChecker.IsNewer(tag, UpdateChecker.CurrentVersion))
+                {
+                    Log.Info("发现新版本 " + tag);
+                    _tray?.ShowBalloon("上班鼓励器有新版 " + tag,
+                        "当前 v" + UpdateChecker.CurrentVersion + "。右键托盘图标 → 打开设置 → 检查更新。");
+                }
+            }
+            catch { /* 静默 */ }
+        }
+
+        // ---------------- 语录（CSV，Excel 可直接编辑） ----------------
+
+        /// <summary>
+        /// 语录文件有变化就重新加载。
+        /// 用户用 Excel 改完保存，界面最多 5 秒后自动生效，不用重启。
+        /// </summary>
+        private void LoadQuotesIfChanged(bool force = false)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_quotePath)) _quotePath = Path.Combine(DataDir, "quotes.csv");
+                if (!File.Exists(_quotePath)) return;
+
+                var stamp = File.GetLastWriteTimeUtc(_quotePath);
+                if (!force && stamp == _quoteStamp) return;
+                _quoteStamp = stamp;
+
+                QuoteStore.SetCustom(File.ReadAllText(_quotePath, Encoding.UTF8));
+                Log.Info("语录已加载：自定义 " + QuoteStore.CustomCount + " 条");
+            }
+            catch (Exception ex) { Log.Error("加载语录失败", ex); }
+        }
+
+        /// <summary>语录文件不存在时，把当前生效的全部语录写成一份模板。</summary>
+        private void EnsureQuotesFile()
+        {
+            try
+            {
+                if (File.Exists(_quotePath)) return;
+                Directory.CreateDirectory(Path.GetDirectoryName(_quotePath));
+                File.WriteAllText(_quotePath, QuoteStore.BuildCsv(), new UTF8Encoding(true));
+                _quoteStamp = File.GetLastWriteTimeUtc(_quotePath);
+            }
+            catch (Exception ex) { Log.Error("生成语录模板失败", ex); }
+        }
+
+        /// <summary>
+        /// 用系统默认程序打开语录 CSV（Excel / WPS 都行）。
+        /// 存的是「语气,情境,语录」三列，改完保存即可热加载。
+        /// </summary>
+        private void EditQuotes()
+        {
+            try
+            {
+                EnsureQuotesFile();
+                _lastExportPath = _quotePath;   // 让下方的"复制路径 / 打开文件夹"也能用
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = _quotePath,
+                    UseShellExecute = true
+                });
+
+                SettingsTip.Text = "已打开语录文件，共 " + QuoteStore.CustomCount + " 条自定义：\n" + _quotePath
+                    + "\n格式：语气,情境,语录（佛系/毒舌/热血 × 首件/多件/买不够）。改完保存，5 秒内自动生效。"
+                    + "\n保存时请选「CSV UTF-8」，否则中文会乱码。";
+            }
+            catch (Exception ex)
+            {
+                Log.Error("打开语录文件失败", ex);
+                SettingsTip.Text = "打开失败：" + ex.Message + "\n文件路径：" + _quotePath;
+            }
+        }
+
+        /// <summary>
+        /// 导入外部工时文件（CSV/TXT）。
+        ///
+        /// 语义是"按日期增量合并"：文件里有的日期就更新，没有的日期一条不动。
+        /// 同一天导入两遍结果完全一样（幂等），所以可以放心重复点。
+        /// 打开对话框时会直接定位到上次导入的目录。
+        /// </summary>
+        private void ImportWorkLog()
+        {
+            try
+            {
+                var dlg = new Microsoft.Win32.OpenFileDialog
+                {
+                    Title = "导入工时数据（CSV / TXT）",
+                    Filter = "工时数据 (*.csv;*.txt)|*.csv;*.txt|所有文件 (*.*)|*.*",
+                    InitialDirectory = Directory.Exists(_cfg.LastImportDir) ? _cfg.LastImportDir : DataDir
+                };
+                if (dlg.ShowDialog(this) != true) return;
+
+                // 记住目录，下次直接到这儿
+                _cfg.LastImportDir = Path.GetDirectoryName(dlg.FileName) ?? "";
+                SaveCfg();
+
+                var errors = new List<string>();
+                var rows = WorkLogImporter.Parse(File.ReadAllText(dlg.FileName), errors);
+                if (rows.Count == 0)
+                {
+                    SettingsTip.Text = "没解析出可导入的行。最少需要「日期 + 工时」两列。"
+                        + (errors.Count > 0 ? "\n" + string.Join("\n", errors.Take(5)) : "");
+                    return;
+                }
+
+                // 金额统一按当前月薪口径重算，避免和程序自己算的日期对不上
+                double perSec = _calc.Compute(DateTime.Now, _cfg.MonthlySalary ?? 0, _cfg.Weekdays,
+                                              _cfg.PayDay, false, 0).PerSec;
+
+                int added = 0, updated = 0;
+                foreach (var d in rows)
+                {
+                    bool existed = _tracker.HasDate(d.Date);
+                    var rec = _tracker.GetOrCreate(d.Date);
+
+                    if (d.WorkedHours.HasValue) rec.WorkedSec = d.WorkedHours.Value * 3600.0;
+                    if (!string.IsNullOrEmpty(d.FirstClockIn)) rec.FirstClockIn = d.FirstClockIn;
+                    if (!string.IsNullOrEmpty(d.LastClockOut)) rec.LastClockOut = d.LastClockOut;
+                    if (d.OvertimeHours.HasValue) rec.OvertimeSec = d.OvertimeHours.Value * 3600.0;
+                    if (!string.IsNullOrEmpty(d.Note)) rec.DayNote = d.Note;
+
+                    rec.Earned = perSec * rec.WorkedSec;
+
+                    if (DateTime.TryParse(d.Date, out var day))
+                    {
+                        if (rec.ScheduledSec <= 0) rec.ScheduledSec = _schedule.GetTotalWorkSeconds(day);
+                        rec.IsPayDay = _calendar.IsPayDay(day, _cfg.Weekdays);
+                    }
+
+                    if (existed) updated++; else added++;
+                }
+
+                _tracker.Save(HistoryPath);
+                if (_tab == MainTab.Stats) RefreshStats();
+                Render();
+
+                SettingsTip.Text = "导入完成：新增 " + added + " 天，更新 " + updated + " 天。"
+                    + (errors.Count > 0 ? "\n有 " + errors.Count + " 行没读进来：" + errors[0] : "");
+                Log.Info("导入工时 " + dlg.FileName + " 新增 " + added + " 更新 " + updated);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("导入工时失败", ex);
+                SettingsTip.Text = "导入失败：" + ex.Message;
+            }
+        }
+
+        /// <summary>把配置、工时历史、语录打成一个 zip，方便换机或存档。</summary>
+        private void BackupAll()
+        {
+            try
+            {
+                _tracker.Save(HistoryPath);
+                ConfigStore.Save(CfgPath, _cfg);
+
+                var dlg = new Microsoft.Win32.SaveFileDialog
+                {
+                    Title = "备份全部数据",
+                    Filter = "备份包 (*.zip)|*.zip",
+                    FileName = "WorkEncourager-备份-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + ".zip",
+                    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                };
+                if (dlg.ShowDialog(this) != true) return;
+
+                var files = BackupFiles
+                    .Select(n => Path.Combine(DataDir, n))
+                    .Where(File.Exists)
+                    .ToList();
+                if (files.Count == 0) { SettingsTip.Text = "没有可备份的数据"; return; }
+
+                if (File.Exists(dlg.FileName)) File.Delete(dlg.FileName);
+                using (var zip = System.IO.Compression.ZipFile.Open(dlg.FileName,
+                           System.IO.Compression.ZipArchiveMode.Create))
+                {
+                    foreach (var f in files) zip.CreateEntryFromFile(f, Path.GetFileName(f));
+                }
+
+                _lastExportPath = dlg.FileName;
+                SettingsTip.Text = "已备份 " + files.Count + " 个文件到：\n" + dlg.FileName;
+                Log.Info("备份完成: " + dlg.FileName);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("备份失败", ex);
+                SettingsTip.Text = "备份失败：" + ex.Message;
+            }
+        }
+
+        /// <summary>
+        /// 从 zip 恢复。当前数据会先原样留在 before-restore-时间戳 目录里，
+        /// 恢复错了还能退回去。
+        /// </summary>
+        private void RestoreAll()
+        {
+            try
+            {
+                var dlg = new Microsoft.Win32.OpenFileDialog
+                {
+                    Title = "选择备份包",
+                    Filter = "备份包 (*.zip)|*.zip",
+                    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                };
+                if (dlg.ShowDialog(this) != true) return;
+
+                string safety = Path.Combine(DataDir, "before-restore-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+                Directory.CreateDirectory(safety);
+                foreach (var name in BackupFiles)
+                {
+                    var p = Path.Combine(DataDir, name);
+                    if (File.Exists(p)) File.Copy(p, Path.Combine(safety, name), true);
+                }
+
+                int restored = 0;
+                using (var zip = System.IO.Compression.ZipFile.OpenRead(dlg.FileName))
+                {
+                    foreach (var entry in zip.Entries)
+                    {
+                        // 只认白名单里的三个文件，防止压缩包里塞别的东西
+                        if (Array.IndexOf(BackupFiles, entry.Name) < 0) continue;
+                        entry.ExtractToFile(Path.Combine(DataDir, entry.Name), true);
+                        restored++;
+                    }
+                }
+                if (restored == 0) { SettingsTip.Text = "这个包里没有可恢复的数据"; return; }
+
+                LoadCfg();
+                ApplyTheme();
+                ApplyTopmost();
+                ApplyOpacity();
+                ApplyClickThrough();
+                FillSettings(_cfg);
+                UpdateFeatureButtons();
+                UpdateToneButtons();
+                UpdateThemeButtons();
+                UpdateAutoHours();
+                UpdatePreview();
+                Render();
+
+                SettingsTip.Text = "已恢复 " + restored + " 个文件。恢复前的数据留在：\n" + safety;
+                Log.Info("从备份恢复: " + dlg.FileName);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("恢复失败", ex);
+                SettingsTip.Text = "恢复失败：" + ex.Message;
+            }
+        }
 
         private void ExportConfig()
         {

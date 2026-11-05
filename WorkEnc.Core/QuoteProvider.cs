@@ -108,6 +108,9 @@ namespace WorkEnc.Core
             _rng = seed.HasValue ? new Random(seed.Value) : new Random();
         }
 
+        /// <summary>内置语录池（没有自定义语录时使用）。</summary>
+        public static string[] BuiltInPool(Tone tone, QuoteScene scene) => Pools[tone][scene];
+
         /// <summary>把语气字符串解析为枚举，非法值回退到佛系。</summary>
         public static Tone ParseTone(string s)
         {
@@ -126,7 +129,8 @@ namespace WorkEnc.Core
         public string Get(Tone tone, QuoteScene scene, string item, string timeText,
                           string earnedText, int count = 0, string canBuyText = "0")
         {
-            var pool = Pools[tone][scene];
+            // 自定义语录优先（quotes.csv 里写了就用 CSV 的，没写就用内置）
+            var pool = QuoteStore.PoolFor(tone, scene);
             int idx = _rng.Next(pool.Length);
             if (pool.Length > 1 && idx == _lastIndex) idx = (idx + 1) % pool.Length;
             _lastIndex = idx;

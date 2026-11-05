@@ -86,6 +86,9 @@ namespace WorkEnc.Core
         [System.Text.Json.Serialization.JsonIgnore]
         public DayRecord Today => GetOrCreate(CurrentDate);
 
+        /// <summary>该日期是否已有记录（导入时用来区分"新增"还是"更新"）。</summary>
+        public bool HasDate(string date) => !string.IsNullOrEmpty(date) && _records.ContainsKey(date);
+
         public DayRecord GetOrCreate(string date)
         {
             if (!_records.TryGetValue(date, out var rec))
