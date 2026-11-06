@@ -23,8 +23,8 @@ namespace WorkEncourager
         /// <summary>最近一次导出的文件路径，供"复制路径 / 打开文件夹"使用。</summary>
         private string _lastExportPath = "";
 
-        /// <summary>进备份包的文件清单。</summary>
-        private static readonly string[] BackupFiles = { "settings.json", "history.json", "quotes.json" };
+        /// <summary>进备份包的文件清单。注意语录文件是 CSV（quotes.csv），不是 json。</summary>
+        private static readonly string[] BackupFiles = { "settings.json", "history.json", "quotes.csv" };
 
         // ---------------- 版本更新 ----------------
 
@@ -105,11 +105,28 @@ namespace WorkEncourager
                 if (!force && stamp == _quoteStamp) return;
                 _quoteStamp = stamp;
 
-                QuoteStore.SetCustom(File.ReadAllText(_quotePath, Encoding.UTF8));
-                Log.Info("语录已加载：自定义 " + QuoteStore.CustomCount + " 条");
+                var (count, error) = QuoteStore.SetCustom(File.ReadAllText(_quotePath, Encoding.UTF8));
+                _quoteError = error;
+
+                if (error == null)
+                {
+                    Log.Info("语录已加载：自定义 " + count + " 条");
+                }
+                else
+                {
+                    // 坏行不再静默丢弃：写日志，并且设置页可见时直接把原因摆到用户面前
+                    Log.Info("语录加载有问题：" + error + "（可用 " + count + " 条）");
+                    if (_tab == MainTab.Settings) SettingsTip.Text = QuoteErrorTip();
+                }
             }
             catch (Exception ex) { Log.Error("加载语录失败", ex); }
         }
+
+        /// <summary>语录解析问题的提示文案（没问题时是空串）。</summary>
+        private string QuoteErrorTip() =>
+            string.IsNullOrEmpty(_quoteError)
+                ? ""
+                : "语录文件有问题：" + _quoteError + "\n（这一行会被跳过，其余照常生效）";
 
         /// <summary>语录文件不存在时，把当前生效的全部语录写成一份模板。</summary>
         private void EnsureQuotesFile()
@@ -143,7 +160,8 @@ namespace WorkEncourager
 
                 SettingsTip.Text = "已打开语录文件，共 " + QuoteStore.CustomCount + " 条自定义：\n" + _quotePath
                     + "\n格式：语气,情境,语录（佛系/毒舌/热血 × 首件/多件/买不够）。改完保存，5 秒内自动生效。"
-                    + "\n保存时请选「CSV UTF-8」，否则中文会乱码。";
+                    + "\n保存时请选「CSV UTF-8」，否则中文会乱码。"
+                    + (string.IsNullOrEmpty(_quoteError) ? "" : "\n注意：" + _quoteError + "（这一行会被跳过，其余照常生效）");
             }
             catch (Exception ex)
             {
@@ -466,6 +484,8 @@ namespace WorkEncourager
 
         private void RefreshStats()
         {
+            _lastStatsAt = DateTime.Now;
+
             var analyzer = new HistoryAnalyzer(_calendar);
             var now = DateTime.Now;
             var s = analyzer.Analyze(_tracker.Records, now, _cfg.Weekdays);

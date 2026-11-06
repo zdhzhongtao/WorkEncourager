@@ -18,6 +18,13 @@ namespace WorkEncourager
 {
     public partial class MainWindow : Window
 {
+        /// <summary>
+        /// 设置页滚动区的最大高度（DIP）。
+        /// 这个数字同时决定"内容可见多高"和"窗口最小高度算到哪"，两处必须一致，
+        /// 以前是各写一个 430 字面量，改一处忘另一处就会露馅。
+        /// </summary>
+        private const double SettingsScrollMaxHeight = 430;
+
         // ---------------- 主题 ----------------
 
         private static Brush MakeBrush(string hex) =>
@@ -274,8 +281,35 @@ namespace WorkEncourager
 
         private void SelectTab(MainTab tab)
         {
+            // 先判断有没有真的换 Tab（ApplyTab 会覆盖 _tab）
+            bool changed = _tab != tab;
+
             if (_viewMode == AppViewMode.Mini) SetViewMode(AppViewMode.Full);
 
+            ApplyTab(tab);
+
+            // 切换 Tab 时按该页的实际内容高度调整画布与窗口。
+            // 内容测量需要布局已完成，所以推迟到下一帧再执行。
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(FitCanvasHeight));
+
+            // 立刻把当前 Tab 落盘。
+            // 隐藏到托盘 / 退出时虽然也会 RememberBounds + SaveCfg，但那是"顺手"，
+            // 一旦进程被强杀、蓝屏、断电，Tab 偏好就丢了——下次打开跳回主页，
+            // 而用户会认为"我明明停在设置页关的，这程序有 bug"。
+            // 只为一次 ~1KB 的写盘冒这个风险不值得。
+            // 真正要省的是"重复点当前 Tab"这种零变化的写入。
+            if (changed) SaveCfg();
+        }
+
+        /// <summary>
+        /// 应用一个 Tab 的全部界面副作用：内容可见性、Tab 按钮高亮、设置页回填、滚动高度上限。
+        ///
+        /// 启动恢复（RestoreViewState）也必须走这里，不能只翻 Visibility：
+        /// v2.2.0 之前它自己手写了一小段只改可见性的代码，结果重启后停在设置页时
+        /// 内容显示的是设置、高亮的却是"主页"，而且表单是空的、滚动高度上限也没设。
+        /// </summary>
+        private void ApplyTab(MainTab tab)
+        {
             _tab = tab;
             _cfg.ActiveTab = ViewState.ToText(tab);
 
@@ -287,7 +321,10 @@ namespace WorkEncourager
             if (tab == MainTab.Settings)
             {
                 FillSettings(_cfg);
-                SettingsTip.Text = "";
+                // 记下"打开设置页时"的表单状态，Esc 时用来判断有没有没保存的改动
+                CaptureSettingsBaseline();
+                // 语录文件有解析问题时一直挂在这儿，别让用户改坏了却以为改了没生效
+                SettingsTip.Text = QuoteErrorTip();
                 ApplyOpacity();
                 UpdateAutoHours();
                 UpdatePreview();
@@ -300,15 +337,9 @@ namespace WorkEncourager
             if (tab == MainTab.Stats) RefreshStats();
 
             // 设置页内容很长，限制在固定高度内，超出部分滚动
-            SettingsScroll.MaxHeight = tab == MainTab.Settings ? 430 : double.PositiveInfinity;
+            SettingsScroll.MaxHeight = tab == MainTab.Settings ? SettingsScrollMaxHeight : double.PositiveInfinity;
 
             UpdateTabButtons();
-
-            // 切换 Tab 时按该页的实际内容高度调整画布与窗口。
-            // 内容测量需要布局已完成，所以推迟到下一帧再执行。
-            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(FitCanvasHeight));
-
-            SaveCfg();
         }
 
         /// <summary>
@@ -335,7 +366,7 @@ namespace WorkEncourager
 
             if (_tab == MainTab.Settings)
             {
-                double maxH = 430 + 25 + 25 + 30 + 11 + 11;
+                double maxH = SettingsScrollMaxHeight + 25 + 25 + 30 + 11 + 11;
                 if (need > maxH) need = maxH;
             }
 
@@ -384,6 +415,57 @@ namespace WorkEncourager
         // ---------------- 设置 ----------------
 
         private void CloseSettings() => SelectTab(MainTab.Home);
+
+        // ---------------- 未保存改动的保护 ----------------
+
+        /// <summary>进入设置页时的表单快照，用来判断用户有没有改了没保存。</summary>
+        private string _settingsBaseline;
+
+        /// <summary>上一次按 Esc 提醒"未保存"的时刻；短时间内再按一次才真的放弃。</summary>
+        private DateTime _escLeaveArmedAt = DateTime.MinValue;
+
+        /// <summary>Esc 提醒的有效期，超过就当作重新开始计数。</summary>
+        private static readonly TimeSpan EscConfirmWindow = TimeSpan.FromSeconds(5);
+
+        private void CaptureSettingsBaseline() => _settingsBaseline = SettingsFormSnapshot();
+
+        /// <summary>把设置页里所有用户可改的输入项拼成一个字符串，用于比较是否有改动。</summary>
+        private string SettingsFormSnapshot() => string.Join("\u0001", new[]
+        {
+            InSalary.Text, InStart.Text, InEnd.Text, InBreak.Text,
+            InExtraHolidays.Text, InExtraWorkdays.Text, InShirt.Text,
+            InGoalItem.Text, InPayDay.Text,
+            Dw0.IsChecked?.ToString(), Dw1.IsChecked?.ToString(), Dw2.IsChecked?.ToString(),
+            Dw3.IsChecked?.ToString(), Dw4.IsChecked?.ToString(), Dw5.IsChecked?.ToString(),
+            Dw6.IsChecked?.ToString(),
+        });
+
+        private bool SettingsDirty() =>
+            _settingsBaseline != null && SettingsFormSnapshot() != _settingsBaseline;
+
+        /// <summary>
+        /// 在设置页按 Esc：有未保存的改动就先提醒一次，再按一次才丢弃返回。
+        /// 以前是直接跳回主页，用户填到一半按 Esc 就白填了，而且没有任何提示。
+        /// </summary>
+        private void TryLeaveSettings()
+        {
+            if (!SettingsDirty())
+            {
+                _escLeaveArmedAt = DateTime.MinValue;
+                SelectTab(MainTab.Home);
+                return;
+            }
+
+            if (DateTime.Now - _escLeaveArmedAt > EscConfirmWindow)
+            {
+                _escLeaveArmedAt = DateTime.Now;
+                SettingsTip.Text = "有未保存的修改：再按一次 Esc 放弃并返回，或按 Ctrl+S 保存。";
+                return;
+            }
+
+            _escLeaveArmedAt = DateTime.MinValue;
+            SelectTab(MainTab.Home);
+        }
 
         public void ShowSettingsForDebug() => SelectTab(MainTab.Settings);
 
@@ -549,7 +631,9 @@ namespace WorkEncourager
             _cfg.GoalItem = string.IsNullOrWhiteSpace(InGoalItem.Text) ? "T恤" : InGoalItem.Text.Trim();
             _cfg.PayDay = payDay;
             _cfg.Weekdays = days.ToArray();
-            _cfg.Opacity = Opacity;
+            // 注意：不能写 _cfg.Opacity = Opacity。幽灵模式淡化期间 Opacity 是 0.28 这种临时值，
+            // 存进去下次启动就变成"默认很淡、还以为程序坏了"。滑块改动时已实时同步过配置。
+            _cfg.Opacity = NormalOpacity();
             _cfg.WindowWidth = ActualWidth;
             _cfg.WindowHeight = ActualHeight;
 

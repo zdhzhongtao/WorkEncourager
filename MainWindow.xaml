@@ -37,6 +37,52 @@
       <GradientStop Color="#F97316" Offset="1" />
     </LinearGradientBrush>
 
+    <!--
+      细滚动条：设置页内容很长需要滚动，但系统默认那条 17px 宽的粗条子太占地方。
+      这里只保留 5px 宽的滑块（无箭头、无轨道底色），平时半透明，鼠标移上去才变实。
+      拖动、滚轮、PageUp/PageDown 全都照常可用，只是"看起来"轻了。
+    -->
+    <Style x:Key="SlimScrollBar" TargetType="ScrollBar">
+      <Setter Property="Width" Value="5" />
+      <Setter Property="MinWidth" Value="5" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ScrollBar">
+            <Grid Background="Transparent" Width="5">
+              <Track x:Name="PART_Track" IsDirectionReversed="True">
+                <Track.DecreaseRepeatButton>
+                  <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False" />
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                  <Thumb MinHeight="28">
+                    <Thumb.Template>
+                      <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="b" CornerRadius="2.5" Background="#C9D0DB" Opacity="0.35" />
+                        <ControlTemplate.Triggers>
+                          <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="b" Property="Opacity" Value="1" />
+                            <Setter TargetName="b" Property="Background" Value="#AEB7C4" />
+                          </Trigger>
+                          <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="b" Property="Opacity" Value="1" />
+                            <Setter TargetName="b" Property="Background" Value="#AEB7C4" />
+                          </Trigger>
+                        </ControlTemplate.Triggers>
+                      </ControlTemplate>
+                    </Thumb.Template>
+                  </Thumb>
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                  <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False" />
+                </Track.IncreaseRepeatButton>
+              </Track>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <!-- 图标按钮 -->
     <Style x:Key="IconBtn" TargetType="Button">
       <Setter Property="Width" Value="26" />
@@ -728,6 +774,10 @@
 
                 <!-- ========== 设置 ========== -->
                 <ScrollViewer x:Name="SettingsScroll" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                  <ScrollViewer.Resources>
+                    <!-- 只在这个滚动区域里生效：换成细滚动条，别的地方不受影响 -->
+                    <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimScrollBar}" />
+                  </ScrollViewer.Resources>
                   <StackPanel>
 
                     <TextBlock Text="月薪（元）" Style="{StaticResource FieldLabel}" Margin="2,2,0,4" />

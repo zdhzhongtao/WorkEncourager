@@ -223,16 +223,34 @@ namespace WorkEncourager
             if (_cfg.ClickThrough) return;   // 穿透后收不到鼠标事件，淡出会一直卡在淡的状态
 
             double normal = NormalOpacity();
-            double target = faded ? Math.Min(normal, Math.Max(0.12, _cfg.GhostOpacity)) : normal;
+            // 淡出值允许低于"正常透明度"的下限（不然幽灵模式就淡不下去了），
+            // 但无论配置多离谱都不能淡到 0.12 以下，否则窗口等于消失、找不回来。
+            double target = faded ? Math.Min(normal, Math.Max(MinGhostOpacity, _cfg.GhostOpacity)) : normal;
             if (Math.Abs(Opacity - target) > 0.001) Opacity = target;
         }
 
-        /// <summary>用户设定的正常不透明度（夹到 0.3~1，与滑块下限一致）。</summary>
-        private double NormalOpacity()
+        /// <summary>幽灵模式允许淡到的最低不透明度（低于这个值窗口就基本看不见了）。</summary>
+        private const double MinGhostOpacity = 0.12;
+
+        /// <summary>正常态不透明度的默认值（配置里没存过时用）。</summary>
+        private const double DefaultOpacity = 0.97;
+
+        /// <summary>
+        /// 用户设定的正常不透明度。
+        ///
+        /// 上下限直接取设置页滑块的 Minimum/Maximum，滑块是唯一的事实来源。
+        /// 以前这里夹 0.3、XAML 的滑块写的却是 0.45：配置里存了 0.3 时窗口是 0.3、
+        /// 滑块却被 WPF 强制显示成 0.45，用户一碰滑块画面就"突然变亮"。
+        /// </summary>
+        private double NormalOpacity() => ClampNormalOpacity(_cfg.Opacity ?? DefaultOpacity);
+
+        /// <summary>把不透明度夹到滑块允许的范围内。</summary>
+        private double ClampNormalOpacity(double op)
         {
-            double op = _cfg.Opacity ?? 0.97;
-            if (op < 0.3) op = 0.3;
-            if (op > 1) op = 1;
+            double min = OpacitySlider != null ? OpacitySlider.Minimum : 0.45;
+            double max = OpacitySlider != null ? OpacitySlider.Maximum : 1.0;
+            if (op < min) op = min;
+            if (op > max) op = max;
             return op;
         }
 
@@ -305,9 +323,8 @@ namespace WorkEncourager
 
         private void ApplyOpacity()
         {
-            double op = _cfg.Opacity ?? 0.97;
-            if (op < 0.3) op = 0.3;
-            if (op > 1) op = 1;
+            // 统一走 NormalOpacity：夹范围、默认值、滑块三者只有一套口径
+            double op = NormalOpacity();
             Opacity = op;
             if (OpacitySlider != null)
             {
@@ -355,12 +372,10 @@ namespace WorkEncourager
         private void RestoreViewState()
         {
             _viewMode = ViewState.ParseViewMode(_cfg.ViewMode);
-            _tab = ViewState.ParseTab(_cfg.ActiveTab);
 
-            HomePanel.Visibility = _tab == MainTab.Home ? Visibility.Visible : Visibility.Collapsed;
-            DetailPanel.Visibility = _tab == MainTab.Detail ? Visibility.Visible : Visibility.Collapsed;
-            StatsPanel.Visibility = _tab == MainTab.Stats ? Visibility.Visible : Visibility.Collapsed;
-            SettingsScroll.Visibility = _tab == MainTab.Settings ? Visibility.Visible : Visibility.Collapsed;
+            // 走和点 Tab 完全一样的路径（ApplyTab），不要自己手写一半：
+            // 只改 Visibility 会留下"内容对、按钮高亮错、表单空白"的残局。
+            ApplyTab(ViewState.ParseTab(_cfg.ActiveTab));
 
             ApplyMinSize();
 

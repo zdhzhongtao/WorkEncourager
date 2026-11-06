@@ -71,6 +71,23 @@ namespace WorkEnc.Tests
         }
 
         [Fact]
+        public void Analyze_WeekStartsOnMonday_MidWeekIgnoresPreviousSunday()
+        {
+            // 2026-11-04 是周三：本周应从 11/2（周一）起算，11/1（上周日）不能算进来
+            var now = new DateTime(2026, 11, 4, 12, 0, 0);
+            var recs = MakeRecords(
+                ("2026-11-01", 8 * 3600, 100),   // 上周日
+                ("2026-11-02", 8 * 3600, 100),   // 本周一
+                ("2026-11-04", 8 * 3600, 100));  // 今天（周三）
+
+            var a = new HistoryAnalyzer(new PayCalendar());
+            var s = a.Analyze(recs, now, Workdays);
+
+            Assert.Equal(2, s.Week.DayCount);
+            Assert.Equal(16 * 3600, s.Week.TotalWorkedSec, 1);
+        }
+
+        [Fact]
         public void Analyze_BestDayIsHighestEarned()
         {
             var now = new DateTime(2026, 11, 4);
@@ -119,6 +136,34 @@ namespace WorkEnc.Tests
             var a = new HistoryAnalyzer(new PayCalendar());
             double total = a.RecalcMonthScheduled(recs, now);
             Assert.Equal(8 * 3600, total, 1);
+        }
+
+        [Fact]
+        public void Analyze_MonthScheduledUsesRealRecordedHours()
+        {
+            // 记录里已经有真实作息（扣过午休的 8 小时），就不该再按 9 小时估算
+            var now = new DateTime(2026, 11, 4);
+            var recs = MakeRecords(("2026-11-02", 8 * 3600, 100), ("2026-11-03", 8 * 3600, 100));
+            recs[0].ScheduledSec = 8 * 3600;
+            recs[1].ScheduledSec = 8 * 3600;
+
+            var a = new HistoryAnalyzer(new PayCalendar());
+            var s = a.Analyze(recs, now, Workdays);
+
+            Assert.False(s.MonthScheduledIsEstimated);
+            Assert.Equal(16 * 3600, s.MonthScheduledSec, 1);
+        }
+
+        [Fact]
+        public void Analyze_MonthScheduledFallsBackToEstimate()
+        {
+            // 一条记录都没有时才退回"计薪日 × 9 小时"，并把这个事实标出来
+            var now = new DateTime(2026, 11, 4);
+            var a = new HistoryAnalyzer(new PayCalendar());
+            var s = a.Analyze(new List<DayRecord>(), now, Workdays);
+
+            Assert.True(s.MonthScheduledIsEstimated);
+            Assert.Equal(s.MonthPayDays * HistoryAnalyzer.DefaultDailyWorkSec, s.MonthScheduledSec, 1);
         }
 
         [Fact]

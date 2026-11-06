@@ -101,7 +101,13 @@ namespace WorkEnc.Core
         };
 
         private readonly Random _rng;
-        private int _lastIndex = -1;
+
+        /// <summary>
+        /// 每个"语气 × 情境"组合各自记住上一次抽到的下标。
+        /// 以前是一个字段全局共享：换个语气或情境后拿到的下标和别的池比较，防重复的判断等于失效，
+        /// 于是偶尔会连着蹦同一句。
+        /// </summary>
+        private readonly Dictionary<(Tone tone, QuoteScene scene), int> _lastIndex = new();
 
         public QuoteProvider(int? seed = null)
         {
@@ -131,9 +137,13 @@ namespace WorkEnc.Core
         {
             // 自定义语录优先（quotes.csv 里写了就用 CSV 的，没写就用内置）
             var pool = QuoteStore.PoolFor(tone, scene);
+            if (pool == null || pool.Length == 0) return "";
+
+            var key = (tone, scene);
             int idx = _rng.Next(pool.Length);
-            if (pool.Length > 1 && idx == _lastIndex) idx = (idx + 1) % pool.Length;
-            _lastIndex = idx;
+            if (pool.Length > 1 && _lastIndex.TryGetValue(key, out int last) && idx == last)
+                idx = (idx + 1) % pool.Length;
+            _lastIndex[key] = idx;
 
             string tpl = pool[idx];
             return tpl

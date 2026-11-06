@@ -37,6 +37,22 @@ namespace WorkEnc.Core
 
         /// <summary>最后下班时刻 HH:mm。</summary>
         public string LastClockOut { get; set; } = "";
+
+        /// <summary>
+        /// 判定"这天真的上过班"的门槛（秒）。不足 1 分钟算没上班。
+        ///
+        /// 记录是 Render 每天 GetOrCreate 出来的，只要程序开过就会有一条空记录。
+        /// 如果按"有记录的天数"统计出勤，光开机不干活也会被算成出勤，
+        /// 「本月出勤 N 天」就会虚高。因此所有出勤口径统一用这个阈值。
+        /// </summary>
+        public const double AttendThresholdSec = 60;
+
+        /// <summary>
+        /// 当天是否算出勤：实际工时或加班达到阈值。
+        /// 加班也要算——休息日来加班时 WorkedSec 是 0（不在工作时段内），只有 OvertimeSec。
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool IsAttended => WorkedSec > AttendThresholdSec || OvertimeSec > AttendThresholdSec;
     }
 
     /// <summary>

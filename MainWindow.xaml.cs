@@ -55,6 +55,12 @@ namespace WorkEncourager
         private string _lastEncText = null;
         private double _lastPct = double.NaN;
 
+        /// <summary>语录文件最近一次的解析问题（null 表示正常），用来在设置页给出提示。</summary>
+        private string _quoteError;
+
+        /// <summary>统计页上次刷新的时刻，用来让它停在原地时也自己更新。</summary>
+        private DateTime _lastStatsAt = DateTime.MinValue;
+
         // 视图状态
         private AppViewMode _viewMode = AppViewMode.Full;
         private MainTab _tab = MainTab.Home;
@@ -185,7 +191,18 @@ namespace WorkEncourager
                 if (e.Key == Key.Escape)
                 {
                     if (_viewMode == AppViewMode.Mini) { SetViewMode(AppViewMode.Full); e.Handled = true; }
+                    // 设置页有未保存内容时要问一句，别一声不响把输入丢掉
+                    else if (_tab == MainTab.Settings) { TryLeaveSettings(); e.Handled = true; }
                     else if (_tab != MainTab.Home) { SelectTab(MainTab.Home); e.Handled = true; }
+                    return;
+                }
+
+                // 设置页 Ctrl+S 直接保存，不用把鼠标挪到按钮上
+                if (_tab == MainTab.Settings &&
+                    e.Key == Key.S && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
+                {
+                    SaveSettings();
+                    e.Handled = true;
                 }
             };
 
@@ -224,7 +241,8 @@ namespace WorkEncourager
             {
                 if (!_loaded) return;
                 Opacity = OpacitySlider.Value;
-                _cfg.Opacity = Opacity;   // 幽灵模式需要用这个值作为"正常"基准
+                // 存滑块值而不是 Opacity：幽灵模式淡化时 Opacity 是临时值，不能写进配置
+                _cfg.Opacity = OpacitySlider.Value;
                 OpacityValueText.Text = Math.Round(Opacity * 100).ToString() + "%";
             };
             // 尺寸预设只改宽度：高度由内容决定（见 SetWidth 的注释）
@@ -466,6 +484,8 @@ namespace WorkEncourager
                 _pausedAccumSec = 0;
                 _dayKey = key;
                 SaveCfg();
+                // 停在统计页跨过 00:00：本周/本月/本年的区间全变了，得马上重算
+                if (_tab == MainTab.Stats) RefreshStats();
             }
             _dayKey = key;
 
@@ -583,11 +603,18 @@ namespace WorkEncourager
                 UpdateMiniBar(st.Pct);
             }
 
+            // 统计页停在原地时也要跟着动：工时一直在涨，不能让人盯着半小时前的数字
+            if (_tab == MainTab.Stats && (now - _lastStatsAt).TotalSeconds >= StatsRefreshIntervalSec)
+                RefreshStats();
+
             PersistPeriodically(now);
             UpdateTrayTip(now, st, statusText);
 
             BuildEncourage(st);
         }
+
+        /// <summary>统计页自动刷新间隔（秒）。</summary>
+        private const double StatsRefreshIntervalSec = 30;
 
         /// <summary>更新迷你挂件底部的进度条。</summary>
         private void UpdateMiniBar(double pct)

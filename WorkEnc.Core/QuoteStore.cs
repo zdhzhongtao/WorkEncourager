@@ -26,18 +26,31 @@ namespace WorkEnc.Core
         /// <summary>最近一次成功解析出的条目数（0 表示完全用内置）。</summary>
         public static int CustomCount { get; private set; }
 
-        /// <summary>把 CSV 文本装进内存。传 null / 空串表示清空自定义、回到全内置。</summary>
-        public static void SetCustom(string csvText)
+        /// <summary>
+        /// 最近一次加载时的解析问题（null 表示完全没问题）。
+        /// 以前解析错误被静默吞掉：用户把 quotes.csv 写坏了，界面一点提示都没有，
+        /// 只是悄悄回退到内置语录。现在把它留给 UI 提示用。
+        /// </summary>
+        public static string LastError { get; private set; }
+
+        /// <summary>
+        /// 把 CSV 文本装进内存。传 null / 空串表示清空自定义、回到全内置。
+        /// 返回实际加载条数与第一条解析错误（没有错误时 error 为 null）。
+        /// </summary>
+        public static (int count, string error) SetCustom(string csvText)
         {
             if (string.IsNullOrWhiteSpace(csvText))
             {
                 _custom = null;
                 CustomCount = 0;
-                return;
+                LastError = null;
+                return (0, null);
             }
-            var (count, _) = ParseCsv(csvText, out var pools);
+            var (count, errors) = ParseCsv(csvText, out var pools);
             _custom = pools;
             CustomCount = count;
+            LastError = errors.Count > 0 ? errors[0] : null;
+            return (count, LastError);
         }
 
         /// <summary>取某一组的生效语录：自定义优先，否则内置。</summary>
@@ -75,12 +88,8 @@ namespace WorkEnc.Core
             return sb.ToString();
         }
 
-        /// <summary>解析 CSV，返回有效条数。错误行写入 errors（最多 20 条）。</summary>
-        public static (int count, List<string> errors) ParseCsv(string text)
-        {
-            var (count, _) = ParseCsv(text, out _);
-            return (count, new List<string>());
-        }
+        /// <summary>解析 CSV，返回有效条数与错误行清单（最多 20 条）。</summary>
+        public static (int count, List<string> errors) ParseCsv(string text) => ParseCsv(text, out _);
 
         private static (int count, List<string> errors) ParseCsv(string text,
             out Dictionary<Tone, Dictionary<QuoteScene, List<string>>> pools)
@@ -90,23 +99,44 @@ namespace WorkEnc.Core
             int count = 0;
             if (string.IsNullOrWhiteSpace(text)) return (0, errors);
 
+            // 先保留物理行号（跳掉表头后仍然指向用户看到的行），再过滤空行
             var lines = text.Replace("\r\n", "\n").Replace('\r', '\n')
                             .Split('\n')
-                            .Where(l => !string.IsNullOrWhiteSpace(l))
+                            .Select((line, i) => (line, no: i + 1))
+                            .Where(x => !string.IsNullOrWhiteSpace(x.line))
                             .ToList();
 
-            foreach (var raw in lines)
+            for (int k = 0; k < lines.Count; k++)
             {
+                var (raw, no) = lines[k];
+                if (k == 0 && IsHeaderLine(raw)) continue;   // 表头不算错误
+
                 var cells = SplitLine(raw);
-                if (cells.Count < 3) continue;
+                if (cells.Count < 3)
+                {
+                    AddError(errors, no, "不是「语气,情境,语录」三列");
+                    continue;
+                }
 
                 string toneText = cells[0].Trim();
                 string sceneText = cells[1].Trim();
                 string quote = cells[2].Trim();
 
-                if (!TryParseTone(toneText, out var tone)) continue;      // 表头会走到这里被跳过
-                if (!TryParseScene(sceneText, out var scene)) continue;
-                if (quote.Length == 0) continue;
+                if (!TryParseTone(toneText, out var tone))
+                {
+                    AddError(errors, no, "语气「" + toneText + "」不认识，只能写 佛系 / 毒舌 / 热血");
+                    continue;
+                }
+                if (!TryParseScene(sceneText, out var scene))
+                {
+                    AddError(errors, no, "情境「" + sceneText + "」不认识，只能写 首件 / 多件 / 买不够");
+                    continue;
+                }
+                if (quote.Length == 0)
+                {
+                    AddError(errors, no, "语录内容是空的");
+                    continue;
+                }
 
                 pools ??= new Dictionary<Tone, Dictionary<QuoteScene, List<string>>>();
                 if (!pools.TryGetValue(tone, out var byScene))
@@ -122,11 +152,26 @@ namespace WorkEnc.Core
                 if (!list.Contains(quote)) { list.Add(quote); count++; }
             }
 
-            if (count == 0)
+            if (count == 0 && errors.Count == 0)
             {
                 errors.Add("没有解析出任何语录。确认文件是「语气,情境,语录」三列，且语气写 佛系/毒舌/热血。");
             }
             return (count, errors);
+        }
+
+        /// <summary>是不是表头行（"语气,情境,语录"）。</summary>
+        private static bool IsHeaderLine(string raw)
+        {
+            var cells = SplitLine(raw);
+            if (cells.Count == 0) return false;
+            string first = cells[0].Trim();
+            return first == "语气" || string.Equals(first, "tone", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void AddError(List<string> errors, int line, string why)
+        {
+            if (errors.Count >= 20) return;
+            errors.Add("第 " + line + " 行：" + why);
         }
 
         /// <summary>语气 → 中文（导出用）。</summary>

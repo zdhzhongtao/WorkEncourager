@@ -206,5 +206,73 @@ namespace WorkEnc.Tests
             Assert.Single(pool);
             Assert.Equal("今天只够买 1 件, 明天继续", pool[0]);
         }
+
+        [Fact]
+        public void BadLine_IsReportedNotSwallowed()
+        {
+            // 以前坏行被静默跳过，用户改坏了 CSV 也看不到任何提示
+            var (count, error) = QuoteStore.SetCustom("佛系,首件,好的一条\r\n瞎写,首件,不该进来\r\n");
+
+            Assert.Equal(1, count);
+            Assert.NotNull(error);
+            Assert.Contains("第 2 行", error);
+            Assert.Contains("瞎写", error);
+            Assert.Equal(error, QuoteStore.LastError);
+        }
+
+        [Fact]
+        public void HeaderLine_IsNotCountedAsError()
+        {
+            var (count, error) = QuoteStore.SetCustom(QuoteStore.Header + "\r\n佛系,首件,只有一条\r\n");
+
+            Assert.Equal(1, count);
+            Assert.Null(error);
+        }
+
+        [Fact]
+        public void TwoColumnsOrEmptyQuote_IsReported()
+        {
+            var (count, error) = QuoteStore.SetCustom("佛系,首件\r\n");
+
+            Assert.Equal(0, count);
+            Assert.NotNull(error);
+            Assert.Contains("三列", error);
+        }
+
+        [Fact]
+        public void EmptyCustom_ClearsLastError()
+        {
+            QuoteStore.SetCustom("瞎写,首件,随便\r\n");
+            Assert.NotNull(QuoteStore.LastError);
+
+            QuoteStore.SetCustom(null);
+            Assert.Null(QuoteStore.LastError);
+            Assert.Equal(0, QuoteStore.CustomCount);
+        }
+
+        [Fact]
+        public void AntiRepeat_IsTrackedPerSceneAndTone()
+        {
+            // 防重复的下标按「语气 × 情境」各记一份。以前是一个字段全局共享，
+            // 切到别的池抽一次就把下标覆盖了，回到原池时防重复等于失效。
+            // 两个池各放 2 条，能把"连抽同一句"直接暴露出来。
+            QuoteStore.SetCustom(
+                "佛系,首件,chill-A1\r\n佛系,首件,chill-A2\r\n" +
+                "毒舌,买不够,savage-B1\r\n毒舌,买不够,savage-B2\r\n");
+            try
+            {
+                var q = new QuoteProvider(seed: 5);
+                for (int i = 0; i < 30; i++)
+                {
+                    string a1 = q.Get(Tone.Chill, QuoteScene.FirstItem, "T", "1小时", "100");
+                    string b1 = q.Get(Tone.Savage, QuoteScene.NotEnough, "T", "1小时", "100", 0, "0.5");
+                    string a2 = q.Get(Tone.Chill, QuoteScene.FirstItem, "T", "1小时", "100");
+
+                    Assert.NotEqual(a1, a2);      // 同一个池连续两次不重复
+                    Assert.NotEqual(a1, b1);      // 两个池的内容也不串
+                }
+            }
+            finally { QuoteStore.SetCustom(null); }
+        }
     }
 }
