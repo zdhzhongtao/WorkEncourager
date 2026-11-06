@@ -51,6 +51,24 @@ namespace WorkEnc.Core
         /// <summary>鼠标穿透（点击穿透窗口）。</summary>
         public bool ClickThrough { get; set; }
 
+        /// <summary>幽灵模式：鼠标离开窗口时自动变淡，移回来恢复。默认关。</summary>
+        public bool GhostMode { get; set; }
+
+        /// <summary>幽灵模式下的淡化比例。</summary>
+        public double GhostOpacity { get; set; } = 0.28;
+
+        /// <summary>迷你挂件拖到屏幕边缘时自动吸附。默认关。</summary>
+        public bool SnapToEdge { get; set; }
+
+        /// <summary>窗口上次所在的显示器设备名（如 \\.\DISPLAY2），用于重启后回到同一块屏。</summary>
+        public string WindowScreen { get; set; } = "";
+
+        /// <summary>迷你挂件上次所在的显示器设备名。</summary>
+        public string MiniScreen { get; set; } = "";
+
+        /// <summary>上次导入工时文件所在的目录，下次打开对话框直接定位过去。</summary>
+        public string LastImportDir { get; set; } = "";
+
         /// <summary>窗口位置与状态。</summary>
         public double? WindowLeft { get; set; }
         public double? WindowTop { get; set; }

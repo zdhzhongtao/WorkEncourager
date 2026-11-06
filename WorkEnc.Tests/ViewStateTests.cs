@@ -175,6 +175,16 @@ namespace WorkEnc.Tests
         }
 
         [Fact]
+        public void FullMinSize_KeepsContentClickable()
+        {
+            // 窗口缩到最小时，400 宽的设计内容会被 Viewbox 缩放成 (MinWidth - 边距) / 400。
+            // 低于 0.7 时标题栏那三个 26px 按钮就小到几乎点不中——v1.0.1 用户实际踩到的坑。
+            double scale = (ViewState.FullMinWidth - ViewState.EdgeMargin * 2) / ViewState.DesignWidth;
+            Assert.True(scale >= 0.7, $"最小宽度下的内容缩放比只有 {scale:0.00}，按钮会小到点不到");
+            Assert.True(ViewState.FullMinHeight >= 220);
+        }
+
+        [Fact]
         public void DesignHeight_MatchesWindowHeightFormula()
         {
             Assert.Equal(ViewState.MiniDesignHeight, ViewState.MiniWindowHeight - ViewState.EdgeMargin * 2);

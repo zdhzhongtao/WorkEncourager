@@ -183,6 +183,20 @@ namespace WorkEnc.Tests
         }
 
         [Fact]
+        public void Advance_LongGap_ClampsToMaxGap()
+        {
+            var t = new WorkdayTracker { MaxGapSeconds = 90 };
+            var day = new DateTime(2026, 11, 4);
+            var p = Provider("09:00", "18:00");
+
+            t.Advance(day.AddHours(9), p, false);
+            // 模拟休眠 3 小时：只应记最后 90 秒，而不是整段
+            double d = t.Advance(day.AddHours(12), p, false);
+
+            Assert.Equal(90, d, 1);
+        }
+
+        [Fact]
         public void Advance_OnlyCountsOverlapWithSegments()
         {
             var t = new WorkdayTracker();
@@ -335,12 +349,43 @@ namespace WorkEnc.Tests
         {
             var recs = new List<DayRecord>
             {
-                new DayRecord { Date = "2026-10-01", Earned = 999 },
-                new DayRecord { Date = "2026-11-02", Earned = 100 },
+                new DayRecord { Date = "2026-10-01", WorkedSec = 3600, Earned = 999 },
+                new DayRecord { Date = "2026-11-02", WorkedSec = 8 * 3600, Earned = 100 },
             };
             var s = CsvExporter.Summarize(recs, new DateTime(2026, 11, 1), new DateTime(2026, 11, 30));
             Assert.Equal(1, s.DayCount);
             Assert.Equal(100, s.TotalEarned, 3);
+        }
+
+        [Fact]
+        public void Summarize_EmptyRecordIsNotAnAttendanceDay()
+        {
+            // 只要程序开过，Render 就会给当天建一条空记录；它不能算成"出勤一天"，
+            // 也不能进到"日均工时"的分母里
+            var recs = new List<DayRecord>
+            {
+                new DayRecord { Date = "2026-11-02", WorkedSec = 8 * 3600, Earned = 100 },
+                new DayRecord { Date = "2026-11-03", WorkedSec = 0, Earned = 0 },
+                new DayRecord { Date = "2026-11-04", WorkedSec = 30, Earned = 0 },
+            };
+            var s = CsvExporter.Summarize(recs, new DateTime(2026, 11, 1), new DateTime(2026, 11, 30));
+
+            Assert.Equal(1, s.DayCount);
+            Assert.Equal(8 * 3600, s.AvgWorkedSec, 1);
+        }
+
+        [Fact]
+        public void Summarize_RestDayOvertimeCountsAsAttended()
+        {
+            // 休息日加班时 WorkedSec 是 0（不在工作时段内），只有 OvertimeSec，这天也算出勤
+            var recs = new List<DayRecord>
+            {
+                new DayRecord { Date = "2026-11-07", WorkedSec = 0, OvertimeSec = 3 * 3600, Earned = 50 },
+            };
+            var s = CsvExporter.Summarize(recs, new DateTime(2026, 11, 1), new DateTime(2026, 11, 30));
+
+            Assert.Equal(1, s.DayCount);
+            Assert.Equal("2026-11-07", s.BestDayDate);
         }
 
         [Fact]

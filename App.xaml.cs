@@ -1,6 +1,8 @@
 using System;
+using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
+using WorkEnc.Core;
 
 namespace WorkEncourager
 {
@@ -12,12 +14,36 @@ namespace WorkEncourager
         /// </summary>
         public static bool DebugMode { get; private set; }
 
+        /// <summary>单实例锁。持有它直到进程结束，第二个实例会直接退出。</summary>
+        private Mutex _instanceLock;
+
+        /// <summary>上次弹错误框的时刻，用于防止异常风暴把用户淹没。</summary>
+        private DateTime _lastErrorShown = DateTime.MinValue;
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
             DispatcherUnhandledException += OnUnhandled;
+            AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandled;
 
             DebugMode = HasDebugFlag(e.Args);
+
+            // 让 Core 层的文件读写失败也进日志
+            AtomicFile.ErrorHandler = (msg, ex) =>
+            {
+                if (ex == null) Log.Info(msg);
+                else Log.Error(msg, ex);
+            };
+
+            Log.Info("启动，参数：" + (e.Args.Length == 0 ? "(无)" : string.Join(" ", e.Args)));
+
+            // 调试参数需要多开（--shot 连拍等），只有正常启动才做单实例限制
+            if (!DebugMode && !AcquireSingleInstance())
+            {
+                Log.Info("已有实例在运行，本次启动退出");
+                Shutdown();
+                return;
+            }
 
             var win = new MainWindow();
             MainWindow = win;
@@ -30,8 +56,8 @@ namespace WorkEncourager
                 if (parts.Length == 2 &&
                     double.TryParse(parts[0], out double sw) && double.TryParse(parts[1], out double sh2))
                 {
-                    win.Width = Math.Max(260, sw);
-                    win.Height = Math.Max(130, sh2);
+                    win.Width = Math.Max(ViewState.FullMinWidth, sw);
+                    win.Height = Math.Max(ViewState.FullMinHeight, sh2);
                 }
             }
 
@@ -72,17 +98,41 @@ namespace WorkEncourager
                     step++;
                     if (step == 1)
                     {
-                        try { win.SaveShot(path); } catch (Exception ex) { Console.WriteLine(ex); }
+                        try { win.SaveShot(path); } catch (Exception ex) { Log.Error("截图失败", ex); }
                         t.Interval = TimeSpan.FromMilliseconds(Math.Max(500, gap));
                     }
                     else
                     {
                         t.Stop();
-                        try { win.SaveShot(path + ".t2.png"); } catch (Exception ex) { Console.WriteLine(ex); }
+                        try { win.SaveShot(path + ".t2.png"); } catch (Exception ex) { Log.Error("截图失败", ex); }
                         Shutdown();
                     }
                 };
                 t.Start();
+            }
+        }
+
+        /// <summary>
+        /// 抢单实例锁。抢不到就广播一条消息，让已经运行的那个实例把窗口弹出来。
+        /// </summary>
+        private bool AcquireSingleInstance()
+        {
+            try
+            {
+                _instanceLock = new Mutex(true, @"Local\WorkEncourager.SingleInstance", out bool createdNew);
+                if (createdNew) return true;
+
+                // 已有实例：请它显示窗口，然后本次进程退出
+                Win32.PostMessage(Win32.HWND_BROADCAST, Win32.WM_SHOW_INSTANCE, IntPtr.Zero, IntPtr.Zero);
+                _instanceLock.Dispose();
+                _instanceLock = null;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                // 锁机制本身出错不应该阻止程序启动
+                Log.Error("单实例锁创建失败", ex);
+                return true;
             }
         }
 
@@ -97,9 +147,33 @@ namespace WorkEncourager
 
         private void OnUnhandled(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
-            MessageBox.Show("程序出了点小状况：\n" + e.Exception.Message, "上班鼓励器",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            Log.Error("未处理异常", e.Exception);
             e.Handled = true;
+
+            // 定时器每 200ms tick，一旦持续抛异常会变成弹窗风暴；10 秒内只提示一次
+            if ((DateTime.Now - _lastErrorShown).TotalSeconds < 10) return;
+            _lastErrorShown = DateTime.Now;
+
+            MessageBox.Show("程序出了点小状况：\n" + e.Exception.Message + "\n\n详细信息已写入日志：\n" + Log.FilePath,
+                "上班鼓励器", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        private void OnDomainUnhandled(object sender, UnhandledExceptionEventArgs e)
+        {
+            if (e.ExceptionObject is Exception ex) Log.Error("致命异常", ex);
+        }
+
+        protected override void OnExit(ExitEventArgs e)
+        {
+            Log.Info("退出，代码 " + e.ApplicationExitCode);
+            try
+            {
+                _instanceLock?.ReleaseMutex();
+                _instanceLock?.Dispose();
+            }
+            catch { }
+            _instanceLock = null;
+            base.OnExit(e);
         }
     }
 }

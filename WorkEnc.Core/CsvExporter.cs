@@ -10,6 +10,7 @@ namespace WorkEnc.Core
     /// <summary>统计区间汇总。</summary>
     public class StatsSummary
     {
+        /// <summary>出勤天数（WorkedSec/OvertimeSec 达到 <see cref="DayRecord.AttendThresholdSec"/> 的天数）。</summary>
         public int DayCount { get; set; }
         public double TotalWorkedSec { get; set; }
         public double TotalOvertimeSec { get; set; }
@@ -85,7 +86,8 @@ namespace WorkEnc.Core
                         DateTimeStyles.None, out var dt)) continue;
 
                 int payDays = calendar.CountPayDays(dt.Year, dt.Month, weekdays);
-                int attendDays = g.Count(r => r.WorkedSec > 60);
+                // 与 HistoryAnalyzer 的出勤口径保持一致：达到阈值才算一天，别把"开过机"算成出勤
+                int attendDays = g.Count(r => r.IsAttended);
                 double totalWorked = g.Sum(r => r.WorkedSec);
                 double totalOt = g.Sum(r => r.OvertimeSec);
                 double totalEarned = g.Sum(r => r.Earned);
@@ -113,23 +115,36 @@ namespace WorkEnc.Core
             File.WriteAllText(path, content, new UTF8Encoding(true));
         }
 
-        /// <summary>按区间汇总统计。</summary>
+        /// <summary>
+        /// 按区间汇总统计。
+        ///
+        /// DayCount / AvgWorkedSec 都按"真的上过班的天"算（见 DayRecord.IsAttended）：
+        /// 记录是程序运行时每天自动建的，只开过程序没干活的空记录不该算进"出勤 N 天"，
+        /// 也不该拉低"日均工时"。金额与工时的合计仍然包含全部记录，不会漏掉零星时长。
+        /// </summary>
         public static StatsSummary Summarize(IReadOnlyList<DayRecord> records, DateTime from, DateTime to)
         {
             var list = records.Where(r =>
                 DateTime.TryParseExact(r.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture,
                     DateTimeStyles.None, out var dt) && dt >= from.Date && dt <= to.Date).ToList();
 
+            var attended = list.Where(r => r.IsAttended).ToList();
+
             var sum = new StatsSummary
             {
-                DayCount = list.Count,
+                DayCount = attended.Count,
                 TotalWorkedSec = list.Sum(r => r.WorkedSec),
                 TotalOvertimeSec = list.Sum(r => r.OvertimeSec),
                 TotalEarned = list.Sum(r => r.Earned),
             };
-            sum.AvgWorkedSec = list.Count > 0 ? sum.TotalWorkedSec / list.Count : 0;
+            // 日均工时 = 出勤那些天的工时 / 出勤天数。
+            // 不用 TotalWorkedSec 做分子：那里面还有"没到出勤门槛"的零星秒数，
+            // 摊到日均里会让数字虚高一点点，口径也不干净。
+            sum.AvgWorkedSec = attended.Count > 0 ? attended.Sum(r => r.WorkedSec) / attended.Count : 0;
 
-            var best = list.OrderByDescending(r => r.Earned).FirstOrDefault();
+            // 最赚的一天只在真正出勤的日子里挑；全都没出勤时退回全部记录，至少给个最大值
+            var bestPool = attended.Count > 0 ? attended : list;
+            var best = bestPool.OrderByDescending(r => r.Earned).FirstOrDefault();
             if (best != null)
             {
                 sum.BestDayDate = best.Date;

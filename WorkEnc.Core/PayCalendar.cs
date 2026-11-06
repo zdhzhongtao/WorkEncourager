@@ -69,9 +69,16 @@ namespace WorkEnc.Core
         /// <summary>用户额外指定的调休上班日（覆盖默认判定）。</summary>
         public HashSet<string> ExtraWorkdays { get; } = new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// 该年度是否内置了节假日数据。
+        /// 内置表只覆盖到 2026；之后的年份需要用户在设置里补自定义假日，
+        /// 否则 10/1、1/1 这类固定假日会被当成工作日算进月累计（UI 会提示）。
+        /// </summary>
+        public static bool HasBuiltInData(int year) =>
+            BuiltInHolidays.ContainsKey(year) || BuiltInMakeupWorkdays.ContainsKey(year);
+
         /// <summary>是否为法定放假日（不含用户自定义）。</summary>
-        public static bool IsBuiltInHoliday(DateTime date)
-        {
+        public static bool IsBuiltInHoliday(DateTime date)        {
             string key = date.ToString("yyyy-MM-dd");
             if (BuiltInHolidays.TryGetValue(date.Year, out var set) && set.Contains(key)) return true;
             return false;

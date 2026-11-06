@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="上班鼓励器"
-        Width="432" Height="388" MinWidth="260" MinHeight="130"
+        Width="432" Height="388" MinWidth="320" MinHeight="240"
         SizeToContent="Manual"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        ResizeMode="CanResize" Topmost="True" ShowInTaskbar="True"
+        ResizeMode="CanResize" Topmost="True" ShowInTaskbar="False"
         WindowStartupLocation="Manual"
         FontFamily="Microsoft YaHei UI"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
@@ -36,6 +36,52 @@
       <GradientStop Color="#FB923C" Offset="0.6" />
       <GradientStop Color="#F97316" Offset="1" />
     </LinearGradientBrush>
+
+    <!--
+      细滚动条：设置页内容很长需要滚动，但系统默认那条 17px 宽的粗条子太占地方。
+      这里只保留 5px 宽的滑块（无箭头、无轨道底色），平时半透明，鼠标移上去才变实。
+      拖动、滚轮、PageUp/PageDown 全都照常可用，只是"看起来"轻了。
+    -->
+    <Style x:Key="SlimScrollBar" TargetType="ScrollBar">
+      <Setter Property="Width" Value="5" />
+      <Setter Property="MinWidth" Value="5" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ScrollBar">
+            <Grid Background="Transparent" Width="5">
+              <Track x:Name="PART_Track" IsDirectionReversed="True">
+                <Track.DecreaseRepeatButton>
+                  <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False" />
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                  <Thumb MinHeight="28">
+                    <Thumb.Template>
+                      <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="b" CornerRadius="2.5" Background="#C9D0DB" Opacity="0.35" />
+                        <ControlTemplate.Triggers>
+                          <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="b" Property="Opacity" Value="1" />
+                            <Setter TargetName="b" Property="Background" Value="#AEB7C4" />
+                          </Trigger>
+                          <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="b" Property="Opacity" Value="1" />
+                            <Setter TargetName="b" Property="Background" Value="#AEB7C4" />
+                          </Trigger>
+                        </ControlTemplate.Triggers>
+                      </ControlTemplate>
+                    </Thumb.Template>
+                  </Thumb>
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                  <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False" />
+                </Track.IncreaseRepeatButton>
+              </Track>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
 
     <!-- 图标按钮 -->
     <Style x:Key="IconBtn" TargetType="Button">
@@ -361,9 +407,12 @@
   <Grid>
     <Grid Margin="16">
 
-      <!-- ================= 完整模式 ================= -->
-      <Viewbox x:Name="FullViewbox" Stretch="Uniform" StretchDirection="Both">
-       <Grid x:Name="FullCanvas" Width="400" Height="356" Background="Transparent">
+      <!-- ================= 完整模式 =================
+           这里刻意不用 Viewbox：Viewbox 会把整个界面等比缩放，
+           窗口一小文字就跟着变小、窗口一宽内容又不跟着铺开（两边留白，看着矮胖）。
+           现在改成普通 Grid，文字永远是设定字号，宽度跟着窗口走，高度由内容决定。 -->
+      <Grid x:Name="FullViewbox" Background="Transparent">
+       <Grid x:Name="FullCanvas" Background="Transparent" VerticalAlignment="Top">
         <Border x:Name="Shell" CornerRadius="20" Background="#EDFFFFFF" BorderBrush="#E7ECF3" BorderThickness="1">
             <Border.Effect>
               <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.18" Color="#0F172A" />
@@ -397,7 +446,7 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                   <Button x:Name="MiniBtn" Style="{StaticResource IconBtn}" Content="&#xE8A7;" ToolTip="缩成桌面小挂件" />
                   <Button x:Name="PinBtn" Style="{StaticResource IconBtn}" Content="&#xE718;" ToolTip="置顶开关" Margin="1,0,0,0" />
-                  <Button x:Name="CloseBtn" Style="{StaticResource IconBtn}" Content="&#xE8BB;" ToolTip="关闭" Margin="1,0,0,0" />
+                  <Button x:Name="CloseBtn" Style="{StaticResource IconBtn}" Content="&#xE8BB;" ToolTip="隐藏到托盘（计时继续跑）" Margin="1,0,0,0" />
                 </StackPanel>
               </Grid>
 
@@ -725,6 +774,10 @@
 
                 <!-- ========== 设置 ========== -->
                 <ScrollViewer x:Name="SettingsScroll" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                  <ScrollViewer.Resources>
+                    <!-- 只在这个滚动区域里生效：换成细滚动条，别的地方不受影响 -->
+                    <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimScrollBar}" />
+                  </ScrollViewer.Resources>
                   <StackPanel>
 
                     <TextBlock Text="月薪（元）" Style="{StaticResource FieldLabel}" Margin="2,2,0,4" />
@@ -747,7 +800,7 @@
                       </StackPanel>
                     </Grid>
 
-                    <TextBlock Text="午休时段（可留空，格式 12:00-13:00）" Style="{StaticResource FieldLabel}" Margin="2,9,0,4" />
+                    <TextBlock Text="午休时段（留空即不午休，多段用逗号分隔）" Style="{StaticResource FieldLabel}" Margin="2,9,0,4" />
                     <TextBox x:Name="InBreak" Style="{StaticResource Input}" />
                     <TextBlock x:Name="AutoHoursText" FontSize="9.5" Foreground="#475467" Margin="2,6,0,0"
                                Text="每日计薪工时 9.0 小时（09:00 → 18:00，无午休）" />
@@ -784,6 +837,13 @@
                     <TextBlock FontSize="9" Foreground="#A5AEBD" Margin="2,5,0,0" TextWrapping="Wrap" LineHeight="14"
                                Text="已内置 2026 年法定节假日与调休安排（国办发明电〔2025〕7号），本月累计会自动扣除假日、加上调休上班日。" />
 
+                    <TextBlock Text="自定义放假日（yyyy-MM-dd，逗号分隔）" Style="{StaticResource FieldLabel}" Margin="2,9,0,4" />
+                    <TextBox x:Name="InExtraHolidays" Style="{StaticResource Input}" />
+                    <TextBlock Text="自定义调休上班日（yyyy-MM-dd，逗号分隔）" Style="{StaticResource FieldLabel}" Margin="2,7,0,4" />
+                    <TextBox x:Name="InExtraWorkdays" Style="{StaticResource Input}" />
+                    <TextBlock x:Name="CalendarHintText" FontSize="9" Foreground="#D97706" Margin="2,5,0,0"
+                               TextWrapping="Wrap" LineHeight="14" Text="" />
+
                     <TextBlock Text="鼓励语气" Style="{StaticResource FieldLabel}" Margin="2,10,0,4" />
                     <StackPanel Orientation="Horizontal">
                       <Button x:Name="ToneChillBtn" Style="{StaticResource ToggleIdle}" Content="佛系" Width="58" />
@@ -802,8 +862,12 @@
                       <Button x:Name="MiniToggleBtn" Style="{StaticResource ToggleIdle}" Content="迷你挂件" Width="76" />
                       <Button x:Name="ClickThroughToggleBtn" Style="{StaticResource ToggleIdle}" Content="鼠标穿透" Width="76" Margin="6,0,0,0" />
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                      <Button x:Name="GhostModeBtn" Style="{StaticResource ToggleIdle}" Content="幽灵模式" Width="76" />
+                      <Button x:Name="SnapEdgeBtn" Style="{StaticResource ToggleIdle}" Content="边缘吸附" Width="76" Margin="6,0,0,0" />
+                    </StackPanel>
                     <TextBlock FontSize="9" Foreground="#A5AEBD" Margin="2,5,0,0" TextWrapping="Wrap" LineHeight="14"
-                               Text="迷你挂件只显示金额与进度条，双击可展开完整界面；鼠标穿透让挂件不挡下面的工作。" />
+                               Text="迷你挂件只显示金额与进度条，双击可展开完整界面；鼠标穿透让挂件不挡下面的工作。幽灵模式：鼠标离开自动变淡；边缘吸附：挂件拖到屏幕边会自动贴住。" />
 
                     <Grid Margin="0,10,0,0">
                       <Grid.ColumnDefinitions>
@@ -850,6 +914,19 @@
                       <Button x:Name="ExportCfgBtn" Style="{StaticResource GhostBtn}" Content="导出配置" Width="76" Height="30" Margin="6,0,0,0" />
                       <Button x:Name="ImportCfgBtn" Style="{StaticResource GhostBtn}" Content="导入配置" Width="76" Height="30" Margin="6,0,0,0" />
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                      <Button x:Name="BackupAllBtn" Style="{StaticResource GhostBtn}" Content="备份全部数据" Width="100" Height="30" />
+                      <Button x:Name="RestoreAllBtn" Style="{StaticResource GhostBtn}" Content="从备份恢复" Width="100" Height="30" Margin="6,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                      <Button x:Name="ImportWorkLogBtn" Style="{StaticResource GhostBtn}" Content="导入工时数据…" Width="110" Height="30" />
+                      <Button x:Name="EditQuotesBtn" Style="{StaticResource GhostBtn}" Content="编辑语录…" Width="90" Height="30" Margin="6,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                      <Button x:Name="CheckUpdateBtn" Style="{StaticResource GhostBtn}" Content="检查更新" Width="90" Height="30" />
+                      <TextBlock x:Name="VersionText" FontSize="9.5" Foreground="#8A94A6"
+                                 VerticalAlignment="Center" Margin="8,0,0,0" Text="v—" />
+                    </StackPanel>
 
                     <Grid Margin="0,10,0,0">
                       <Button x:Name="DefaultBtn" Style="{StaticResource GhostBtn}" Content="恢复默认" Width="76" Height="30" HorizontalAlignment="Left" />
@@ -877,7 +954,7 @@
             </Grid>
           </Border>
        </Grid>
-      </Viewbox>
+      </Grid>
 
       <!-- ================= 迷你挂件 ================= -->
       <Viewbox x:Name="MiniViewbox" Stretch="Uniform" StretchDirection="Both" Visibility="Collapsed">

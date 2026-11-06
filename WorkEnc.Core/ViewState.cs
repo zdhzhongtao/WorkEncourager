@@ -46,17 +46,24 @@ namespace WorkEnc.Core
         /// </summary>
         public const double MiniDesignHeight = 80;
 
-        /// <summary>完整模式允许缩到的最小宽度。</summary>
-        public const double FullMinWidth = 260;
+        /// <summary>
+        /// 完整模式允许缩到的最小宽度。
+        /// 320 是"标题栏三个按钮 + Tab 四连按钮还点得动"的底线；
+        /// v1.0.1 之前是 260，内容被 Viewbox 缩到几乎不可点，属于自找的事故。
+        /// </summary>
+        public const double FullMinWidth = 320;
 
-        /// <summary>完整模式允许缩到的最小高度。</summary>
-        public const double FullMinHeight = 130;
+        /// <summary>
+        /// 完整模式允许缩到的最小高度。
+        /// 240 能保证标题栏 + Tab 条 + 主金额完整显示，不会把关闭按钮挤出可点范围。
+        /// </summary>
+        public const double FullMinHeight = 240;
 
-        /// <summary>迷你挂件允许缩到的最小宽度。</summary>
-        public const double MiniMinWidth = 180;
+        /// <summary>迷你挂件允许缩到的最小宽度（低于 200 时状态文字几乎看不清）。</summary>
+        public const double MiniMinWidth = 200;
 
         /// <summary>迷你挂件允许缩到的最小高度。</summary>
-        public const double MiniMinHeight = 70;
+        public const double MiniMinHeight = 86;
 
         /// <summary>完整模式默认窗口宽度。</summary>
         public static double FullWindowWidth => DesignWidth + EdgeMargin * 2;

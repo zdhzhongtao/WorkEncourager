@@ -35,7 +35,10 @@ namespace WorkEnc.Core
         /// <summary>下一次发薪日。</summary>
         public DateTime? NextPayDate { get; set; }
 
-        /// <summary>working / off / wait / paused</summary>
+        /// <summary>今天是否计薪日（周末/法定假日为 false）。</summary>
+        public bool IsPayDay { get; set; } = true;
+
+        /// <summary>working / off / wait / paused / rest</summary>
         public string Status { get; set; } = "off";
     }
 
@@ -110,7 +113,11 @@ namespace WorkEnc.Core
             snap.Earned = snap.PerSec * snap.WorkedSec;
 
             // 状态
+            // 休息日（周末 / 法定假日）单独一个状态，否则周六开着程序会显示"上班中"、
+            // 并且把今天的 Earned 重复加进本月累计，导致月薪进度虚高一天。
+            snap.IsPayDay = _calendar.IsPayDay(baseDate, weekdays);
             if (paused) snap.Status = "paused";
+            else if (!snap.IsPayDay) snap.Status = "rest";
             else if (now < snap.StartTs) snap.Status = "wait";
             else if (now >= snap.EndTs) snap.Status = "off";
             else snap.Status = "working";
@@ -127,7 +134,8 @@ namespace WorkEnc.Core
                 snap.MonthElapsedPayDays++;
                 monthSum += snap.DailyPay;
             }
-            monthSum += snap.Earned;   // 今天按实际已赚
+            // 今天只有是计薪日才并入月累计；休息日加班赚的钱不进月薪进度（按加班处理）
+            if (snap.IsPayDay) monthSum += snap.Earned;
             snap.MonthTotal = monthSum;
             snap.MonthPct = monthlySalary > 0 ? Math.Min(100.0, snap.MonthTotal / monthlySalary * 100.0) : 0;
 

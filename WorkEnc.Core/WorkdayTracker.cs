@@ -37,6 +37,22 @@ namespace WorkEnc.Core
 
         /// <summary>最后下班时刻 HH:mm。</summary>
         public string LastClockOut { get; set; } = "";
+
+        /// <summary>
+        /// 判定"这天真的上过班"的门槛（秒）。不足 1 分钟算没上班。
+        ///
+        /// 记录是 Render 每天 GetOrCreate 出来的，只要程序开过就会有一条空记录。
+        /// 如果按"有记录的天数"统计出勤，光开机不干活也会被算成出勤，
+        /// 「本月出勤 N 天」就会虚高。因此所有出勤口径统一用这个阈值。
+        /// </summary>
+        public const double AttendThresholdSec = 60;
+
+        /// <summary>
+        /// 当天是否算出勤：实际工时或加班达到阈值。
+        /// 加班也要算——休息日来加班时 WorkedSec 是 0（不在工作时段内），只有 OvertimeSec。
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool IsAttended => WorkedSec > AttendThresholdSec || OvertimeSec > AttendThresholdSec;
     }
 
     /// <summary>
@@ -47,6 +63,22 @@ namespace WorkEnc.Core
     public class WorkdayTracker
     {
         private readonly Dictionary<string, DayRecord> _records = new(StringComparer.Ordinal);
+
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            WriteIndented = true,
+            PropertyNameCaseInsensitive = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        /// <summary>
+        /// 两次 tick 之间允许的最大间隔（秒）。超过就认为机器睡过 / 时钟跳变，
+        /// 只把最后这么多秒计入工作，而不是把整段休眠算成干活。
+        ///
+        /// 默认 0 = 关闭（保持纯计算语义）；应用层会把它设为 90 秒来开启保护。
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public double MaxGapSeconds { get; set; }
 
         /// <summary>最近一次 tick 的真实时刻（用于计算增量）。</summary>
         private DateTime _lastTick = DateTime.MinValue;
@@ -69,6 +101,9 @@ namespace WorkEnc.Core
 
         [System.Text.Json.Serialization.JsonIgnore]
         public DayRecord Today => GetOrCreate(CurrentDate);
+
+        /// <summary>该日期是否已有记录（导入时用来区分"新增"还是"更新"）。</summary>
+        public bool HasDate(string date) => !string.IsNullOrEmpty(date) && _records.ContainsKey(date);
 
         public DayRecord GetOrCreate(string date)
         {
@@ -106,6 +141,15 @@ namespace WorkEnc.Core
                 _lastTick = now;
                 return 0;
             }
+
+            // 睡眠 / 休眠 / 系统时间跳变：不允许把整段空档算成工时。
+            // 只认最后 MaxGapSeconds 秒，其余丢弃（与"关机不追补"的语义保持一致）。
+            double gap = (now - from).TotalSeconds;
+            if (MaxGapSeconds > 0 && gap > MaxGapSeconds)
+            {
+                from = now.AddSeconds(-MaxGapSeconds);
+            }
+
             _lastTick = now;
 
             if (paused || provider == null) return 0;
@@ -179,36 +223,20 @@ namespace WorkEnc.Core
         {
             try
             {
-                var dir = Path.GetDirectoryName(path);
-                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                var json = JsonSerializer.Serialize(this, new JsonSerializerOptions
-                {
-                    WriteIndented = true,
-                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-                });
-                File.WriteAllText(path, json);
+                AtomicFile.WriteJson(path, this, JsonOptions);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                AtomicFile.ErrorHandler?.Invoke("工时记录保存失败: " + path, ex);
+            }
         }
 
         public static WorkdayTracker Load(string path)
         {
-            var t = new WorkdayTracker();
-            try
-            {
-                if (!File.Exists(path)) return t;
-                var json = File.ReadAllText(path);
-                var loaded = JsonSerializer.Deserialize<WorkdayTracker>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-                if (loaded == null) return t;
-                t._records.Clear();
-                foreach (var kv in loaded._records) t._records[kv.Key] = kv.Value;
-                // _lastTick 不恢复，重启后从"此刻"开始计时，不追补关机期间的空档
-                t._lastTick = DateTime.MinValue;
-            }
-            catch { }
+            var t = AtomicFile.ReadJson<WorkdayTracker>(path, JsonOptions);
+            if (t == null) return new WorkdayTracker();
+            // _lastTick 不恢复，重启后从"此刻"开始计时，不追补关机期间的空档
+            t._lastTick = DateTime.MinValue;
             return t;
         }
     }

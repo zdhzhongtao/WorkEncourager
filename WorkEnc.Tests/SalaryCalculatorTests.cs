@@ -152,6 +152,28 @@ namespace WorkEnc.Tests
         }
 
         [Fact]
+        public void Status_RestOnWeekend()
+        {
+            var calc = new SalaryCalculator(Simple(), new PayCalendar());
+            // 2026-11-07 是周六：不是计薪日，状态应是"休息日"而不是"上班中"
+            var snap = calc.Compute(new DateTime(2026, 11, 7, 14, 0, 0), 6000, new[] { 1, 2, 3, 4, 5 }, 10, false, 0);
+            Assert.Equal("rest", snap.Status);
+            Assert.False(snap.IsPayDay);
+        }
+
+        [Fact]
+        public void MonthTotal_RestDay_ExcludesTodayEarned()
+        {
+            var calc = new SalaryCalculator(Simple(), new PayCalendar());
+            var now = new DateTime(2026, 11, 7, 14, 0, 0);   // 周六
+            var snap = calc.Compute(now, 2175, new[] { 1, 2, 3, 4, 5 }, 10, false, 0);
+
+            // 11/2~11/6 共 5 个计薪日；休息日加班赚的钱不并入当月工资进度
+            Assert.Equal(5, snap.MonthElapsedPayDays);
+            Assert.Equal(snap.DailyPay * 5, snap.MonthTotal, 4);
+        }
+
+        [Fact]
         public void MonthPct_IsRatioOfMonthlySalary()
         {
             var calc = new SalaryCalculator(Simple(), new PayCalendar());
