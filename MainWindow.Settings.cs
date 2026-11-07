@@ -40,6 +40,12 @@ namespace WorkEncourager
             _bAccentDark = MakeBrush(_theme.AccentDark);
             _bEncText = MakeBrush(_theme.EncText);
 
+            // 把主题色发布成窗口资源字典。
+            // XAML 里统一写 {DynamicResource ThemeXxx}，切换主题时换掉这份字典，
+            // 界面各处（包括那些没有 x:Name 的小标签）都会跟着变，
+            // 不用再在这里一个个控件去点名刷画刷。
+            ApplyThemeResources();
+
             Shell.Background = MakeBrush(_theme.ShellBg);
             Shell.BorderBrush = MakeBrush(_theme.ShellBorder);
             MiniShell.Background = MakeBrush(_theme.ShellBg);
@@ -127,6 +133,20 @@ namespace WorkEncourager
             StatYearEarned.Foreground = _bAccentDark;
             StatOvertimeDays.Foreground = _bTextMuted;
             StatDetailText.Foreground = _bTextSecondary;
+
+            // 状态胶囊的画刷是按状态缓存的，切主题时必须重新刷一遍，
+            // 否则会留着上一套主题的颜色（浅色胶囊在深色背景上格外扎眼）。
+            PaintStatusChip(_lastStatusKey);
+        }
+
+        /// <summary>
+        /// 把当前主题色写进窗口资源字典，供 XAML 的 DynamicResource 引用。
+        /// </summary>
+        private void ApplyThemeResources()
+        {
+            var map = _theme.ToResourceMap();
+            foreach (var kv in map)
+                Resources[kv.Key] = MakeBrush(kv.Value);
         }
 
         private void SetTheme(string name)
@@ -523,6 +543,17 @@ namespace WorkEncourager
         {
             if (CalendarHintText == null) return;
             int y = DateTime.Now.Year;
+
+            // 同一天既是放假日又是调休上班日：自相矛盾，判定时按"照常上班"处理，
+            // 但不能悄悄按其中一种解释执行，得明确告诉用户。
+            var conflicts = _calendar.FindConflicts();
+            if (conflicts.Count > 0)
+            {
+                CalendarHintText.Text = "注意：" + string.Join("、", conflicts) +
+                    " 既被填成放假日、又被填成调休上班日。当前按「照常上班」计算，请删掉其中一个。";
+                return;
+            }
+
             CalendarHintText.Text = PayCalendar.HasBuiltInData(y)
                 ? ""
                 : "注意：" + y + " 年暂无内置节假日数据，法定假日会被当成工作日算进月累计，请在上方补充自定义放假日。";
@@ -545,13 +576,17 @@ namespace WorkEncourager
                 AutoHoursText.Text = "每日计薪工时 " + h.Value.ToString("0.##", CultureInfo.InvariantCulture) +
                                      " 小时（" + InStart.Text.Trim() + " → " + InEnd.Text.Trim() + "，" + brk + "）";
             }
+            else if (ScheduleFromForm().IsFullyCoveredByBreaks(DateTime.Today))
+            {
+                // 午休把整天都盖住了：计薪工时会变成 0，日薪全丢，而且界面上一点异常都看不出来
+                AutoHoursText.Text = "午休时段把整个工作时段都盖住了，计薪工时会变成 0";
+            }
             else AutoHoursText.Text = "上下班时间还没填好，工时按 9 小时预估";
         }
 
-        private double? PreviewWorkHours()
+        /// <summary>用设置页当前输入拼一张作息表。</summary>
+        private WorkSchedule ScheduleFromForm()
         {
-            if (!WorkSchedule.TryParseMinutes(InStart.Text, out _)) return null;
-            if (!WorkSchedule.TryParseMinutes(InEnd.Text, out _)) return null;
             var sch = new WorkSchedule { Start = InStart.Text.Trim(), End = InEnd.Text.Trim() };
             var breaks = new List<string>();
             foreach (var seg in SplitList(InBreak.Text))
@@ -561,7 +596,14 @@ namespace WorkEncourager
                     breaks.Add(seg);
             }
             sch.Breaks = breaks;
-            double sec = sch.GetTotalWorkSeconds(DateTime.Today);
+            return sch;
+        }
+
+        private double? PreviewWorkHours()
+        {
+            if (!WorkSchedule.TryParseMinutes(InStart.Text, out _)) return null;
+            if (!WorkSchedule.TryParseMinutes(InEnd.Text, out _)) return null;
+            double sec = ScheduleFromForm().GetTotalWorkSeconds(DateTime.Today);
             return sec > 0 ? sec / 3600.0 : (double?)null;
         }
 
@@ -599,10 +641,34 @@ namespace WorkEncourager
                 breaks.Add(p[0].Trim() + "-" + p[1].Trim());
             }
 
+            // 午休不能把整个工作时段都盖住：那样计薪工时会变成 0，日薪全丢，
+            // 而界面上一点异常都看不出来（只显示"今日已赚 ¥0.0000"）。
+            var checkSch = new WorkSchedule
+            {
+                Start = WorkSchedule.FormatMinutes(sh),
+                End = WorkSchedule.FormatMinutes(eh),
+                Breaks = breaks
+            };
+            if (checkSch.IsFullyCoveredByBreaks(DateTime.Today))
+            {
+                SettingsTip.Text = "午休时段把整个工作时段都盖住了，计薪工时会变成 0。请把午休改短一些。";
+                return;
+            }
+
             if (!TryParseDateList(InExtraHolidays.Text, out var holidays, out string badHoliday))
             { SettingsTip.Text = "自定义放假日格式不对：" + badHoliday + "（例 2027-01-01）"; return; }
             if (!TryParseDateList(InExtraWorkdays.Text, out var workdays, out string badWorkday))
             { SettingsTip.Text = "自定义调休上班日格式不对：" + badWorkday + "（例 2027-01-04）"; return; }
+
+            // 同一天既是放假日又是调休上班日：自相矛盾。判定时按"照常上班"处理，
+            // 但不能悄悄替用户选一个解释，直接拦住让改。
+            var conflict = holidays.Intersect(workdays).OrderBy(x => x, StringComparer.Ordinal).ToList();
+            if (conflict.Count > 0)
+            {
+                SettingsTip.Text = "同一天既是放假日又是调休上班日：" + string.Join("、", conflict) +
+                                   "。请删掉其中一个再保存。";
+                return;
+            }
 
             double shirt = ParseNum(InShirt.Text);
             if (double.IsNaN(shirt) || shirt <= 0) { SettingsTip.Text = "目标物单价需大于 0"; return; }

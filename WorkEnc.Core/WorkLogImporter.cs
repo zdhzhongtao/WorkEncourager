@@ -36,12 +36,29 @@ namespace WorkEnc.Core
     /// </summary>
     public static class WorkLogImporter
     {
-        private static readonly string[] DateKeys = { "日期", "date", "日", "打卡日期", "workdate" };
-        private static readonly string[] InKeys = { "上班", "首次上班", "上班时间", "签到", "in", "clockin", "checkin", "首次打卡" };
-        private static readonly string[] OutKeys = { "下班", "最后下班", "下班时间", "签退", "out", "clockout", "checkout", "最后打卡" };
-        private static readonly string[] WorkedKeys = { "工时", "实际工时", "小时", "hours", "worked", "workhours", "时长" };
-        private static readonly string[] OvertimeKeys = { "加班", "加班工时", "overtime", "ot" };
-        private static readonly string[] NoteKeys = { "备注", "note", "remark", "memo", "说明" };
+        // 表头关键词表。
+        //
+        // 分成"精确匹配"和"包含匹配"两套，是因为包含匹配太宽松会误伤：
+        // v2.2.1 用 c.Contains(k) 一把梭，结果 "note" 里含 "ot" → 备注列被当成加班列，
+        // "日薪" 里含 "日" → 被当成日期列。短缩写（ot / in / out）还必须按单词边界匹配，
+        // 否则 "note" 永远命中 "ot"。
+        private static readonly string[] DateExact = { "日期", "date", "day", "日", "workdate", "打卡日期" };
+        private static readonly string[] DatePartial = { "日期", "date", "打卡日期" };
+
+        private static readonly string[] InExact = { "上班", "上班时间", "签到", "首次上班", "首次打卡", "in", "clockin", "checkin" };
+        private static readonly string[] InPartial = { "上班", "签到", "clockin", "checkin" };
+
+        private static readonly string[] OutExact = { "下班", "下班时间", "签退", "最后下班", "最后打卡", "out", "clockout", "checkout" };
+        private static readonly string[] OutPartial = { "下班", "签退", "clockout", "checkout" };
+
+        private static readonly string[] OvertimeExact = { "加班", "加班工时", "加班时长", "overtime", "ot" };
+        private static readonly string[] OvertimePartial = { "加班", "overtime" };
+
+        private static readonly string[] WorkedExact = { "工时", "实际工时", "工作时长", "小时", "时长", "hours", "worked", "workhours" };
+        private static readonly string[] WorkedPartial = { "工时", "实际工时", "工作时长", "时长" };
+
+        private static readonly string[] NoteExact = { "备注", "说明", "note", "notes", "remark", "remarks", "memo" };
+        private static readonly string[] NotePartial = { "备注", "说明", "remark", "memo", "备忘" };
 
         /// <summary>
         /// 解析文本。无法识别的行会写进 errors（最多 20 条），返回成功解析出来的行。
@@ -63,7 +80,7 @@ namespace WorkEnc.Core
             int[] map;
 
             // 第一行含"日期"之类的词就当成表头，否则认为直接是数据
-            bool hasHeader = header.Any(c => Match(c, DateKeys));
+            bool hasHeader = header.Any(c => Match(c, DateExact, DatePartial));
             if (hasHeader)
             {
                 map = BuildMap(header);
@@ -187,27 +204,112 @@ namespace WorkEnc.Core
             return map;
         }
 
-        private static bool Match(string cell, string[] keys)
+        private static bool Match(string cell, string[] exactKeys, string[] partialKeys)
         {
             if (string.IsNullOrWhiteSpace(cell)) return false;
-            string c = cell.Trim().ToLowerInvariant().Replace(" ", "");
-            return keys.Any(k => c.Contains(k));
+            string c = Normalize(cell);
+
+            foreach (var k in exactKeys)
+                if (c == Normalize(k)) return true;
+
+            foreach (var k in partialKeys)
+            {
+                string nk = Normalize(k);
+                if (nk.Length < 2) continue;                     // 单字不做包含匹配："日"会命中"日薪"
+                if (IsAscii(nk) && nk.Length <= 2)
+                {
+                    // 短缩写按单词边界匹配："ot" 不该命中 "note"
+                    if (ContainsAsciiWord(c, nk)) return true;
+                }
+                else if (c.Contains(nk)) return true;
+            }
+            return false;
         }
 
-        /// <summary>表头 → 列下标；没有的列给 -1。</summary>
+        /// <summary>表头规范化：去空白、转小写、全角标点转半角。</summary>
+        private static string Normalize(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            var sb = new System.Text.StringBuilder(s.Length);
+            foreach (char raw in s)
+            {
+                if (char.IsWhiteSpace(raw)) continue;
+                char ch = raw;
+                switch (ch)
+                {
+                    case '（': ch = '('; break;
+                    case '）': ch = ')'; break;
+                    case '：': ch = ':'; break;
+                    case '，': ch = ','; break;
+                }
+                sb.Append(char.ToLowerInvariant(ch));
+            }
+            return sb.ToString();
+        }
+
+        private static bool IsAscii(string s)
+        {
+            foreach (char c in s)
+                if (c > 127) return false;
+            return s.Length > 0;
+        }
+
+        private static bool IsWordChar(char c) =>
+            (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+
+        /// <summary>按单词边界查找英文缩写：左右都不能挨着字母或数字。</summary>
+        private static bool ContainsAsciiWord(string cell, string word)
+        {
+            int idx = 0;
+            while ((idx = cell.IndexOf(word, idx, StringComparison.Ordinal)) >= 0)
+            {
+                bool leftOk = idx == 0 || !IsWordChar(cell[idx - 1]);
+                int end = idx + word.Length;
+                bool rightOk = end >= cell.Length || !IsWordChar(cell[end]);
+                if (leftOk && rightOk) return true;
+                idx += word.Length;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 表头 → 列下标；没有的列给 -1。
+        ///
+        /// 一列只能归一个角色：找到就占用，后面的角色不会再抢同一列。
+        /// 分配顺序有讲究——先认"加班"再认"工时"，
+        /// 否则表头"加班工时,工时"里第一列会被"工时"的包含匹配抢走。
+        /// </summary>
         private static int[] BuildMap(List<string> header)
         {
-            int Find(string[] keys)
+            var map = new[] { -1, -1, -1, -1, -1, -1 };
+            var used = new HashSet<int>();
+
+            int Find(string[] exact, string[] partial)
             {
                 for (int i = 0; i < header.Count; i++)
-                    if (Match(header[i], keys)) return i;
+                {
+                    if (used.Contains(i)) continue;
+                    if (Match(header[i], exact, partial)) return i;
+                }
                 return -1;
             }
-            return new[]
+
+            void Assign(int slot, string[] exact, string[] partial)
             {
-                Find(DateKeys), Find(InKeys), Find(OutKeys),
-                Find(WorkedKeys), Find(OvertimeKeys), Find(NoteKeys)
-            };
+                int i = Find(exact, partial);
+                if (i < 0) return;
+                map[slot] = i;
+                used.Add(i);
+            }
+
+            Assign(0, DateExact, DatePartial);
+            Assign(1, InExact, InPartial);
+            Assign(2, OutExact, OutPartial);
+            Assign(4, OvertimeExact, OvertimePartial);
+            Assign(3, WorkedExact, WorkedPartial);
+            Assign(5, NoteExact, NotePartial);
+
+            return map;
         }
 
         private static string Cell(List<string> cells, int index)

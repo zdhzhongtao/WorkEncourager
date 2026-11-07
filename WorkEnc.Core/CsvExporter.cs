@@ -26,12 +26,18 @@ namespace WorkEnc.Core
     {
         /// <summary>
         /// 生成工时报表 CSV。
-        /// 列：日期、星期、是否计薪日、备注、首次上班、最后下班、实际工时(小时)、应出勤(小时)、加班(小时)、当日已赚(元)
+        ///
+        /// 列：日期、星期、是否计薪日、备注、首次上班、最后下班、
+        /// 在场工时(小时)、应出勤(小时)、加班(小时)、当日已赚(元)
+        ///
+        /// 两个口径别混：<b>在场工时</b>是"程序开着就在岗"累计的真实时长，
+        /// <b>当日已赚</b>是按作息表推算的金额（一天最多一个日薪），
+        /// 两者不一定相等——程序整天挂着不动也算在场，但那不算挣到钱。
         /// </summary>
         public static string BuildWorkReport(IReadOnlyList<DayRecord> records, PayCalendar calendar, int[] weekdays)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("日期,星期,是否计薪日,备注,首次上班,最后下班,实际工时(小时),应出勤(小时),加班(小时),当日已赚(元)");
+            sb.AppendLine("日期,星期,是否计薪日,备注,首次上班,最后下班,在场工时(小时),应出勤(小时),加班(小时),当日已赚(元)");
 
             foreach (var r in records.OrderBy(x => x.Date, StringComparer.Ordinal))
             {
@@ -72,7 +78,7 @@ namespace WorkEnc.Core
         public static string BuildMonthlyReport(IReadOnlyList<DayRecord> records, PayCalendar calendar, int[] weekdays)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("月份,计薪日数,出勤日数,实际工时(小时),加班(小时),本月已赚(元),日均工时(小时)");
+            sb.AppendLine("月份,计薪日数,出勤日数,在场工时(小时),加班(小时),本月已赚(元),日均工时(小时)");
 
             var groups = records
                 .Where(r => !string.IsNullOrEmpty(r.Date) && r.Date.Length >= 7)

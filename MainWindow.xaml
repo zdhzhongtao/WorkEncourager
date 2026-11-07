@@ -58,15 +58,15 @@
                   <Thumb MinHeight="28">
                     <Thumb.Template>
                       <ControlTemplate TargetType="Thumb">
-                        <Border x:Name="b" CornerRadius="2.5" Background="#C9D0DB" Opacity="0.35" />
+                        <Border x:Name="b" CornerRadius="2.5" Background="{DynamicResource ThemeScrollThumb}" Opacity="0.35" />
                         <ControlTemplate.Triggers>
                           <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="b" Property="Opacity" Value="1" />
-                            <Setter TargetName="b" Property="Background" Value="#AEB7C4" />
+                            <Setter TargetName="b" Property="Background" Value="{DynamicResource ThemeScrollThumbHover}" />
                           </Trigger>
                           <Trigger Property="IsDragging" Value="True">
                             <Setter TargetName="b" Property="Opacity" Value="1" />
-                            <Setter TargetName="b" Property="Background" Value="#AEB7C4" />
+                            <Setter TargetName="b" Property="Background" Value="{DynamicResource ThemeScrollThumbHover}" />
                           </Trigger>
                         </ControlTemplate.Triggers>
                       </ControlTemplate>
@@ -90,7 +90,7 @@
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
       <Setter Property="FontSize" Value="11" />
-      <Setter Property="Foreground" Value="#8A94A6" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeTextMuted}" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
@@ -99,11 +99,11 @@
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="b" Property="Background" Value="#F2F4F7" />
-                <Setter Property="Foreground" Value="#0F172A" />
+                <Setter TargetName="b" Property="Background" Value="{DynamicResource ThemeHoverBg}" />
+                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="b" Property="Background" Value="#E9EDF2" />
+                <Setter TargetName="b" Property="Background" Value="{DynamicResource ThemePressedBg}" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -162,22 +162,22 @@
       <Setter Property="Height" Value="34" />
       <Setter Property="FontSize" Value="12.5" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="#475467" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeGhostFg}" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="b" CornerRadius="10" Background="#FBFCFD" BorderBrush="#E9EDF2" BorderThickness="1">
+            <Border x:Name="b" CornerRadius="10" Background="{DynamicResource ThemeGhostBg}" BorderBrush="{DynamicResource ThemeGhostBorder}" BorderThickness="1">
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="b" Property="BorderBrush" Value="#D8DFE9" />
-                <Setter TargetName="b" Property="Background" Value="#FFFFFF" />
-                <Setter Property="Foreground" Value="#0F172A" />
+                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource ThemeBorderHover}" />
+                <Setter TargetName="b" Property="Background" Value="{DynamicResource ThemeGhostHoverBg}" />
+                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="b" Property="Background" Value="#F2F4F7" />
+                <Setter TargetName="b" Property="Background" Value="{DynamicResource ThemePressedBg}" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -190,21 +190,21 @@
       <Setter Property="Height" Value="22" />
       <Setter Property="FontSize" Value="10.5" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="#8A94A6" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeTextMuted}" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="b" CornerRadius="7" Background="#FBFCFD" BorderBrush="#E9EDF2" BorderThickness="1">
+            <Border x:Name="b" CornerRadius="7" Background="{DynamicResource ThemeGhostBg}" BorderBrush="{DynamicResource ThemeGhostBorder}" BorderThickness="1">
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="b" Property="BorderBrush" Value="#D8DFE9" />
-                <Setter Property="Foreground" Value="#0F172A" />
+                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource ThemeBorderHover}" />
+                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="b" Property="Background" Value="#F2F4F7" />
+                <Setter TargetName="b" Property="Background" Value="{DynamicResource ThemePressedBg}" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -218,7 +218,7 @@
       <Setter Property="FontSize" Value="11.5" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="Foreground" Value="#8A94A6" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeTextMuted}" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="BorderThickness" Value="1" />
@@ -245,18 +245,18 @@
     <Style x:Key="Input" TargetType="TextBox">
       <Setter Property="Height" Value="30" />
       <Setter Property="FontSize" Value="12.5" />
-      <Setter Property="Foreground" Value="#0F172A" />
-      <Setter Property="CaretBrush" Value="#F97316" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeInputFg}" />
+      <Setter Property="CaretBrush" Value="{DynamicResource ThemeAccent}" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="TextBox">
-            <Border x:Name="b" CornerRadius="9" Background="#FBFCFE" BorderBrush="#E9EDF2" BorderThickness="1">
+            <Border x:Name="b" CornerRadius="9" Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource ThemeInputBorder}" BorderThickness="1">
               <ScrollViewer x:Name="PART_ContentHost" Margin="10,0" VerticalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter TargetName="b" Property="BorderBrush" Value="#FDBA74" />
-                <Setter TargetName="b" Property="Background" Value="#FFFFFF" />
+                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource ThemeAccentSoftBorder}" />
+                <Setter TargetName="b" Property="Background" Value="{DynamicResource ThemeInputFocusBg}" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -267,7 +267,7 @@
     <Style x:Key="FieldLabel" TargetType="TextBlock">
       <Setter Property="FontSize" Value="11" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="#475467" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeFieldLabelFg}" />
       <Setter Property="Margin" Value="2,0,0,4" />
     </Style>
 
@@ -278,22 +278,22 @@
       <Setter Property="Margin" Value="0,0,5,0" />
       <Setter Property="FontSize" Value="11.5" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="#8A94A6" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeTextMuted}" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="ToggleButton">
-            <Border x:Name="b" CornerRadius="8" Background="#FBFCFE" BorderBrush="#E9EDF2" BorderThickness="1">
+            <Border x:Name="b" CornerRadius="8" Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource ThemeInputBorder}" BorderThickness="1">
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="b" Property="BorderBrush" Value="#D8DFE9" />
+                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource ThemeBorderHover}" />
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="b" Property="Background" Value="#FFF3E6" />
-                <Setter TargetName="b" Property="BorderBrush" Value="#FDBA74" />
-                <Setter Property="Foreground" Value="#C2410C" />
+                <Setter TargetName="b" Property="Background" Value="{DynamicResource ThemeAccentSoft}" />
+                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource ThemeAccentSoftBorder}" />
+                <Setter Property="Foreground" Value="{DynamicResource ThemeAccentDark}" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -309,7 +309,7 @@
         <Setter.Value>
           <ControlTemplate TargetType="Slider">
             <Grid Background="Transparent">
-              <Border Height="5" CornerRadius="3" Background="#EFF2F7" VerticalAlignment="Center" />
+              <Border Height="5" CornerRadius="3" Background="{DynamicResource ThemeTrackBg}" VerticalAlignment="Center" />
               <Track x:Name="PART_Track">
                 <Track.DecreaseRepeatButton>
                   <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
@@ -324,7 +324,7 @@
                   <Thumb>
                     <Thumb.Template>
                       <ControlTemplate TargetType="Thumb">
-                        <Ellipse Width="14" Height="14" Fill="#F97316" Stroke="#FFFFFF" StrokeThickness="2" />
+                        <Ellipse Width="14" Height="14" Fill="{DynamicResource ThemeAccent}" Stroke="{DynamicResource ThemeThumbStroke}" StrokeThickness="2" />
                       </ControlTemplate>
                     </Thumb.Template>
                   </Thumb>
@@ -348,8 +348,8 @@
     <!-- 数据小卡 -->
     <Style x:Key="StatCard" TargetType="Border">
       <Setter Property="CornerRadius" Value="12" />
-      <Setter Property="Background" Value="#FBFCFE" />
-      <Setter Property="BorderBrush" Value="#EFF2F7" />
+      <Setter Property="Background" Value="{DynamicResource ThemeCardBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeCardBorder}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Padding" Value="11,9,11,9" />
     </Style>
@@ -359,18 +359,18 @@
       <Setter Property="Height" Value="28" />
       <Setter Property="FontSize" Value="11.5" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="#8A94A6" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeTextMuted}" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="b" CornerRadius="8" Background="#FBFCFE" BorderBrush="#E9EDF2" BorderThickness="1">
+            <Border x:Name="b" CornerRadius="8" Background="{DynamicResource ThemeInputBg}" BorderBrush="{DynamicResource ThemeInputBorder}" BorderThickness="1">
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="b" Property="BorderBrush" Value="#D8DFE9" />
-                <Setter Property="Foreground" Value="#0F172A" />
+                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource ThemeBorderHover}" />
+                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -379,16 +379,16 @@
     </Style>
 
     <Style x:Key="ToggleActive" TargetType="Button" BasedOn="{StaticResource ToggleIdle}">
-      <Setter Property="Foreground" Value="#C2410C" />
+      <Setter Property="Foreground" Value="{DynamicResource ThemeAccentDark}" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="b" CornerRadius="8" Background="#FFF3E6" BorderBrush="#FDBA74" BorderThickness="1">
+            <Border x:Name="b" CornerRadius="8" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccentSoftBorder}" BorderThickness="1">
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="b" Property="Background" Value="#FFE8D5" />
+                <Setter TargetName="b" Property="Background" Value="{DynamicResource ThemeAccentSoftHover}" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -413,9 +413,9 @@
            现在改成普通 Grid，文字永远是设定字号，宽度跟着窗口走，高度由内容决定。 -->
       <Grid x:Name="FullViewbox" Background="Transparent">
        <Grid x:Name="FullCanvas" Background="Transparent" VerticalAlignment="Top">
-        <Border x:Name="Shell" CornerRadius="20" Background="#EDFFFFFF" BorderBrush="#E7ECF3" BorderThickness="1">
+        <Border x:Name="Shell" CornerRadius="20" Background="{DynamicResource ThemeShellBg}" BorderBrush="{DynamicResource ThemeShellBorder}" BorderThickness="1">
             <Border.Effect>
-              <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.18" Color="#0F172A" />
+              <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.18" Color="#0A0F1A" />
             </Border.Effect>
 
             <Grid x:Name="ShellGrid" Margin="16,13,16,12">
@@ -439,8 +439,8 @@
                 </Border>
 
                 <StackPanel Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center">
-                  <TextBlock x:Name="TitleText" Text="上班鼓励器" FontSize="14.5" FontWeight="Bold" Foreground="#0F172A" />
-                  <TextBlock x:Name="SubTitleText" Text="每一秒都在进账" FontSize="9.5" Foreground="#8A94A6" Margin="0,1,0,0" />
+                  <TextBlock x:Name="TitleText" Text="上班鼓励器" FontSize="14.5" FontWeight="Bold" Foreground="{DynamicResource ThemeTextPrimary}" />
+                  <TextBlock x:Name="SubTitleText" Text="每一秒都在进账" FontSize="9.5" Foreground="{DynamicResource ThemeTextMuted}" Margin="0,1,0,0" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
@@ -451,7 +451,7 @@
               </Grid>
 
               <!-- Tab 栏 -->
-              <Border x:Name="TabBar" Grid.Row="1" Margin="0,11,0,0" CornerRadius="10" Padding="3" Background="#F1F4F8">
+              <Border x:Name="TabBar" Grid.Row="1" Margin="0,11,0,0" CornerRadius="10" Padding="3" Background="{DynamicResource ThemeBarBg}">
                 <UniformGrid Columns="4">
                   <Button x:Name="TabHomeBtn" Style="{StaticResource TabBtn}" Content="主页" />
                   <Button x:Name="TabDetailBtn" Style="{StaticResource TabBtn}" Content="明细" />
@@ -469,30 +469,30 @@
                     <!-- 日期 + 状态 -->
                     <Grid>
                       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock x:Name="DateText" FontSize="11" FontWeight="SemiBold" Foreground="#475467" Text="--" />
-                        <TextBlock x:Name="TimeText" FontSize="11" FontFamily="Consolas" FontWeight="Bold" Foreground="#0F172A"
+                        <TextBlock x:Name="DateText" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextSecondary}" Text="--" />
+                        <TextBlock x:Name="TimeText" FontSize="11" FontFamily="Consolas" FontWeight="Bold" Foreground="{DynamicResource ThemeTextPrimary}"
                                    Margin="6,0,0,0" Text="--:--:--" />
                       </StackPanel>
-                      <Border x:Name="StatusChip" HorizontalAlignment="Right" CornerRadius="9" Background="#ECFDF3" Padding="7,3,8,3">
+                      <Border x:Name="StatusChip" HorizontalAlignment="Right" CornerRadius="9" Background="{DynamicResource ThemeChipWorkingBg}" Padding="7,3,8,3">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                          <Ellipse x:Name="StatusDot" Width="6" Height="6" Fill="#12B76A" VerticalAlignment="Center" />
-                          <TextBlock x:Name="StatusText" FontSize="10" FontWeight="SemiBold" Foreground="#067647" Margin="4,0,0,0" Text="上班中" />
+                          <Ellipse x:Name="StatusDot" Width="6" Height="6" Fill="{DynamicResource ThemeChipWorkingDot}" VerticalAlignment="Center" />
+                          <TextBlock x:Name="StatusText" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource ThemeChipWorkingFg}" Margin="4,0,0,0" Text="上班中" />
                         </StackPanel>
                       </Border>
                     </Grid>
 
                     <!-- 金额 -->
                     <Grid Margin="0,13,0,0">
-                      <TextBlock x:Name="AmountLabel" Text="今日已赚" FontSize="10.5" Foreground="#8A94A6" VerticalAlignment="Center" />
-                      <Border x:Name="CountChip" HorizontalAlignment="Right" CornerRadius="8" Background="#FFF7ED"
-                              BorderBrush="#FED7AA" BorderThickness="1" Padding="7,3,8,3">
-                        <TextBlock x:Name="CountText" FontSize="10" FontWeight="SemiBold" Foreground="#B45309"
+                      <TextBlock x:Name="AmountLabel" Text="今日已赚" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center" />
+                      <Border x:Name="CountChip" HorizontalAlignment="Right" CornerRadius="8" Background="{DynamicResource ThemeAccentSoft}"
+                              BorderBrush="{DynamicResource ThemeAccentSoftBorder}" BorderThickness="1" Padding="7,3,8,3">
+                        <TextBlock x:Name="CountText" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource ThemeAccentDark}"
                                    FontFamily="Consolas" Text="距下班 00:00:00" />
                       </Border>
                     </Grid>
 
                     <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
-                      <TextBlock Text="¥" FontSize="19" FontWeight="Bold" Foreground="#F97316" VerticalAlignment="Bottom" Margin="0,0,5,3" />
+                      <TextBlock Text="¥" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource ThemeAccent}" VerticalAlignment="Bottom" Margin="0,0,5,3" />
                       <TextBlock x:Name="EarnedText" Text="0.0000" FontSize="38" FontWeight="Bold" FontFamily="Consolas"
                                  Typography.NumeralAlignment="Tabular" VerticalAlignment="Bottom">
                         <TextBlock.Foreground>
@@ -505,7 +505,7 @@
                     </StackPanel>
 
                     <!-- 鼓励语 -->
-                    <Border x:Name="EncCard" Background="#FFF8F1" BorderBrush="#FBE3C7" BorderThickness="1" CornerRadius="10" Padding="10,8" Margin="0,10,0,0">
+                    <Border x:Name="EncCard" Background="{DynamicResource ThemeEncBg}" BorderBrush="{DynamicResource ThemeEncBorder}" BorderThickness="1" CornerRadius="10" Padding="10,8" Margin="0,10,0,0">
                       <Grid>
                         <Grid.ColumnDefinitions>
                           <ColumnDefinition Width="Auto" />
@@ -514,7 +514,7 @@
                         <Path Grid.Column="0" Data="M9 3.6 L5.4 5.6 L3.2 9.2 L6.2 11 L7.6 9.9 L7.6 20.4 L16.4 20.4 L16.4 9.9 L17.8 11 L20.8 9.2 L18.6 5.6 L15 3.6 C14.2 5.4 9.8 5.4 9 3.6 Z"
                               Fill="#FB923C" Stretch="Uniform" Width="13" Height="13" VerticalAlignment="Center" Margin="0,0,7,0" />
                         <TextBlock x:Name="EncText" Grid.Column="1" TextWrapping="Wrap" FontSize="11.5" FontWeight="SemiBold"
-                                   Foreground="#9A3412" VerticalAlignment="Center" Text="正在计算…" LineHeight="17" />
+                                   Foreground="{DynamicResource ThemeEncText}" VerticalAlignment="Center" Text="正在计算…" LineHeight="17" />
                       </Grid>
                     </Border>
 
@@ -528,18 +528,18 @@
                       <Button x:Name="ResetBtn" Grid.Column="1" Style="{StaticResource GhostBtn}" Content="重置" Width="60" Margin="7,0,0,0" />
                     </Grid>
 
-                    <Border x:Name="Divider" Height="1" Background="#F1F4F8" Margin="0,12,0,10" />
+                    <Border x:Name="Divider" Height="1" Background="{DynamicResource ThemeBarBg}" Margin="0,12,0,10" />
 
                     <!-- 进度 -->
                     <Grid>
-                      <TextBlock x:Name="ProgressLabel" Text="今日工时进度" FontSize="11" FontWeight="SemiBold" Foreground="#475467" VerticalAlignment="Center" />
+                      <TextBlock x:Name="ProgressLabel" Text="今日工时进度" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center" />
                       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <TextBlock x:Name="PctText" Text="0.0" FontSize="16" FontWeight="Bold" FontFamily="Consolas" Foreground="#F97316" />
-                        <TextBlock Text="%" FontSize="10" FontWeight="SemiBold" Foreground="#F59E0B" VerticalAlignment="Bottom" Margin="1,0,0,2" />
+                        <TextBlock x:Name="PctText" Text="0.0" FontSize="16" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeAccent}" />
+                        <TextBlock Text="%" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource ThemeWarning}" VerticalAlignment="Bottom" Margin="1,0,0,2" />
                       </StackPanel>
                     </Grid>
 
-                    <Border x:Name="BarHost" Height="9" CornerRadius="4.5" Background="#F1F4F8" Margin="0,7,0,0">
+                    <Border x:Name="BarHost" Height="9" CornerRadius="4.5" Background="{DynamicResource ThemeBarBg}" Margin="0,7,0,0">
                       <Border x:Name="BarFill" Width="0" CornerRadius="4.5" HorizontalAlignment="Left">
                         <Border.Background>
                           <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
@@ -553,20 +553,20 @@
 
                     <Grid Margin="0,7,0,0">
                       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock x:Name="WorkedLabel" Text="已工作" FontSize="10.5" Foreground="#8A94A6" />
-                        <TextBlock x:Name="WorkedText" Text="0.00" FontSize="11" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A" Margin="4,0,0,0" />
-                        <TextBlock x:Name="TotalLabel" Text="/" FontSize="10.5" Foreground="#8A94A6" Margin="3,0,0,0" />
-                        <TextBlock x:Name="TotalText" Text="9.0" FontSize="11" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A" Margin="3,0,0,0" />
-                        <TextBlock Text="小时" FontSize="10.5" Foreground="#8A94A6" Margin="3,0,0,0" />
+                        <TextBlock x:Name="WorkedLabel" Text="已工作" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" />
+                        <TextBlock x:Name="WorkedText" Text="0.00" FontSize="11" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeTextPrimary}" Margin="4,0,0,0" />
+                        <TextBlock x:Name="TotalLabel" Text="/" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" Margin="3,0,0,0" />
+                        <TextBlock x:Name="TotalText" Text="9.0" FontSize="11" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeTextPrimary}" Margin="3,0,0,0" />
+                        <TextBlock Text="小时" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" Margin="3,0,0,0" />
                       </StackPanel>
                       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <TextBlock x:Name="RemainLabel" Text="剩余" FontSize="10.5" Foreground="#8A94A6" />
-                        <TextBlock x:Name="RemainText" Text="9.00" FontSize="11" FontWeight="Bold" FontFamily="Consolas" Foreground="#475467" Margin="4,0,0,0" />
-                        <TextBlock Text="小时" FontSize="10.5" Foreground="#8A94A6" Margin="3,0,0,0" />
+                        <TextBlock x:Name="RemainLabel" Text="剩余" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" />
+                        <TextBlock x:Name="RemainText" Text="9.00" FontSize="11" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeTextSecondary}" Margin="4,0,0,0" />
+                        <TextBlock Text="小时" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" Margin="3,0,0,0" />
                       </StackPanel>
                     </Grid>
 
-                    <TextBlock x:Name="FooterHint" Text="拖动任意空白处移动窗口 · 设置自动保存" FontSize="9.5" Foreground="#B4BCC9"
+                    <TextBlock x:Name="FooterHint" Text="拖动任意空白处移动窗口 · 设置自动保存" FontSize="9.5" Foreground="{DynamicResource ThemeTextFaint}"
                                HorizontalAlignment="Center" Margin="0,11,0,0" />
                 </StackPanel>
 
@@ -574,17 +574,17 @@
                 <StackPanel x:Name="DetailPanel" Visibility="Collapsed">
 
                     <!-- 速度 -->
-                    <Border x:Name="SpeedCard" Background="#FBFCFE" BorderBrush="#EFF2F7" BorderThickness="1" CornerRadius="12" Padding="11,9">
+                    <Border x:Name="SpeedCard" Background="{DynamicResource ThemeCardBg}" BorderBrush="{DynamicResource ThemeCardBorder}" BorderThickness="1" CornerRadius="12" Padding="11,9">
                       <StackPanel>
                         <Grid>
-                          <TextBlock x:Name="SpeedLabel" Text="当前赚钱速度" FontSize="11" Foreground="#8A94A6" VerticalAlignment="Center" />
+                          <TextBlock x:Name="SpeedLabel" Text="当前赚钱速度" FontSize="11" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center" />
                           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                            <TextBlock x:Name="RateText" Text="0.0000" FontSize="14" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A"
+                            <TextBlock x:Name="RateText" Text="0.0000" FontSize="14" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeTextPrimary}"
                                        Typography.NumeralAlignment="Tabular" />
-                            <TextBlock x:Name="UnitText" Text="元/秒" FontSize="10" Foreground="#8A94A6" Margin="3,0,0,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="UnitText" Text="元/秒" FontSize="10" Foreground="{DynamicResource ThemeTextMuted}" Margin="3,0,0,0" VerticalAlignment="Center" />
                           </StackPanel>
                         </Grid>
-                        <TextBlock x:Name="DailyTipText" Margin="0,4,0,0" FontSize="9.5" Foreground="#A5AEBD" Text="日薪 ¥0.0000 · 满勤 9.0 小时" />
+                        <TextBlock x:Name="DailyTipText" Margin="0,4,0,0" FontSize="9.5" Foreground="{DynamicResource ThemeTextFaint}" Text="日薪 ¥0.0000 · 满勤 9.0 小时" />
                       </StackPanel>
                     </Border>
 
@@ -592,14 +592,14 @@
                     <Border x:Name="MonthCard" Style="{StaticResource StatCard}" Margin="0,9,0,0">
                       <StackPanel>
                         <Grid>
-                          <TextBlock x:Name="MonthLabel" Text="本月累计" FontSize="10.5" Foreground="#8A94A6" VerticalAlignment="Center" />
+                          <TextBlock x:Name="MonthLabel" Text="本月累计" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center" />
                           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                            <TextBlock x:Name="MonthPctText" Text="0.0" FontSize="12" FontWeight="Bold" FontFamily="Consolas" Foreground="#F97316" />
-                            <TextBlock Text="% 月薪" FontSize="9" Foreground="#A5AEBD" Margin="2,0,0,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="MonthPctText" Text="0.0" FontSize="12" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeAccent}" />
+                            <TextBlock Text="% 月薪" FontSize="9" Foreground="{DynamicResource ThemeTextFaint}" Margin="2,0,0,0" VerticalAlignment="Center" />
                           </StackPanel>
                         </Grid>
                         <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                          <TextBlock Text="¥" FontSize="12" FontWeight="Bold" Foreground="#F97316" VerticalAlignment="Bottom" Margin="0,0,4,2" />
+                          <TextBlock Text="¥" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource ThemeAccent}" VerticalAlignment="Bottom" Margin="0,0,4,2" />
                           <TextBlock x:Name="MonthText" Text="0.0000" FontSize="19" FontWeight="Bold" FontFamily="Consolas"
                                      Typography.NumeralAlignment="Tabular">
                             <TextBlock.Foreground>
@@ -610,7 +610,7 @@
                             </TextBlock.Foreground>
                           </TextBlock>
                         </StackPanel>
-                        <Border x:Name="MonthBarHost" Height="6" CornerRadius="3" Background="#F1F4F8" Margin="0,7,0,0">
+                        <Border x:Name="MonthBarHost" Height="6" CornerRadius="3" Background="{DynamicResource ThemeBarBg}" Margin="0,7,0,0">
                           <Border x:Name="MonthBarFill" Width="0" CornerRadius="3" HorizontalAlignment="Left">
                             <Border.Background>
                               <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
@@ -620,7 +620,7 @@
                             </Border.Background>
                           </Border>
                         </Border>
-                        <TextBlock x:Name="MonthNote" FontSize="9.5" Foreground="#A5AEBD" TextWrapping="Wrap" Margin="0,5,0,0" />
+                        <TextBlock x:Name="MonthNote" FontSize="9.5" Foreground="{DynamicResource ThemeTextFaint}" TextWrapping="Wrap" Margin="0,5,0,0" />
                       </StackPanel>
                     </Border>
 
@@ -634,25 +634,25 @@
 
                       <Border x:Name="HourlyCard" Grid.Column="0" Style="{StaticResource StatCard}">
                         <StackPanel>
-                          <TextBlock x:Name="HourlyLabel" Text="时薪" FontSize="10.5" Foreground="#8A94A6" />
+                          <TextBlock x:Name="HourlyLabel" Text="时薪" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" />
                           <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                            <TextBlock Text="¥" FontSize="11" FontWeight="Bold" Foreground="#8A94A6" VerticalAlignment="Bottom" Margin="0,0,3,1" />
-                            <TextBlock x:Name="HourlyText" Text="0.0000" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A"
+                            <TextBlock Text="¥" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Bottom" Margin="0,0,3,1" />
+                            <TextBlock x:Name="HourlyText" Text="0.0000" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeTextPrimary}"
                                        Typography.NumeralAlignment="Tabular" />
                           </StackPanel>
-                          <TextBlock x:Name="HourlyNote" FontSize="9.5" Foreground="#A5AEBD" Margin="0,4,0,0" Text="日薪 ÷ 计薪工时" />
+                          <TextBlock x:Name="HourlyNote" FontSize="9.5" Foreground="{DynamicResource ThemeTextFaint}" Margin="0,4,0,0" Text="日薪 ÷ 计薪工时" />
                         </StackPanel>
                       </Border>
 
                       <Border x:Name="FullCard" Grid.Column="2" Style="{StaticResource StatCard}">
                         <StackPanel>
-                          <TextBlock x:Name="FullLabel" Text="今日满勤可得" FontSize="10.5" Foreground="#8A94A6" />
+                          <TextBlock x:Name="FullLabel" Text="今日满勤可得" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" />
                           <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                            <TextBlock Text="¥" FontSize="11" FontWeight="Bold" Foreground="#8A94A6" VerticalAlignment="Bottom" Margin="0,0,3,1" />
-                            <TextBlock x:Name="FullText" Text="0.0000" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A"
+                            <TextBlock Text="¥" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Bottom" Margin="0,0,3,1" />
+                            <TextBlock x:Name="FullText" Text="0.0000" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeTextPrimary}"
                                        Typography.NumeralAlignment="Tabular" />
                           </StackPanel>
-                          <TextBlock x:Name="FullNote" FontSize="9.5" Foreground="#A5AEBD" Margin="0,4,0,0" Text="月薪 ÷ 21.75 天" />
+                          <TextBlock x:Name="FullNote" FontSize="9.5" Foreground="{DynamicResource ThemeTextFaint}" Margin="0,4,0,0" Text="月薪 ÷ 21.75 天" />
                         </StackPanel>
                       </Border>
                     </Grid>
@@ -667,25 +667,25 @@
 
                       <Border x:Name="PayDayCard" Grid.Column="0" Style="{StaticResource StatCard}">
                         <StackPanel>
-                          <TextBlock x:Name="PayDayText" Text="距发薪 -- 天" FontSize="12" FontWeight="Bold" Foreground="#C2410C" />
-                          <TextBlock x:Name="PayDaySubText" FontSize="9.5" Foreground="#8A94A6" Margin="0,3,0,0" TextWrapping="Wrap" />
+                          <TextBlock x:Name="PayDayText" Text="距发薪 -- 天" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource ThemeAccentDark}" />
+                          <TextBlock x:Name="PayDaySubText" FontSize="9.5" Foreground="{DynamicResource ThemeTextMuted}" Margin="0,3,0,0" TextWrapping="Wrap" />
                         </StackPanel>
                       </Border>
 
                       <Border x:Name="ActualWorkedCard" Grid.Column="2" Style="{StaticResource StatCard}">
                         <StackPanel>
-                          <TextBlock x:Name="ActualWorkedLabel" Text="今日实际在场" FontSize="10.5" Foreground="#8A94A6" />
+                          <TextBlock x:Name="ActualWorkedLabel" Text="今日实际在场" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" />
                           <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                            <TextBlock x:Name="ActualWorkedText" Text="0.00" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A"
+                            <TextBlock x:Name="ActualWorkedText" Text="0.00" FontSize="15" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeTextPrimary}"
                                        Typography.NumeralAlignment="Tabular" />
-                            <TextBlock Text="小时" FontSize="10" Foreground="#8A94A6" Margin="3,0,0,0" VerticalAlignment="Bottom" />
+                            <TextBlock Text="小时" FontSize="10" Foreground="{DynamicResource ThemeTextMuted}" Margin="3,0,0,0" VerticalAlignment="Bottom" />
                           </StackPanel>
-                          <TextBlock FontSize="9.5" Foreground="#A5AEBD" Margin="0,4,0,0" TextWrapping="Wrap" Text="程序开着即在岗，用于 CSV 报表" />
+                          <TextBlock FontSize="9.5" Foreground="{DynamicResource ThemeTextFaint}" Margin="0,4,0,0" TextWrapping="Wrap" Text="程序开着即在岗，用于 CSV 报表" />
                         </StackPanel>
                       </Border>
                     </Grid>
 
-                    <TextBlock x:Name="DetailFooterHint" FontSize="9.5" Foreground="#B4BCC9" HorizontalAlignment="Center" Margin="0,11,0,0"
+                    <TextBlock x:Name="DetailFooterHint" FontSize="9.5" Foreground="{DynamicResource ThemeTextFaint}" HorizontalAlignment="Center" Margin="0,11,0,0"
                                Text="明细页汇总次要数据，核心数字在「主页」" />
                 </StackPanel>
 
@@ -699,22 +699,22 @@
                       </Grid.ColumnDefinitions>
                       <Border x:Name="StatWeekCard" Style="{StaticResource StatCard}">
                         <StackPanel>
-                          <TextBlock Text="本周" FontSize="10.5" Foreground="#8A94A6" />
+                          <TextBlock Text="本周" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" />
                           <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                            <TextBlock x:Name="StatWeekHours" Text="0.00" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A" />
-                            <TextBlock Text="小时" FontSize="10" Foreground="#8A94A6" Margin="3,0,0,0" VerticalAlignment="Bottom" />
+                            <TextBlock x:Name="StatWeekHours" Text="0.00" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeTextPrimary}" />
+                            <TextBlock Text="小时" FontSize="10" Foreground="{DynamicResource ThemeTextMuted}" Margin="3,0,0,0" VerticalAlignment="Bottom" />
                           </StackPanel>
-                          <TextBlock x:Name="StatWeekEarned" FontSize="10" Foreground="#C2410C" Margin="0,4,0,0" Text="¥0.0000" />
+                          <TextBlock x:Name="StatWeekEarned" FontSize="10" Foreground="{DynamicResource ThemeAccentDark}" Margin="0,4,0,0" Text="¥0.0000" />
                         </StackPanel>
                       </Border>
                       <Border x:Name="StatMonthCard" Grid.Column="2" Style="{StaticResource StatCard}">
                         <StackPanel>
-                          <TextBlock Text="本月" FontSize="10.5" Foreground="#8A94A6" />
+                          <TextBlock Text="本月" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" />
                           <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                            <TextBlock x:Name="StatMonthHours" Text="0.00" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A" />
-                            <TextBlock Text="小时" FontSize="10" Foreground="#8A94A6" Margin="3,0,0,0" VerticalAlignment="Bottom" />
+                            <TextBlock x:Name="StatMonthHours" Text="0.00" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeTextPrimary}" />
+                            <TextBlock Text="小时" FontSize="10" Foreground="{DynamicResource ThemeTextMuted}" Margin="3,0,0,0" VerticalAlignment="Bottom" />
                           </StackPanel>
-                          <TextBlock x:Name="StatMonthEarned" FontSize="10" Foreground="#C2410C" Margin="0,4,0,0" Text="¥0.0000" />
+                          <TextBlock x:Name="StatMonthEarned" FontSize="10" Foreground="{DynamicResource ThemeAccentDark}" Margin="0,4,0,0" Text="¥0.0000" />
                         </StackPanel>
                       </Border>
                     </Grid>
@@ -727,31 +727,31 @@
                       </Grid.ColumnDefinitions>
                       <Border x:Name="StatYearCard" Style="{StaticResource StatCard}">
                         <StackPanel>
-                          <TextBlock Text="本年" FontSize="10.5" Foreground="#8A94A6" />
+                          <TextBlock Text="本年" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" />
                           <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                            <TextBlock x:Name="StatYearHours" Text="0.00" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A" />
-                            <TextBlock Text="小时" FontSize="10" Foreground="#8A94A6" Margin="3,0,0,0" VerticalAlignment="Bottom" />
+                            <TextBlock x:Name="StatYearHours" Text="0.00" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeTextPrimary}" />
+                            <TextBlock Text="小时" FontSize="10" Foreground="{DynamicResource ThemeTextMuted}" Margin="3,0,0,0" VerticalAlignment="Bottom" />
                           </StackPanel>
-                          <TextBlock x:Name="StatYearEarned" FontSize="10" Foreground="#C2410C" Margin="0,4,0,0" Text="¥0.0000" />
+                          <TextBlock x:Name="StatYearEarned" FontSize="10" Foreground="{DynamicResource ThemeAccentDark}" Margin="0,4,0,0" Text="¥0.0000" />
                         </StackPanel>
                       </Border>
                       <Border x:Name="StatOvertimeCard" Grid.Column="2" Style="{StaticResource StatCard}">
                         <StackPanel>
-                          <TextBlock Text="累计加班" FontSize="10.5" Foreground="#8A94A6" />
+                          <TextBlock Text="累计加班" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" />
                           <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                            <TextBlock x:Name="StatOvertimeHours" Text="0.00" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="#0F172A" />
-                            <TextBlock Text="小时" FontSize="10" Foreground="#8A94A6" Margin="3,0,0,0" VerticalAlignment="Bottom" />
+                            <TextBlock x:Name="StatOvertimeHours" Text="0.00" FontSize="17" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource ThemeTextPrimary}" />
+                            <TextBlock Text="小时" FontSize="10" Foreground="{DynamicResource ThemeTextMuted}" Margin="3,0,0,0" VerticalAlignment="Bottom" />
                           </StackPanel>
-                          <TextBlock x:Name="StatOvertimeDays" FontSize="10" Foreground="#8A94A6" Margin="0,4,0,0" Text="0 天有加班" />
+                          <TextBlock x:Name="StatOvertimeDays" FontSize="10" Foreground="{DynamicResource ThemeTextMuted}" Margin="0,4,0,0" Text="0 天有加班" />
                         </StackPanel>
                       </Border>
                     </Grid>
 
                     <Border x:Name="StatDetailCard" Style="{StaticResource StatCard}" Margin="0,9,0,0">
                       <StackPanel>
-                        <TextBlock Text="明细" FontSize="10.5" Foreground="#8A94A6" />
+                        <TextBlock Text="明细" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" />
                         <TextBlock x:Name="StatDetailText" Margin="0,5,0,0" FontSize="11" FontWeight="SemiBold"
-                                   Foreground="#475467" TextWrapping="Wrap" LineHeight="17" Text="—" />
+                                   Foreground="{DynamicResource ThemeTextSecondary}" TextWrapping="Wrap" LineHeight="17" Text="—" />
                       </StackPanel>
                     </Border>
 
@@ -761,14 +761,14 @@
                       <Button x:Name="StatsExportMonthlyBtn" Style="{StaticResource GhostBtn}" Content="导出月度汇总" Width="102" Height="30" Margin="6,0,0,0" />
                     </StackPanel>
 
-                    <TextBox x:Name="StatsTip" FontSize="9.5" Foreground="#EF4444" Margin="0,9,0,0"
+                    <TextBox x:Name="StatsTip" FontSize="9.5" Foreground="{DynamicResource ThemeDanger}" Margin="0,9,0,0"
                              Text="" TextWrapping="Wrap" IsReadOnly="True" IsReadOnlyCaretVisible="True"
                              Background="Transparent" BorderThickness="0" Padding="0" />
                     <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                       <Button x:Name="StatsCopyPathBtn" Style="{StaticResource TinyBtn}" Content="复制路径" Width="72" />
                       <Button x:Name="StatsOpenFolderBtn" Style="{StaticResource TinyBtn}" Content="打开文件夹" Width="82" Margin="6,0,0,0" />
                     </StackPanel>
-                    <TextBlock FontSize="9" Foreground="#A5AEBD" Margin="2,7,0,0" TextWrapping="Wrap"
+                    <TextBlock FontSize="9" Foreground="{DynamicResource ThemeTextFaint}" Margin="2,7,0,0" TextWrapping="Wrap"
                                Text="CSV 保存在 %APPDATA%\WorkEncourageur\，UTF-8 BOM 编码，Excel 直接打开。" />
                 </StackPanel>
 
@@ -782,7 +782,7 @@
 
                     <TextBlock Text="月薪（元）" Style="{StaticResource FieldLabel}" Margin="2,2,0,4" />
                     <TextBox x:Name="InSalary" Style="{StaticResource Input}" />
-                    <TextBlock FontSize="9" Foreground="#A5AEBD" Margin="2,4,0,0" Text="日薪 = 月薪 ÷ 21.75（法定月计薪天数）" />
+                    <TextBlock FontSize="9" Foreground="{DynamicResource ThemeTextFaint}" Margin="2,4,0,0" Text="日薪 = 月薪 ÷ 21.75（法定月计薪天数）" />
 
                     <Grid Margin="0,9,0,0">
                       <Grid.ColumnDefinitions>
@@ -802,7 +802,7 @@
 
                     <TextBlock Text="午休时段（留空即不午休，多段用逗号分隔）" Style="{StaticResource FieldLabel}" Margin="2,9,0,4" />
                     <TextBox x:Name="InBreak" Style="{StaticResource Input}" />
-                    <TextBlock x:Name="AutoHoursText" FontSize="9.5" Foreground="#475467" Margin="2,6,0,0"
+                    <TextBlock x:Name="AutoHoursText" FontSize="9.5" Foreground="{DynamicResource ThemeTextSecondary}" Margin="2,6,0,0"
                                Text="每日计薪工时 9.0 小时（09:00 → 18:00，无午休）" />
 
                     <Grid Margin="0,10,0,0">
@@ -834,14 +834,14 @@
                       <ToggleButton x:Name="Dw6" Style="{StaticResource DowTgl}" Content="六" />
                       <ToggleButton x:Name="Dw0" Style="{StaticResource DowTgl}" Content="日" />
                     </StackPanel>
-                    <TextBlock FontSize="9" Foreground="#A5AEBD" Margin="2,5,0,0" TextWrapping="Wrap" LineHeight="14"
+                    <TextBlock FontSize="9" Foreground="{DynamicResource ThemeTextFaint}" Margin="2,5,0,0" TextWrapping="Wrap" LineHeight="14"
                                Text="已内置 2026 年法定节假日与调休安排（国办发明电〔2025〕7号），本月累计会自动扣除假日、加上调休上班日。" />
 
                     <TextBlock Text="自定义放假日（yyyy-MM-dd，逗号分隔）" Style="{StaticResource FieldLabel}" Margin="2,9,0,4" />
                     <TextBox x:Name="InExtraHolidays" Style="{StaticResource Input}" />
                     <TextBlock Text="自定义调休上班日（yyyy-MM-dd，逗号分隔）" Style="{StaticResource FieldLabel}" Margin="2,7,0,4" />
                     <TextBox x:Name="InExtraWorkdays" Style="{StaticResource Input}" />
-                    <TextBlock x:Name="CalendarHintText" FontSize="9" Foreground="#D97706" Margin="2,5,0,0"
+                    <TextBlock x:Name="CalendarHintText" FontSize="9" Foreground="{DynamicResource ThemeWarning}" Margin="2,5,0,0"
                                TextWrapping="Wrap" LineHeight="14" Text="" />
 
                     <TextBlock Text="鼓励语气" Style="{StaticResource FieldLabel}" Margin="2,10,0,4" />
@@ -866,7 +866,7 @@
                       <Button x:Name="GhostModeBtn" Style="{StaticResource ToggleIdle}" Content="幽灵模式" Width="76" />
                       <Button x:Name="SnapEdgeBtn" Style="{StaticResource ToggleIdle}" Content="边缘吸附" Width="76" Margin="6,0,0,0" />
                     </StackPanel>
-                    <TextBlock FontSize="9" Foreground="#A5AEBD" Margin="2,5,0,0" TextWrapping="Wrap" LineHeight="14"
+                    <TextBlock FontSize="9" Foreground="{DynamicResource ThemeTextFaint}" Margin="2,5,0,0" TextWrapping="Wrap" LineHeight="14"
                                Text="迷你挂件只显示金额与进度条，双击可展开完整界面；鼠标穿透让挂件不挡下面的工作。幽灵模式：鼠标离开自动变淡；边缘吸附：挂件拖到屏幕边会自动贴住。" />
 
                     <Grid Margin="0,10,0,0">
@@ -882,14 +882,14 @@
                                 SmallChange="0.01" LargeChange="0.05" />
                       </StackPanel>
                       <TextBlock x:Name="OpacityValueText" Grid.Column="1" FontSize="11" FontWeight="Bold"
-                                 FontFamily="Consolas" Foreground="#0F172A" VerticalAlignment="Center"
+                                 FontFamily="Consolas" Foreground="{DynamicResource ThemeTextPrimary}" VerticalAlignment="Center"
                                  Margin="10,0,0,0" Text="97%" />
                     </Grid>
 
                     <Grid Margin="0,7,0,0">
                       <StackPanel>
                         <TextBlock Text="窗体大小" Style="{StaticResource FieldLabel}" />
-                        <TextBlock x:Name="SizeText" FontSize="9.5" Foreground="#475467" Text="432 × 388" />
+                        <TextBlock x:Name="SizeText" FontSize="9.5" Foreground="{DynamicResource ThemeTextSecondary}" Text="432 × 388" />
                       </StackPanel>
                       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
                         <Button x:Name="SizeSmallBtn" Style="{StaticResource TinyBtn}" Content="小" Width="32" />
@@ -899,12 +899,12 @@
                       </StackPanel>
                     </Grid>
 
-                    <Border Margin="0,12,0,0" Background="#FBFCFE"
-                            BorderBrush="#EFF2F7" BorderThickness="1" CornerRadius="11" Padding="11,9">
+                    <Border Margin="0,12,0,0" Background="{DynamicResource ThemeCardBg}"
+                            BorderBrush="{DynamicResource ThemeCardBorder}" BorderThickness="1" CornerRadius="11" Padding="11,9">
                       <StackPanel>
-                        <TextBlock Text="按当前输入预估" FontSize="10.5" Foreground="#8A94A6" />
+                        <TextBlock Text="按当前输入预估" FontSize="10.5" Foreground="{DynamicResource ThemeTextMuted}" />
                         <TextBlock x:Name="PrevText" Margin="0,5,0,0" FontSize="11" FontWeight="SemiBold"
-                                   Foreground="#475467" TextWrapping="Wrap" LineHeight="17" Text="—" />
+                                   Foreground="{DynamicResource ThemeTextSecondary}" TextWrapping="Wrap" LineHeight="17" Text="—" />
                       </StackPanel>
                     </Border>
 
@@ -924,7 +924,7 @@
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                       <Button x:Name="CheckUpdateBtn" Style="{StaticResource GhostBtn}" Content="检查更新" Width="90" Height="30" />
-                      <TextBlock x:Name="VersionText" FontSize="9.5" Foreground="#8A94A6"
+                      <TextBlock x:Name="VersionText" FontSize="9.5" Foreground="{DynamicResource ThemeTextMuted}"
                                  VerticalAlignment="Center" Margin="8,0,0,0" Text="v—" />
                     </StackPanel>
 
@@ -936,7 +936,7 @@
                       </StackPanel>
                     </Grid>
 
-                    <TextBox x:Name="SettingsTip" FontSize="9.5" Foreground="#EF4444" Margin="2,7,0,0"
+                    <TextBox x:Name="SettingsTip" FontSize="9.5" Foreground="{DynamicResource ThemeDanger}" Margin="2,7,0,0"
                              Text="" TextWrapping="Wrap" IsReadOnly="True" IsReadOnlyCaretVisible="True"
                              Background="Transparent" BorderThickness="0" Padding="0" />
                     <StackPanel Orientation="Horizontal" Margin="2,5,0,0">
@@ -945,7 +945,7 @@
                     </StackPanel>
 
                     <TextBlock TextWrapping="Wrap" Margin="2,9,2,4"
-                               FontSize="9.5" Foreground="#A5AEBD" LineHeight="16"
+                               FontSize="9.5" Foreground="{DynamicResource ThemeTextFaint}" LineHeight="16"
                                Text="提示：程序运行且处于上班时段内即视为在岗，实际在场时长会累计进 CSV 报表；午休时段不计入计薪工时。" />
                   </StackPanel>
                 </ScrollViewer>
@@ -959,9 +959,9 @@
       <!-- ================= 迷你挂件 ================= -->
       <Viewbox x:Name="MiniViewbox" Stretch="Uniform" StretchDirection="Both" Visibility="Collapsed">
        <Grid Width="220" Height="80" Background="Transparent">
-        <Border x:Name="MiniShell" CornerRadius="14" Background="#F2FFFFFF" BorderBrush="#E7ECF3" BorderThickness="1">
+        <Border x:Name="MiniShell" CornerRadius="14" Background="{DynamicResource ThemeShellBg}" BorderBrush="{DynamicResource ThemeShellBorder}" BorderThickness="1">
             <Border.Effect>
-              <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.20" Color="#0F172A" />
+              <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.20" Color="#0A0F1A" />
             </Border.Effect>
             <Grid Margin="12,8,12,8">
               <Grid.RowDefinitions>
@@ -977,13 +977,13 @@
 
               <!-- 状态点 + 状态文字 -->
               <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <Ellipse x:Name="MiniDot" Width="6" Height="6" Fill="#12B76A" VerticalAlignment="Center" Margin="0,0,5,0" />
-                <TextBlock x:Name="MiniStatus" FontSize="10" Foreground="#8A94A6" VerticalAlignment="Center" Text="上班中" />
+                <Ellipse x:Name="MiniDot" Width="6" Height="6" Fill="{DynamicResource ThemeChipWorkingDot}" VerticalAlignment="Center" Margin="0,0,5,0" />
+                <TextBlock x:Name="MiniStatus" FontSize="10" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center" Text="上班中" />
               </StackPanel>
 
               <!-- 倒计时（与状态同行，避免和金额抢位置） -->
               <TextBlock x:Name="MiniCount" Grid.Row="0" Grid.Column="1" FontSize="9.5" FontFamily="Consolas"
-                         FontWeight="SemiBold" Foreground="#C2410C" VerticalAlignment="Center"
+                         FontWeight="SemiBold" Foreground="{DynamicResource ThemeAccentDark}" VerticalAlignment="Center"
                          HorizontalAlignment="Right" Text="距下班 00:00:00" Margin="4,0" />
 
               <!-- 展开按钮 -->
@@ -992,14 +992,14 @@
 
               <!-- 金额（独占一行，宽度用满） -->
               <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,3,0,0">
-                <TextBlock Text="¥" FontSize="14" FontWeight="Bold" Foreground="#F97316" VerticalAlignment="Bottom" Margin="0,0,4,2" />
+                <TextBlock Text="¥" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource ThemeAccent}" VerticalAlignment="Bottom" Margin="0,0,4,2" />
                 <TextBlock x:Name="MiniEarned" Text="0.0000" FontSize="24" FontWeight="Bold" FontFamily="Consolas"
-                           Typography.NumeralAlignment="Tabular" Foreground="#F97316" VerticalAlignment="Bottom" />
+                           Typography.NumeralAlignment="Tabular" Foreground="{DynamicResource ThemeAccent}" VerticalAlignment="Bottom" />
               </StackPanel>
 
               <!-- 进度条 -->
               <Border x:Name="MiniBarHost2" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Height="3"
-                      CornerRadius="1.5" Background="#F1F4F8" Margin="0,7,0,0">
+                      CornerRadius="1.5" Background="{DynamicResource ThemeBarBg}" Margin="0,7,0,0">
                 <Border x:Name="MiniBarFill" Width="0" CornerRadius="1.5" HorizontalAlignment="Left">
                   <Border.Background>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">

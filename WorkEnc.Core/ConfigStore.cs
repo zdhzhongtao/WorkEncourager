@@ -69,6 +69,7 @@ namespace WorkEnc.Core
             if (!WorkSchedule.TryParseMinutes(cfg.End, out _)) cfg.End = "18:00";
             if (string.IsNullOrWhiteSpace(cfg.Tone)) cfg.Tone = "chill";
             if (string.IsNullOrWhiteSpace(cfg.Theme)) cfg.Theme = "light";
+            if (cfg.IdleThresholdSeconds < 0) cfg.IdleThresholdSeconds = 300;
 
             // 旧版本配置升级：窗口尺寸是针对旧的大布局存的，直接清掉让它按新布局自适应
             if (string.IsNullOrWhiteSpace(cfg.ViewMode))

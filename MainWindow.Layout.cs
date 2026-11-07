@@ -311,7 +311,8 @@ namespace WorkEncourager
         private void ApplyTopmost()
         {
             Topmost = _cfg.Topmost;
-            PinBtn.Foreground = Topmost ? MakeBrush("#F97316") : MakeBrush("#C3CAD6");
+            // 颜色跟着主题走，别再写死浅色值——深色模式下那两个字会直接看不见
+            PinBtn.Foreground = Topmost ? MakeBrush(_theme.Accent) : MakeBrush(_theme.TextMuted);
         }
 
         private void OnPinClick(object sender, RoutedEventArgs e)

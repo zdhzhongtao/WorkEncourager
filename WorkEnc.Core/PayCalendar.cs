@@ -111,6 +111,22 @@ namespace WorkEnc.Core
         }
 
         /// <summary>
+        /// 同时被写进"自定义放假日"和"自定义调休上班日"的日期。
+        ///
+        /// 这种配置自相矛盾：同一天既放假又要上班。判定时按"调休上班优先"
+        /// （见 <see cref="IsPayDay"/>），但多半是用户手滑填错了，
+        /// 设置页要明确指出来，不能悄悄按其中一种解释执行。
+        /// </summary>
+        public List<string> FindConflicts()
+        {
+            var list = new List<string>();
+            foreach (var d in ExtraHolidays)
+                if (ExtraWorkdays.Contains(d)) list.Add(d);
+            list.Sort(StringComparer.Ordinal);
+            return list;
+        }
+
+        /// <summary>
         /// 是否为计薪日。规则：
         /// 1. 调休上班日 → 是
         /// 2. 法定放假日 → 否

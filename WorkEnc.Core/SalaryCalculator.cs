@@ -38,6 +38,13 @@ namespace WorkEnc.Core
         /// <summary>今天是否计薪日（周末/法定假日为 false）。</summary>
         public bool IsPayDay { get; set; } = true;
 
+        /// <summary>
+        /// 本次计算归属的"班次起始日"。
+        /// 夜班（22:00 → 次日 06:00）在凌晨还没下班，这时它属于前一天开始的那个班次。
+        /// 工时、金额、计薪日判定都要按这一天来算，否则凌晨会一分钱都不算。
+        /// </summary>
+        public DateTime BaseDate { get; set; }
+
         /// <summary>working / off / wait / paused / rest</summary>
         public string Status { get; set; } = "off";
     }
@@ -92,6 +99,12 @@ namespace WorkEnc.Core
                 if (effNow.Date != baseDate) baseDate = effNow.Date;
             }
 
+            // 夜班归属：凌晨那几小时属于"前一天开始的那个班次"。
+            // 不做这一步，02:00 查的是当天的作息（22:00 才上班），
+            // 工时与金额全变成 0，界面显示"今天已赚 ¥0.0000"。
+            baseDate = ResolveShiftDate(baseDate, effNow);
+            snap.BaseDate = baseDate;
+
             snap.StartTs = _schedule.GetStartTime(baseDate);
             snap.EndTs = _schedule.GetEndTime(baseDate);
             snap.TotalSec = _schedule.GetTotalWorkSeconds(baseDate);
@@ -135,7 +148,9 @@ namespace WorkEnc.Core
                 monthSum += snap.DailyPay;
             }
             // 今天只有是计薪日才并入月累计；休息日加班赚的钱不进月薪进度（按加班处理）
-            if (snap.IsPayDay) monthSum += snap.Earned;
+            // 夜班跨月时（月初凌晨还在上月末的班），这笔钱属于上个月，不并进本月。
+            if (snap.IsPayDay && baseDate.Year == now.Year && baseDate.Month == now.Month)
+                monthSum += snap.Earned;
             snap.MonthTotal = monthSum;
             snap.MonthPct = monthlySalary > 0 ? Math.Min(100.0, snap.MonthTotal / monthlySalary * 100.0) : 0;
 
@@ -145,6 +160,21 @@ namespace WorkEnc.Core
             snap.PayDayInDays = daysTo;
 
             return snap;
+        }
+
+        /// <summary>
+        /// 找到"此刻正在进行的那一班"是从哪天开始的。
+        ///
+        /// 作息表允许跨天（22:00 → 次日 06:00），凌晨两点还属于前一天开始的那个班次。
+        /// 返回值用来决定工时、金额、计薪日按哪一天算。
+        /// </summary>
+        private DateTime ResolveShiftDate(DateTime baseDate, DateTime at)
+        {
+            var prev = baseDate.AddDays(-1);
+            var prevStart = _schedule.GetStartTime(prev);
+            var prevEnd = _schedule.GetEndTime(prev);
+            if (at >= prevStart && at < prevEnd) return prev;
+            return baseDate;
         }
 
         /// <summary>计算下一次发薪日及距今天数。</summary>

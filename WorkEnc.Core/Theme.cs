@@ -50,6 +50,54 @@ namespace WorkEnc.Core
         /// <summary>未选中 Tab 的文字色。</summary>
         public string TabIdleFg { get; set; } = "#8A94A6";
 
+        // ---- 输入框 ----
+        /// <summary>输入框底色。</summary>
+        public string InputBg { get; set; } = "#FBFCFE";
+        /// <summary>输入框边框色。</summary>
+        public string InputBorder { get; set; } = "#E9EDF2";
+        /// <summary>输入框文字色。</summary>
+        public string InputFg { get; set; } = "#0F172A";
+        /// <summary>输入框获得焦点时的底色。</summary>
+        public string InputFocusBg { get; set; } = "#FFFFFF";
+        /// <summary>悬停时的边框色（输入框、星期按钮、语气按钮共用）。</summary>
+        public string BorderHover { get; set; } = "#D8DFE9";
+
+        // ---- 次级按钮 ----
+        /// <summary>次级按钮底色。</summary>
+        public string GhostBg { get; set; } = "#FBFCFD";
+        /// <summary>次级按钮边框色。</summary>
+        public string GhostBorder { get; set; } = "#E9EDF2";
+        /// <summary>次级按钮文字色。</summary>
+        public string GhostFg { get; set; } = "#475467";
+        /// <summary>次级按钮悬停底色。</summary>
+        public string GhostHoverBg { get; set; } = "#FFFFFF";
+
+        // ---- 交互态 ----
+        /// <summary>悬停底色。</summary>
+        public string HoverBg { get; set; } = "#F2F4F7";
+        /// <summary>按下底色。</summary>
+        public string PressedBg { get; set; } = "#E9EDF2";
+        /// <summary>设置页字段标签文字色。</summary>
+        public string FieldLabelFg { get; set; } = "#475467";
+        /// <summary>强调块（选中态底色）悬停时的颜色。</summary>
+        public string AccentSoftHover { get; set; } = "#FFE8D5";
+
+        // ---- 提示色 ----
+        /// <summary>错误提示色。</summary>
+        public string Danger { get; set; } = "#EF4444";
+        /// <summary>警告提示色。</summary>
+        public string Warning { get; set; } = "#D97706";
+
+        // ---- 滚动条 / 滑块 ----
+        /// <summary>细滚动条滑块色。</summary>
+        public string ScrollThumb { get; set; } = "#C9D0DB";
+        /// <summary>细滚动条滑块悬停色。</summary>
+        public string ScrollThumbHover { get; set; } = "#AEB7C4";
+        /// <summary>滑块轨道底色。</summary>
+        public string TrackBg { get; set; } = "#EFF2F7";
+        /// <summary>滑块圆点描边色（要跟轨道底色区分开）。</summary>
+        public string ThumbStroke { get; set; } = "#FFFFFF";
+
         public static Theme Light() => new Theme();
 
         public static Theme Dark() => new Theme
@@ -88,10 +136,101 @@ namespace WorkEnc.Core
             TabActiveBg = "#33FFFFFF",
             TabActiveBorder = "#4DF97316",
             TabActiveFg = "#FDBA74",
-            TabIdleFg = "#8794A8"
+            TabIdleFg = "#8794A8",
+
+            InputBg = "#E61C2637",
+            InputBorder = "#3AFFFFFF",
+            InputFg = "#F1F5F9",
+            InputFocusBg = "#FF1F2A3D",
+            BorderHover = "#59FFFFFF",
+
+            GhostBg = "#26FFFFFF",
+            GhostBorder = "#33FFFFFF",
+            GhostFg = "#B6C2D4",
+            GhostHoverBg = "#3DFFFFFF",
+
+            HoverBg = "#33FFFFFF",
+            PressedBg = "#4DFFFFFF",
+            FieldLabelFg = "#B6C2D4",
+            AccentSoftHover = "#4DF97316",
+
+            Danger = "#F87171",
+            Warning = "#FBBF24",
+
+            ScrollThumb = "#4DFFFFFF",
+            ScrollThumbHover = "#80FFFFFF",
+            TrackBg = "#26FFFFFF",
+            ThumbStroke = "#1C2530"
         };
 
         public static Theme Get(string name) =>
             string.Equals(name, "dark", StringComparison.OrdinalIgnoreCase) ? Dark() : Light();
+
+        /// <summary>
+        /// 主题色 → WPF 资源键。
+        ///
+        /// XAML 里统一用 <c>{DynamicResource ThemeXxx}</c> 引用这些键，
+        /// 切主题时只要换掉资源字典，界面各处（包括那些没有 x:Name 的小标签）
+        /// 都会跟着变，不必在代码里一个个控件去刷画刷。
+        /// </summary>
+        public Dictionary<string, string> ToResourceMap()
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                { "ThemeShellBg", ShellBg },
+                { "ThemeShellBorder", ShellBorder },
+                { "ThemeCardBg", CardBg },
+                { "ThemeCardBorder", CardBorder },
+                { "ThemeTextPrimary", TextPrimary },
+                { "ThemeTextSecondary", TextSecondary },
+                { "ThemeTextMuted", TextMuted },
+                { "ThemeTextFaint", TextFaint },
+                { "ThemeAccent", Accent },
+                { "ThemeAccentDark", AccentDark },
+                { "ThemeAccentSoft", AccentSoft },
+                { "ThemeAccentSoftBorder", AccentSoftBorder },
+                { "ThemeAccentSoftHover", AccentSoftHover },
+                { "ThemeEncBg", EncBg },
+                { "ThemeEncBorder", EncBorder },
+                { "ThemeEncText", EncText },
+                { "ThemeBarBg", BarBg },
+                { "ThemeDivider", Divider },
+                { "ThemeInputBg", InputBg },
+                { "ThemeInputBorder", InputBorder },
+                { "ThemeInputFg", InputFg },
+                { "ThemeInputFocusBg", InputFocusBg },
+                { "ThemeBorderHover", BorderHover },
+                { "ThemeGhostBg", GhostBg },
+                { "ThemeGhostBorder", GhostBorder },
+                { "ThemeGhostFg", GhostFg },
+                { "ThemeGhostHoverBg", GhostHoverBg },
+                { "ThemeHoverBg", HoverBg },
+                { "ThemePressedBg", PressedBg },
+                { "ThemeFieldLabelFg", FieldLabelFg },
+                { "ThemeDanger", Danger },
+                { "ThemeWarning", Warning },
+                { "ThemeScrollThumb", ScrollThumb },
+                { "ThemeScrollThumbHover", ScrollThumbHover },
+                { "ThemeTrackBg", TrackBg },
+                { "ThemeThumbStroke", ThumbStroke },
+                { "ThemeTabBarBg", TabBarBg },
+                { "ThemeTabActiveBg", TabActiveBg },
+                { "ThemeTabActiveBorder", TabActiveBorder },
+                { "ThemeTabActiveFg", TabActiveFg },
+                { "ThemeTabIdleFg", TabIdleFg },
+                { "ThemeChipWorkingBg", ChipWorkingBg },
+                { "ThemeChipWorkingFg", ChipWorkingFg },
+                { "ThemeChipWorkingDot", ChipWorkingDot },
+                { "ThemeChipOffBg", ChipOffBg },
+                { "ThemeChipOffFg", ChipOffFg },
+                { "ThemeChipOffDot", ChipOffDot },
+                { "ThemeChipWaitBg", ChipWaitBg },
+                { "ThemeChipWaitFg", ChipWaitFg },
+                { "ThemeChipWaitDot", ChipWaitDot },
+                { "ThemeChipPausedBg", ChipPausedBg },
+                { "ThemeChipPausedFg", ChipPausedFg },
+                { "ThemeChipPausedDot", ChipPausedDot },
+            };
+        }
     }
 }

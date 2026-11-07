@@ -83,6 +83,26 @@ namespace WorkEnc.Core
         /// <summary>最近一次 tick 的真实时刻（用于计算增量）。</summary>
         private DateTime _lastTick = DateTime.MinValue;
 
+        /// <summary>
+        /// 系统空闲秒数的提供者：返回"距最近一次键鼠输入过了多少秒"。
+        /// null = 视为人一直都在岗（纯计算语义：单元测试、离线统计都走这条）。
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public Func<double> IdleSecondsProvider { get; set; }
+
+        /// <summary>
+        /// 空闲超过多少秒就算"人已经离岗"（秒）。0 = 关闭这层保护。
+        ///
+        /// 程序一直挂着不等于人一直在岗。下班忘了关程序时，按墙钟会把一整晚
+        /// 都算成加班（v2.2.1 的 bug：18:00 挂到次日 09:00，凭空记 6 小时）。
+        /// 有了这层保护，超过阈值没有键鼠输入就不再累计加班。
+        ///
+        /// 注意：只挡"加班"，不挡正常工时——正常工时沿用"开着就在岗"的约定，
+        /// 否则读代码时长时间不动鼠标会被误判成离岗。
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public double IdleThresholdSeconds { get; set; }
+
         /// <summary>当前正在累计的日期。</summary>
         public string CurrentDate { get; private set; } = "";
 
@@ -117,7 +137,14 @@ namespace WorkEnc.Core
 
         /// <summary>
         /// 推进一次追踪。返回本次新增的工作秒数。
-        /// 跨天时增量按自然日切分归属到各自日期，不会把凌晨的工时记到前一天。
+        ///
+        /// 归属规则是**按班次起始日**，不是按自然日。
+        /// 作息表允许跨天（22:00 → 次日 06:00），这种班次的工时必须整体记在
+        /// 开始那天：v2.2.1 按自然日切分，零点以后的那几个小时无处安放，
+        /// 夜班 22:00→06:00 在场 5 小时只记 2 小时。
+        ///
+        /// 加班算在"本班次下班之后、下一个班次开始之前"的这段空档里，
+        /// 这样跨零点加班也不会再被腰斩（以前 22:00→02:00 只记 1 小时）。
         /// </summary>
         /// <param name="now">当前真实时刻</param>
         /// <param name="provider">按日期提供当日工作时段与下班时刻</param>
@@ -154,58 +181,102 @@ namespace WorkEnc.Core
 
             if (paused || provider == null) return 0;
 
-            double totalWorked = 0;
-            DateTime cursor = from;
-
-            // 按自然日切分，逐日归属
-            while (cursor < now)
+            // 空闲保护：程序挂着不等于人还在岗。
+            // 以最后一次键鼠输入为界，把加班的累计截止到那一刻（再加一点宽限）。
+            DateTime presenceEnd = now;
+            double idle = IdleSecondsProvider != null ? IdleSecondsProvider() : 0;
+            if (IdleThresholdSeconds > 0 && idle >= IdleThresholdSeconds)
             {
-                var dayEnd = cursor.Date.AddDays(1);
-                var chunkEnd = now < dayEnd ? now : dayEnd;
-                var day = cursor.Date;
+                presenceEnd = now.AddSeconds(-idle + IdleThresholdSeconds);
+                if (presenceEnd < from) presenceEnd = from;
+            }
 
-                var daySchedule = provider(day);
+            double totalWorked = 0;
+
+            // 班次可能跨天，所以要回看一天、一直看到当天，
+            // 逐个"班次起始日"归属工时与加班。
+            for (DateTime baseDate = from.Date.AddDays(-1); baseDate <= now.Date; baseDate = baseDate.AddDays(1))
+            {
+                var daySchedule = provider(baseDate);
                 var segs = daySchedule.segs;
                 var endTs = daySchedule.endTs;
-                if (segs != null && segs.Count > 0)
+                if (segs == null || segs.Count == 0) continue;
+
+                // 应出勤工时由追踪器自己记录，历史日期也能保留（否则 CSV 应出勤列会是 0）
+                double scheduled = 0;
+                foreach (var seg in segs) scheduled += seg.Seconds;
+
+                // 在场工时：与本班次工作时段的交集
+                double worked = 0;
+                DateTime firstAt = DateTime.MinValue, lastAt = DateTime.MinValue;
+                foreach (var seg in segs)
                 {
-                    // 应出勤工时由追踪器自己记录，历史日期也能保留（否则 CSV 应出勤列会是 0）
-                    double scheduled = 0;
-                    foreach (var seg in segs) scheduled += seg.Seconds;
-
-                    double worked = 0;
-                    foreach (var seg in segs)
+                    var s = from > seg.Start ? from : seg.Start;
+                    var e = now < seg.End ? now : seg.End;
+                    if (e > s)
                     {
-                        var s = cursor > seg.Start ? cursor : seg.Start;
-                        var e = chunkEnd < seg.End ? chunkEnd : seg.End;
-                        if (e > s) worked += (e - s).TotalSeconds;
-                    }
-
-                    var rec = GetOrCreate(day.ToString("yyyy-MM-dd"));
-                    rec.ScheduledSec = scheduled;
-
-                    if (worked > 0)
-                    {
-                        rec.WorkedSec += worked;
-                        totalWorked += worked;
-
-                        string hm = chunkEnd.ToString("HH:mm");
-                        if (string.IsNullOrEmpty(rec.FirstClockIn)) rec.FirstClockIn = cursor.ToString("HH:mm");
-                        rec.LastClockOut = hm;
-                    }
-
-                    // 加班：超出下班时间的部分
-                    DateTime otFrom = cursor > endTs ? cursor : endTs;
-                    if (chunkEnd > otFrom)
-                    {
-                        rec.OvertimeSec += (chunkEnd - otFrom).TotalSeconds;
+                        worked += (e - s).TotalSeconds;
+                        if (firstAt == DateTime.MinValue || s < firstAt) firstAt = s;
+                        if (e > lastAt) lastAt = e;
                     }
                 }
 
-                cursor = chunkEnd;
+                // 加班：本班次下班之后、下一个班次开始之前、且人确实还在场的那段
+                double overtime = 0;
+                DateTime otEnd = DateTime.MinValue;
+                if (presenceEnd > from)
+                {
+                    var otFrom = from > endTs ? from : endTs;
+                    var otTo = presenceEnd < now ? presenceEnd : now;
+                    var nextStart = NextShiftStart(provider, baseDate);
+                    if (nextStart.HasValue && nextStart.Value < otTo) otTo = nextStart.Value;
+                    if (otTo > otFrom)
+                    {
+                        overtime = (otTo - otFrom).TotalSeconds;
+                        otEnd = otTo;
+                    }
+                }
+
+                // 一点工时一点加班都没有，就别给这天凭空造记录
+                if (worked <= 0 && overtime <= 0) continue;
+
+                var rec = GetOrCreate(baseDate.ToString("yyyy-MM-dd"));
+                rec.ScheduledSec = scheduled;
+
+                if (worked > 0)
+                {
+                    rec.WorkedSec += worked;
+                    totalWorked += worked;
+
+                    if (string.IsNullOrEmpty(rec.FirstClockIn)) rec.FirstClockIn = firstAt.ToString("HH:mm");
+                    rec.LastClockOut = lastAt.ToString("HH:mm");
+                }
+
+                if (overtime > 0)
+                {
+                    rec.OvertimeSec += overtime;
+                    // 下班后还在干，最后下班时间要跟到加班结束的那一刻
+                    if (otEnd > lastAt) rec.LastClockOut = otEnd.ToString("HH:mm");
+                }
             }
 
             return totalWorked;
+        }
+
+        /// <summary>
+        /// 下一个班次的开始时刻（起始日 + 1 天那班）。没有则返回 null。
+        /// 用来把本班次的加班截断在下一次上班之前。
+        /// </summary>
+        private static DateTime? NextShiftStart(Func<DateTime, (List<TimeSegment> segs, DateTime endTs)> provider, DateTime baseDate)
+        {
+            var next = provider(baseDate.AddDays(1));
+            if (next.segs == null || next.segs.Count == 0) return null;
+
+            DateTime min = DateTime.MaxValue;
+            foreach (var seg in next.segs)
+                if (seg.Start < min) min = seg.Start;
+
+            return min == DateTime.MaxValue ? (DateTime?)null : min;
         }
 
         /// <summary>把当天记录补齐统计信息（应出勤、已赚、计薪日标记等）。</summary>
@@ -215,6 +286,23 @@ namespace WorkEnc.Core
             rec.Earned = earned;
             rec.IsPayDay = isPayDay;
             rec.DayNote = note;
+        }
+
+        /// <summary>
+        /// 把某个班次日的统计信息写回记录，并返回该记录。
+        ///
+        /// 窗口隐藏在托盘里的时候也必须调用：
+        /// 不然挂一整天再导出 CSV，当天"已赚"永远是 0（v2.2.1 的 bug）。
+        /// </summary>
+        /// <param name="shiftDate">班次归属日（夜班凌晨属于前一天开始的那一班）。</param>
+        public DayRecord SyncDayStats(DateTime shiftDate, double scheduledSec, double earned, bool isPayDay, string note)
+        {
+            var rec = GetOrCreate(shiftDate.ToString("yyyy-MM-dd"));
+            rec.ScheduledSec = scheduledSec;
+            rec.Earned = earned;
+            rec.IsPayDay = isPayDay;
+            rec.DayNote = note ?? "";
+            return rec;
         }
 
         // ---------------- 持久化 ----------------

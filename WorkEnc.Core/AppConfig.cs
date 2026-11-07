@@ -36,6 +36,14 @@ namespace WorkEnc.Core
         /// <summary>额外调休上班日，yyyy-MM-dd。</summary>
         public string[] ExtraWorkdays { get; set; } = Array.Empty<string>();
 
+        /// <summary>
+        /// 空闲多少秒后判定"人已经离岗"，不再累计加班（秒）。0 = 关闭这层保护。
+        ///
+        /// 程序一直开着不等于人一直在岗：下班忘了关程序，
+        /// 按墙上时钟会把一整晚都算成加班。有这层保护就只剩最后一点点宽限时间。
+        /// </summary>
+        public double IdleThresholdSeconds { get; set; } = 300;
+
         /// <summary>鼓励语气：chill（佛系）/ savage（毒舌）/ hype（热血）。</summary>
         public string Tone { get; set; } = "chill";
 

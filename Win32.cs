@@ -59,6 +59,40 @@ namespace WorkEncourager
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct LASTINPUTINFO
+        {
+            public uint cbSize;
+            public uint dwTime;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+        /// <summary>
+        /// 距最近一次键鼠输入过了多少秒（系统空闲时长）。
+        ///
+        /// 用来判断"程序还开着，但人是不是已经走开了"。
+        /// 下班忘了关程序时，按墙上时钟会把一整晚都算成加班，
+        /// 有这个空闲时长就能把那段凭空多出来的工时掐掉。
+        /// 取不到时返回 0（视为刚刚还有输入）。
+        /// </summary>
+        public static double GetIdleSeconds()
+        {
+            try
+            {
+                var info = new LASTINPUTINFO { cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO)) };
+                if (!GetLastInputInfo(ref info)) return 0;
+                // TickCount 是 32 位会回绕，用无符号减法正好处理回绕
+                uint idleMs = unchecked((uint)Environment.TickCount - info.dwTime);
+                return idleMs / 1000.0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
         /// <summary>
         /// 应用"鼠标穿透"的窗口样式部分。
         ///

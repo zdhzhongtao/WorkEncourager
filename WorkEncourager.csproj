@@ -11,7 +11,7 @@
     <AssemblyName>WorkEncourager</AssemblyName>
     <RootNamespace>WorkEncourager</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.2.1</Version>
+    <Version>2.2.2</Version>
     <Company>zhend</Company>
     <Product>上班鼓励器</Product>
     <AssemblyTitle>上班鼓励器</AssemblyTitle>

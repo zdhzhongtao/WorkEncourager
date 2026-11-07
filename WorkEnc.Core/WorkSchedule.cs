@@ -122,9 +122,38 @@ namespace WorkEnc.Core
         /// <summary>把分钟数格式化为 "HH:mm"。</summary>
         public static string FormatMinutes(int minutes)
         {
-            int h = ((minutes % 1440) + 1440) % 1440 / 60;
-            int m = minutes % 60;
+            // 先整体归一到 0-1439，再拆时分。
+            // 以前只对小时做了归一，分钟没做：传 -30 会输出 "23:-30" 这种鬼话。
+            int total = ((minutes % 1440) + 1440) % 1440;
+            int h = total / 60;
+            int m = total % 60;
             return h.ToString("00") + ":" + m.ToString("00");
+        }
+
+        /// <summary>
+        /// 当天是否"有上班时段，却被休息段整个盖掉"。
+        ///
+        /// 这种情况很隐蔽：作息表看起来填得挺全，但计薪工时是 0，
+        /// 日薪算不出来也不报错，界面上只显示"今日已赚 ¥0.0000"。
+        /// 设置页要显式拦下来告诉用户。
+        /// </summary>
+        public bool IsFullyCoveredByBreaks(DateTime baseDate)
+        {
+            if (!TryParseMinutes(Start, out int sMin) || !TryParseMinutes(End, out int eMin)) return false;
+
+            bool hasBreak = false;
+            foreach (var b in Breaks)
+            {
+                if (!string.IsNullOrWhiteSpace(b)) { hasBreak = true; break; }
+            }
+            if (!hasBreak) return false;
+
+            // 上下班时间一样（或者是反着的）时本来就没有工时，不算"被盖住"
+            int endMin = eMin;
+            if (endMin <= sMin) endMin += 24 * 60;
+            if (endMin <= sMin) return false;
+
+            return GetWorkSegments(baseDate).Count == 0;
         }
     }
 

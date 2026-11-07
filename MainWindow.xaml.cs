@@ -52,6 +52,8 @@ namespace WorkEncourager
         private bool _debugNoPersist;      // 调试用：--paused 启动时不把暂停状态写回配置
 
         private string _lastStatus = "";
+        /// <summary>上一次的状态原始值（working/off/wait/paused/rest），切主题时用来重刷胶囊。</summary>
+        private string _lastStatusKey = "";
         private string _lastEncText = null;
         private double _lastPct = double.NaN;
 
@@ -293,6 +295,9 @@ namespace WorkEncourager
             _tracker = WorkdayTracker.Load(HistoryPath);
             // 开启休眠保护：tick 间隔超过 90 秒视为机器睡过，不把睡眠时间算成工时
             _tracker.MaxGapSeconds = 90;
+            // 空闲保护：下班忘了关程序时，不再凭空累计一整晚的加班
+            _tracker.IdleSecondsProvider = () => Win32.GetIdleSeconds();
+            _tracker.IdleThresholdSeconds = _cfg.IdleThresholdSeconds;
             _userResizedFull = _cfg.FullResized;
             _userResizedMini = _cfg.MiniResized;
             _quotePath = Path.Combine(DataDir, "quotes.csv");
@@ -472,6 +477,44 @@ namespace WorkEncourager
             _ => "上班中"
         };
 
+        /// <summary>
+        /// 按状态刷状态胶囊的画刷（首页胶囊 + 迷你挂件的小圆点）。
+        /// 切主题时也要重刷一遍，否则会留着上一套主题的颜色。
+        /// </summary>
+        private void PaintStatusChip(string status)
+        {
+            switch (status)
+            {
+                case "paused":
+                    _bChipBg = MakeBrush(_theme.ChipPausedBg);
+                    _bChipFg = MakeBrush(_theme.ChipPausedFg);
+                    _bChipDot = MakeBrush(_theme.ChipPausedDot);
+                    break;
+                case "rest":
+                case "off":
+                    _bChipBg = MakeBrush(_theme.ChipOffBg);
+                    _bChipFg = MakeBrush(_theme.ChipOffFg);
+                    _bChipDot = MakeBrush(_theme.ChipOffDot);
+                    break;
+                case "wait":
+                    _bChipBg = MakeBrush(_theme.ChipWaitBg);
+                    _bChipFg = MakeBrush(_theme.ChipWaitFg);
+                    _bChipDot = MakeBrush(_theme.ChipWaitDot);
+                    break;
+                default:
+                    _bChipBg = MakeBrush(_theme.ChipWorkingBg);
+                    _bChipFg = MakeBrush(_theme.ChipWorkingFg);
+                    _bChipDot = MakeBrush(_theme.ChipWorkingDot);
+                    break;
+            }
+
+            StatusChip.Background = _bChipBg;
+            StatusText.Foreground = _bChipFg;
+            StatusDot.Fill = _bChipDot;
+            MiniStatus.Foreground = _bChipFg;
+            MiniDot.Fill = _bChipDot;
+        }
+
         private void Render()
         {
             var now = DateTime.Now;
@@ -492,61 +535,42 @@ namespace WorkEncourager
             // 追踪真实在场时长（"开着就在工作"）
             _tracker.Advance(now, DayScheduleProvider, _paused);
 
-            // 窗口隐藏在托盘里时只维护数据，不去碰任何 UI 元素：
-            // 既省 CPU，也避免对不可见元素做无意义的布局失效。
-            if (!IsVisible)
-            {
-                var hidden = _calc.Compute(now, _cfg.MonthlySalary ?? 0, _cfg.Weekdays, _cfg.PayDay,
-                                           _paused, _pausedAccumSec,
-                                           _paused ? _pauseAt : (DateTime?)null);
-                PersistPeriodically(now);
-                UpdateTrayTip(now, hidden);
-                return;
-            }
-
             var st = _calc.Compute(now, _cfg.MonthlySalary ?? 0, _cfg.Weekdays, _cfg.PayDay,
                                   _paused, _pausedAccumSec,
                                   _paused ? _pauseAt : (DateTime?)null);
 
-            var todayRec = _tracker.GetOrCreate(key);
-            todayRec.ScheduledSec = st.TotalSec;
-            todayRec.Earned = st.Earned;
-            todayRec.IsPayDay = _calendar.IsPayDay(now, _cfg.Weekdays);
-            todayRec.DayNote = PayCalendar.IsBuiltInHoliday(now) ? "法定节假日"
-                            : PayCalendar.IsBuiltInMakeupWorkday(now) ? "调休上班" : "";
+            // 当天记录必须在这里写回，不能等到"窗口可见"之后。
+            // 挂在托盘里的时候界面不刷新，但金额、工时、计薪日这些数据照样要落进记录，
+            // 否则挂一整天再导出 CSV，当天"已赚"永远是 0（v2.2.1 的 bug）。
+            //
+            // 夜班归属"班次起始日"：凌晨两点还属于前一天开始的那一班，
+            // 钱和工时都要记在那天，跟追踪器的归属规则保持一致。
+            var todayRec = _tracker.SyncDayStats(
+                st.BaseDate, st.TotalSec, st.Earned,
+                _calendar.IsPayDay(st.BaseDate, _cfg.Weekdays),
+                PayCalendar.IsBuiltInHoliday(st.BaseDate) ? "法定节假日"
+                    : PayCalendar.IsBuiltInMakeupWorkday(st.BaseDate) ? "调休上班" : "");
+
+            // 窗口隐藏在托盘里时只维护数据，不去碰任何 UI 元素：
+            // 既省 CPU，也避免对不可见元素做无意义的布局失效。
+            if (!IsVisible)
+            {
+                PersistPeriodically(now);
+                UpdateTrayTip(now, st);
+                return;
+            }
 
             DateText.Text = now.ToString("yyyy年M月d日") + " " + _weekNames[(int)now.DayOfWeek];
             TimeText.Text = now.ToString("HH:mm:ss");
 
             // 状态胶囊（仅在变化时改画刷）
-            string statusText;
-            switch (st.Status)
-            {
-                case "paused": statusText = "已暂停"; break;
-                case "rest": statusText = "休息日"; break;
-                case "off": statusText = "已下班"; break;
-                case "wait": statusText = "待上班"; break;
-                default: statusText = "上班中"; break;
-            }
+            string statusText = StatusLabel(st.Status);
             if (statusText != _lastStatus)
             {
                 _lastStatus = statusText;
+                _lastStatusKey = st.Status;
                 StatusText.Text = statusText;
-                switch (st.Status)
-                {
-                    case "paused":
-                        _bChipBg = MakeBrush(_theme.ChipPausedBg); _bChipFg = MakeBrush(_theme.ChipPausedFg); _bChipDot = MakeBrush(_theme.ChipPausedDot); break;
-                    case "rest":
-                    case "off":
-                        _bChipBg = MakeBrush(_theme.ChipOffBg); _bChipFg = MakeBrush(_theme.ChipOffFg); _bChipDot = MakeBrush(_theme.ChipOffDot); break;
-                    case "wait":
-                        _bChipBg = MakeBrush(_theme.ChipWaitBg); _bChipFg = MakeBrush(_theme.ChipWaitFg); _bChipDot = MakeBrush(_theme.ChipWaitDot); break;
-                    default:
-                        _bChipBg = MakeBrush(_theme.ChipWorkingBg); _bChipFg = MakeBrush(_theme.ChipWorkingFg); _bChipDot = MakeBrush(_theme.ChipWorkingDot); break;
-                }
-                StatusChip.Background = _bChipBg;
-                StatusText.Foreground = _bChipFg;
-                StatusDot.Fill = _bChipDot;
+                PaintStatusChip(st.Status);
             }
 
             if (st.Status == "paused") CountText.Text = "计时已暂停";
