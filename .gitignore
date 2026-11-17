@@ -1,0 +1,33 @@
+# ===== 构建产物 =====
+[Bb]in/
+[Oo]bj/
+publish/
+out/
+dist/
+*.dll
+*.pdb
+*.exe
+
+# ===== IDE =====
+.vs/
+.idea/
+*.user
+*.suo
+*.trx
+
+# ===== 本地配置与运行数据（每个人环境不同，绝不入库）=====
+settings.json
+history.json
+*.log
+data/
+local/
+
+# ===== 系统文件 =====
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ===== WorkBuddy 项目数据 =====
+.workbuddy/
+*.tmp
+*.bak

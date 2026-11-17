@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- 托盘图标用 WinForms 的 NotifyIcon（跨 Windows 版本最稳）；ImplicitUsings 关闭，避免命名空间污染 -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>WorkEncourager</AssemblyName>
+    <RootNamespace>WorkEncourager</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>2.2.2</Version>
+    <Company>zhend</Company>
+    <Product>上班鼓励器</Product>
+    <AssemblyTitle>上班鼓励器</AssemblyTitle>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
+    <DebugType>none</DebugType>
+    <!-- WinForms 只在托盘图标里用，DPI 感知仍由 app.manifest 的 PerMonitorV2 负责（WPF 需要它） -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="WorkEnc.Core\WorkEnc.Core.csproj" />
+  </ItemGroup>
+
+  <!-- 主项目只编译根目录源码，排除子项目（Core / Tests）里的文件 -->
+  <ItemGroup>
+    <Compile Remove="WorkEnc.Core\**\*.cs" />
+    <Compile Remove="WorkEnc.Tests\**\*.cs" />
+    <None Remove="WorkEnc.Core\**" />
+    <None Remove="WorkEnc.Tests\**" />
+    <EmbeddedResource Remove="WorkEnc.Core\**" />
+    <EmbeddedResource Remove="WorkEnc.Tests\**" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,129 @@
+name: CI - Markdown 阅读器
+
+on:
+  push:
+    branches: [main, 'release/**']
+    tags: ['mdviewer-v*']
+    paths:
+      - 'src/MdViewer/**'
+      - '.github/workflows/ci-mdviewer.yml'
+  pull_request:
+    paths:
+      - 'src/MdViewer/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write        # release job 要创建 Release，需要写权限
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # 主项目和测试项目都要还原：编译步骤带 --no-restore，
+      # 只还原测试项目时主项目会缺 obj/project.assets.json，报 NETSDK1004。
+      - name: 还原依赖
+        run: |
+          dotnet restore src/MdViewer/MdViewer.csproj
+          dotnet restore src/MdViewer/MdViewer.Tests/MdViewer.Tests.csproj
+
+      - name: 编译
+        run: dotnet build src/MdViewer/MdViewer.csproj -c Release --no-restore
+
+      - name: 跑单元测试
+        run: dotnet test src/MdViewer/MdViewer.Tests/MdViewer.Tests.csproj -c Release --logger "trx;LogFileName=test-results.trx"
+
+      # tag 是 mdviewer-v0.3.0 这种形状，不能直接当 -p:Version 用（会被判非法版本号）。
+      # 先剥掉前缀；不是 tag 触发的构建就沿用 csproj 里的版本。
+      - name: 算版本号
+        id: ver
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $v = $env:GITHUB_REF_NAME -replace '^mdviewer-v', ''
+          } else {
+            $m = Select-String -Path src/MdViewer/MdViewer.csproj -Pattern '<Version>([^<]+)</Version>'
+            $v = if ($m) { $m.Matches[0].Groups[1].Value } else { '0.0.0' }
+          }
+          if ($v -notmatch '^\d+(\.\d+){1,3}') { throw "抠不出合法版本号：$v" }
+          "value=$v" >> $env:GITHUB_OUTPUT
+          "算出发布版本：$v"
+
+      # 出两个版本：local（约 2MB，依赖本机 .NET 10）与 portable（约 60MB，自带运行时）。
+      # 两个都是真单文件，没有 dll / runtimes 目录。
+      - name: 发布 local 版（精简，依赖运行时）
+        run: >
+          dotnet publish src/MdViewer/MdViewer.csproj -c Release -r win-x64
+          --self-contained false -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none
+          -p:SatelliteResourceLanguages=zh-Hans -p:AllowedReferenceRelatedFileExtensions=.pdb
+          -p:Version=${{ steps.ver.outputs.value }}
+          -o out/local
+
+      - name: 发布 portable 版（自带运行时）
+        run: >
+          dotnet publish src/MdViewer/MdViewer.csproj -c Release -r win-x64
+          --self-contained true -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none -p:SatelliteResourceLanguages=zh-Hans
+          -p:AllowedReferenceRelatedFileExtensions=.pdb
+          -p:Version=${{ steps.ver.outputs.value }}
+          -o out/portable
+
+      - name: 整理产物文件名
+        shell: pwsh
+        run: |
+          $ver = '${{ steps.ver.outputs.value }}'
+          New-Item -ItemType Directory -Force -Path out/dist | Out-Null
+          Copy-Item out/local/MdViewer.exe    "out/dist/MdViewer-$ver-local.exe"    -Force
+          Copy-Item out/portable/MdViewer.exe "out/dist/MdViewer-$ver-portable.exe" -Force
+          Get-ChildItem out/dist | ForEach-Object { "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: MdViewer-win-x64
+          path: out/dist/*.exe
+          if-no-files-found: error
+
+      - name: 上传测试结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-MdViewer
+          path: '**/test-results.trx'
+          if-no-files-found: ignore
+
+  # 推 mdviewer-v* 标签时才跑：把 CI 构建出的 exe 挂到 Release 上。
+  release:
+    needs: build-test
+    if: startsWith(github.ref, 'refs/tags/mdviewer-v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取回构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: MdViewer-win-x64
+          path: dist
+
+      - name: 创建 Release 并附上两个 exe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          ls -lh dist
+          # portable 是给最终用户的默认下载；local 留给已经装了运行时的机器
+          gh release create "$TAG" dist/*.exe \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --generate-notes \
+            --verify-tag \
+          || gh release upload "$TAG" dist/*.exe --clobber --repo "$GITHUB_REPOSITORY"

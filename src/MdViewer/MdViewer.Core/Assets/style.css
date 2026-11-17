@@ -1,0 +1,683 @@
+/* MdViewer 正文排版样式。
+ *
+ * 结构分三层：
+ *   1. 主题包   —— 每套主题一块 html[data-theme="<id>"]，只写 CSS 变量，不含任何排版规则
+ *   2. 排版骨架 —— 所有主题共用一套（字号阶梯、间距、代码块、表格……）
+ *   3. @media print —— 无论当前哪套主题，打印/导出 PDF 一律强制浅色
+ *
+ * 加一套主题只需两件事：这里补一块变量 + MdViewer.Core/MarkdownTheme.cs 里补一条元数据。
+ * 禁止任何远程引用。
+ */
+
+/* ══════════════════════ 1. 主题包 ══════════════════════ */
+
+/* 默认 = GitHub 浅色。页面没带 data-theme 时（老缓存页面）也走这套。 */
+:root,
+html[data-theme="github-light"] {
+    --bg: #FFFFFF;
+    --fg: #1F2328;
+    --fg-soft: #4A5361;
+    --fg-muted: #8B949E;
+    --line: #D8DEE4;
+    --line-soft: #EFF2F5;
+    --card: #F6F8FA;
+    --code-bg: #F6F8FA;
+    --code-fg: #1F2328;
+    --accent: #0969DA;
+    --accent-hover: #1F6FEB;
+    --accent-soft: rgba(9, 105, 218, .10);
+    --quote-bg: #F6F8FA;
+    --table-head: #F6F8FA;
+    --table-zebra: #FBFCFD;
+    --mark: #FFF8C5;
+    --scroll-thumb: #C9D1D9;
+    --selection: #DDF4FF;
+    --shadow: 0 1px 2px rgba(31, 35, 40, .06);
+    --tok-keyword: #CF222E;
+    --tok-string: #0A3069;
+    --tok-number: #0550AE;
+    --tok-comment: #6E7781;
+    --tok-func: #8250DF;
+    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+    --font-code: Consolas, "Cascadia Mono", monospace;
+    --line-height: 1.72;
+    --radius: 8px;
+}
+
+html[data-theme="vue"] {
+    --bg: #FFFFFF;
+    --fg: #2C3E50;
+    --fg-soft: #476582;
+    --fg-muted: #8CA0B3;
+    --line: #E2E8F0;
+    --line-soft: #EFF5F2;
+    --card: #F8FAFC;
+    --code-bg: #F6F8FA;
+    --code-fg: #2C3E50;
+    --accent: #42B883;
+    --accent-hover: #369E71;
+    --accent-soft: rgba(66, 184, 131, .12);
+    --quote-bg: #F3FBF7;
+    --table-head: #EEF7F2;
+    --table-zebra: #FAFDFB;
+    --mark: #DCF2E4;
+    --scroll-thumb: #C7D3DE;
+    --selection: #D6F0E2;
+    --shadow: 0 1px 2px rgba(44, 62, 80, .06);
+    --tok-keyword: #D73A49;
+    --tok-string: #032F62;
+    --tok-number: #005CC5;
+    --tok-comment: #6A737D;
+    --tok-func: #6F42C1;
+    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+    --font-code: Consolas, "Cascadia Mono", monospace;
+    --line-height: 1.72;
+    --radius: 8px;
+}
+
+html[data-theme="solarized-light"] {
+    --bg: #FDF6E3;
+    --fg: #586E75;
+    --fg-soft: #657B83;
+    --fg-muted: #93A1A1;
+    --line: #E6DFC8;
+    --line-soft: #F1EAD3;
+    --card: #F7F0DE;
+    --code-bg: #F3EDDA;
+    --code-fg: #073642;
+    --accent: #268BD2;
+    --accent-hover: #1E7FBF;
+    --accent-soft: rgba(38, 139, 210, .12);
+    --quote-bg: #F5EFDC;
+    --table-head: #EEE8D5;
+    --table-zebra: #FAF4E4;
+    --mark: #F2E2A0;
+    --scroll-thumb: #D5CDB6;
+    --selection: #E4DCC3;
+    --shadow: 0 1px 2px rgba(88, 110, 117, .08);
+    --tok-keyword: #859900;
+    --tok-string: #2AA198;
+    --tok-number: #D33682;
+    --tok-comment: #93A1A1;
+    --tok-func: #268BD2;
+    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+    --font-code: Consolas, "Cascadia Mono", monospace;
+    --line-height: 1.75;
+    --radius: 6px;
+}
+
+html[data-theme="sepia"] {
+    --bg: #F8F1E3;
+    --fg: #43382C;
+    --fg-soft: #5C4F40;
+    --fg-muted: #9A8B78;
+    --line: #E6DAC5;
+    --line-soft: #F0E6D5;
+    --card: #F3EADA;
+    --code-bg: #F1E7D4;
+    --code-fg: #3B3026;
+    --accent: #B45309;
+    --accent-hover: #92400E;
+    --accent-soft: rgba(180, 83, 9, .12);
+    --quote-bg: #F3EADA;
+    --table-head: #EEE2CE;
+    --table-zebra: #F9F3E7;
+    --mark: #F1DCA2;
+    --scroll-thumb: #D6C6AC;
+    --selection: #E6D7BC;
+    --shadow: 0 1px 2px rgba(67, 56, 44, .08);
+    --tok-keyword: #B45309;
+    --tok-string: #4C7A34;
+    --tok-number: #9A5B00;
+    --tok-comment: #A08F79;
+    --tok-func: #7C5AA6;
+    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+    --font-code: Consolas, "Cascadia Mono", monospace;
+    --line-height: 1.8;
+    --radius: 6px;
+}
+
+html[data-theme="newsprint"] {
+    --bg: #FCFAF5;
+    --fg: #1A1A1A;
+    --fg-soft: #3D3D3D;
+    --fg-muted: #7A7A7A;
+    --line: #DCD7CC;
+    --line-soft: #EBE7DE;
+    --card: #F5F2EA;
+    --code-bg: #F2EFE7;
+    --code-fg: #1A1A1A;
+    --accent: #8C2F1E;
+    --accent-hover: #71261A;
+    --accent-soft: rgba(140, 47, 30, .10);
+    --quote-bg: #F5F2EA;
+    --table-head: #EDE9DF;
+    --table-zebra: #F8F5EE;
+    --mark: #F0E3B8;
+    --scroll-thumb: #C9C2B4;
+    --selection: #E8E2D4;
+    --shadow: 0 1px 0 rgba(26, 26, 26, .05);
+    --tok-keyword: #8C2F1E;
+    --tok-string: #3F6B2B;
+    --tok-number: #7A4B12;
+    --tok-comment: #8A857A;
+    --tok-func: #4A4A8C;
+    --font-body: Georgia, "Times New Roman", "Songti SC", "SimSun", serif;
+    --font-code: Consolas, "Cascadia Mono", monospace;
+    --line-height: 1.85;
+    --radius: 2px;
+}
+
+html[data-theme="github-dark"] {
+    --bg: #0D1117;
+    --fg: #E6EDF3;
+    --fg-soft: #C9D1D9;
+    --fg-muted: #8B949E;
+    --line: #30363D;
+    --line-soft: #242B33;
+    --card: #161B22;
+    --code-bg: #161B22;
+    --code-fg: #E6EDF3;
+    --accent: #4493F8;
+    --accent-hover: #58A6FF;
+    --accent-soft: rgba(68, 147, 248, .16);
+    --quote-bg: #161B22;
+    --table-head: #161B22;
+    --table-zebra: #12181F;
+    --mark: #4B3F14;
+    --scroll-thumb: #484F58;
+    --selection: #1F3A5F;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    --tok-keyword: #FF7B72;
+    --tok-string: #A5D6FF;
+    --tok-number: #79C0FF;
+    --tok-comment: #8B949E;
+    --tok-func: #D2A8FF;
+    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+    --font-code: Consolas, "Cascadia Mono", monospace;
+    --line-height: 1.72;
+    --radius: 8px;
+}
+
+html[data-theme="nord"] {
+    --bg: #2E3440;
+    --fg: #ECEFF4;
+    --fg-soft: #D8DEE9;
+    --fg-muted: #8A96AC;
+    --line: #3B4252;
+    --line-soft: #353C4A;
+    --card: #272C36;
+    --code-bg: #272C36;
+    --code-fg: #ECEFF4;
+    --accent: #88C0D0;
+    --accent-hover: #8FBCBB;
+    --accent-soft: rgba(136, 192, 208, .16);
+    --quote-bg: #333B48;
+    --table-head: #3B4252;
+    --table-zebra: #333A47;
+    --mark: #4C566A;
+    --scroll-thumb: #4C566A;
+    --selection: #434C5E;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .35);
+    --tok-keyword: #81A1C1;
+    --tok-string: #A3BE8C;
+    --tok-number: #B48EAD;
+    --tok-comment: #616E88;
+    --tok-func: #88C0D0;
+    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+    --font-code: Consolas, "Cascadia Mono", monospace;
+    --line-height: 1.75;
+    --radius: 8px;
+}
+
+html[data-theme="dracula"] {
+    --bg: #282A36;
+    --fg: #F8F8F2;
+    --fg-soft: #D6D6CE;
+    --fg-muted: #7A8194;
+    --line: #44475A;
+    --line-soft: #383A48;
+    --card: #21222C;
+    --code-bg: #21222C;
+    --code-fg: #F8F8F2;
+    --accent: #BD93F9;
+    --accent-hover: #CBA6FF;
+    --accent-soft: rgba(189, 147, 249, .16);
+    --quote-bg: #343746;
+    --table-head: #343746;
+    --table-zebra: #30323F;
+    --mark: #4A4458;
+    --scroll-thumb: #44475A;
+    --selection: #44475A;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    --tok-keyword: #FF79C6;
+    --tok-string: #F1FA8C;
+    --tok-number: #BD93F9;
+    --tok-comment: #6272A4;
+    --tok-func: #50FA7B;
+    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+    --font-code: Consolas, "Cascadia Mono", monospace;
+    --line-height: 1.75;
+    --radius: 8px;
+}
+
+html[data-theme="one-dark"] {
+    --bg: #282C34;
+    --fg: #ABB2BF;
+    --fg-soft: #9AA3B2;
+    --fg-muted: #6B727F;
+    --line: #3E4451;
+    --line-soft: #333842;
+    --card: #21252B;
+    --code-bg: #21252B;
+    --code-fg: #ABB2BF;
+    --accent: #61AFEF;
+    --accent-hover: #7FC0F5;
+    --accent-soft: rgba(97, 175, 239, .16);
+    --quote-bg: #2C313A;
+    --table-head: #323842;
+    --table-zebra: #2C313A;
+    --mark: #4B4229;
+    --scroll-thumb: #4B5263;
+    --selection: #3E4451;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    --tok-keyword: #C678DD;
+    --tok-string: #98C379;
+    --tok-number: #D19A66;
+    --tok-comment: #5C6370;
+    --tok-func: #61AFEF;
+    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+    --font-code: Consolas, "Cascadia Mono", monospace;
+    --line-height: 1.75;
+    --radius: 8px;
+}
+
+html[data-theme="solarized-dark"] {
+    --bg: #002B36;
+    --fg: #93A1A1;
+    --fg-soft: #839496;
+    --fg-muted: #657B83;
+    --line: #073642;
+    --line-soft: #0A3541;
+    --card: #00252F;
+    --code-bg: #00252F;
+    --code-fg: #93A1A1;
+    --accent: #2AA198;
+    --accent-hover: #35B8AE;
+    --accent-soft: rgba(42, 161, 152, .16);
+    --quote-bg: #073642;
+    --table-head: #073642;
+    --table-zebra: #04303A;
+    --mark: #4B3A12;
+    --scroll-thumb: #0F4A56;
+    --selection: #0F4A56;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    --tok-keyword: #859900;
+    --tok-string: #2AA198;
+    --tok-number: #D33682;
+    --tok-comment: #586E75;
+    --tok-func: #268BD2;
+    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+    --font-code: Consolas, "Cascadia Mono", monospace;
+    --line-height: 1.75;
+    --radius: 8px;
+}
+
+/* color-scheme：让 Chromium 按主题画滚动条、原生控件、以及正文两侧的画布底色 */
+html[data-mode="light"] { color-scheme: light; }
+html[data-mode="dark"] { color-scheme: dark; }
+
+/* ══════════════════════ 2. 排版骨架 ══════════════════════ */
+
+/* 滚动条：跟 WPF 侧保持同一套观感（细、圆角、悬停加深） */
+::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scroll-thumb);
+    border-radius: 6px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--fg-muted);
+    border-width: 2px;
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+}
+
+body {
+    font-family: var(--font-body);
+    /* 正文字号由宿主通过 Ctrl+加/减 改写 --md-font-size（14~22px） */
+    font-size: var(--md-font-size, 16px);
+    line-height: var(--line-height, 1.72);
+    padding: 32px 40px 120px;
+    /* --content-width 为 none 时表示不限制宽度 */
+    max-width: var(--content-width, 880px);
+    margin: 0 auto;
+    word-wrap: break-word;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* 宽屏模式（工具栏「宽屏」）：宿主把 --content-width 发成 none，这里再把左右留白收窄，
+   屏幕才算真的用满 —— 40px 的边距在窄栏里好看，铺满时就纯属浪费了 */
+body.wide {
+    padding-left: 20px;
+    padding-right: 20px;
+}
+
+::selection { background: var(--selection); color: var(--fg); }
+
+/* 顶部阅读进度条（3px，不挡内容） */
+#readbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: transparent;
+    z-index: 90;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .25s ease;
+}
+
+#readbar.on { opacity: 1; }
+
+#readbar > i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--accent);
+    border-radius: 0 2px 2px 0;
+    transition: width .12s linear;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.35;
+    margin: 1.8em 0 0.7em;
+    font-weight: 600;
+    color: var(--fg);
+    scroll-margin-top: 20px;
+}
+
+/* 标题用 em 跟随正文字号缩放，16px 正文时正好 26 / 22 / 18px */
+h1 { font-size: 1.625em; padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-top: 0.6em; }
+h2 { font-size: 1.375em; padding-bottom: 6px; border-bottom: 1px solid var(--line-soft); }
+h3 { font-size: 1.125em; }
+h4 { font-size: 1em; color: var(--fg-soft); }
+h5, h6 { font-size: 0.94em; color: var(--fg-muted); }
+
+p { margin: 1em 0; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+strong { font-weight: 600; }
+del { color: var(--fg-muted); }
+
+hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
+
+ul, ol { padding-left: 1.6em; margin: 1em 0; }
+li { margin: 0.3em 0; }
+li > ul, li > ol { margin: 0.3em 0; }
+
+/* 任务列表 */
+li.task-list-item { list-style: none; margin-left: -1.4em; }
+li.task-list-item input { margin-right: 8px; transform: translateY(1px); }
+.task-box {
+    display: inline-block;
+    min-width: 1.1em;
+    margin-right: 8px;
+    color: var(--accent);
+    font-family: "Segoe UI Symbol", "Microsoft YaHei UI", sans-serif;
+    user-select: none;
+}
+.task-box.done { color: var(--accent); }
+.task-box.todo { color: var(--fg-muted); }
+li.task-list-item > del { color: var(--fg-muted); }
+
+/* 引用 */
+blockquote {
+    margin: 1.2em 0;
+    padding: 10px 16px;
+    border-left: 4px solid var(--accent);
+    background: var(--quote-bg);
+    border-radius: 0 var(--radius, 8px) var(--radius, 8px) 0;
+    color: var(--fg-soft);
+}
+blockquote > :first-child { margin-top: 0; }
+blockquote > :last-child { margin-bottom: 0; }
+
+/* 行内代码 */
+code {
+    font-family: var(--font-code);
+    font-size: 0.9em;
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 2px 6px;
+    border-radius: calc(var(--radius, 8px) * .7);
+    border: 1px solid var(--line-soft);
+}
+
+/* 代码块 */
+pre {
+    position: relative;
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius, 8px);
+    padding: 14px 16px;
+    margin: 1.2em 0;
+    overflow-x: auto;
+    line-height: 1.6;
+}
+pre code {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font-size: 13.5px;
+    white-space: pre;
+}
+
+.code-lang {
+    position: absolute;
+    top: 0;
+    right: 74px;
+    font-size: 12px;
+    color: var(--fg-muted);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 0 0 calc(var(--radius, 8px) * .7) calc(var(--radius, 8px) * .7);
+    padding: 1px 8px;
+    user-select: none;
+}
+
+.copy-btn {
+    position: absolute;
+    top: 0;
+    right: 8px;
+    font-size: 12px;
+    color: var(--fg-soft);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 0 0 calc(var(--radius, 8px) * .7) calc(var(--radius, 8px) * .7);
+    padding: 1px 8px;
+    cursor: pointer;
+    font-family: "Microsoft YaHei UI", sans-serif;
+}
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* 代码高亮（app.js 里的轻量分词器输出这些 class） */
+.tok-kw { color: var(--tok-keyword); }
+.tok-str { color: var(--tok-string); }
+.tok-num { color: var(--tok-number); }
+.tok-com { color: var(--tok-comment); font-style: italic; }
+.tok-fn { color: var(--tok-func); }
+
+/* 表格
+ *
+ * 结构：.table-wrap（外层，负责横向滚动） > table
+ *
+ * 关键在单元格的 min-width：width:100% 会让表格「不肯超出容器」，30 列的表
+ * 于是被均分成 26px 一列 —— 扣掉左右内边距什么都不剩，每格一个字，竖着长成一堵墙。
+ * 给每格一个下限，表格的最小宽度就变成「列数 × 下限」，放不下时由外层滚，
+ * 而不是把内容压扁。列数由 app.js 数出来写在 .table-wrap[data-cols] 上。
+ */
+.table-wrap { overflow-x: auto; margin: 1.2em 0; }
+table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.91em;
+}
+th, td {
+    border: 1px solid var(--line);
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: top;
+    /* 大约三四个汉字宽：再窄就只剩一个字一行了 */
+    min-width: 3.5em;
+    overflow-wrap: break-word;
+}
+thead th {
+    background: var(--table-head);
+    font-weight: 600;
+}
+tbody tr:nth-child(even) { background: var(--table-zebra); }
+
+/* 列多的表（app.js 里 ≥8 列会加 table-compact）：内边距和字号各收一点，
+   同一块屏幕就能多放下几列，代价仍然只是横向滚动 */
+.table-compact th,
+.table-compact td { padding: 6px 8px; }
+.table-compact table { font-size: 0.86em; }
+
+/* 图片 */
+img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius, 8px);
+    display: block;
+    margin: 1.2em auto;
+}
+img.img-failed {
+    display: inline-block;
+    min-width: 180px;
+    min-height: 60px;
+    border: 1px dashed var(--line);
+    color: var(--fg-muted);
+    font-size: 13px;
+    text-align: center;
+    padding: 18px 12px;
+}
+
+/* 深色下给浅底图片（截图、白底插图）加一圈细边，不然白得刺眼 */
+html[data-mode="dark"] img:not(.img-failed) {
+    outline: 1px solid rgba(255, 255, 255, .12);
+    outline-offset: -1px;
+}
+
+/* 脚注 */
+.footnotes { font-size: 0.85em; color: var(--fg-soft); border-top: 1px solid var(--line); margin-top: 2.4em; }
+.footnotes hr { display: none; }
+
+/* 搜索命中高亮（Find API 自带高亮，这里给本地匹配用） */
+mark { background: var(--mark); color: inherit; padding: 0 2px; border-radius: 3px; }
+
+/* ───────────── EPUB ───────────── */
+
+section.epub-chapter + section.epub-chapter {
+    margin-top: 3em;
+    padding-top: 2em;
+    border-top: 1px solid var(--line);
+}
+
+section.epub-chapter > :first-child { margin-top: 0; }
+
+.epub-chapter-title {
+    font-size: 1.25em;
+    border-bottom: 0;
+    padding-bottom: 0;
+    color: var(--fg-soft);
+    font-weight: 600;
+    margin-bottom: 1em;
+}
+
+/* 书里的图片经常是整页封面，别给它加圆角留白 */
+section.epub-chapter img { border-radius: calc(var(--radius, 8px) * .5); }
+
+/* ══════════════════════ 3. 打印 / 导出 PDF ══════════════════════ */
+
+/*
+ * 一律用浅色。深色底打出来是一片墨，PDF 阅读体验也差。
+ * 选择器权重说明：html[data-theme] 与上面的主题块同级（0,1,1），
+ * 靠"写在后面"盖住它们 —— 所以这一块必须留在文件末尾。
+ */
+@media print {
+    html,
+    html[data-theme] {
+        color-scheme: light;
+
+        --bg: #FFFFFF;
+        --fg: #1F2328;
+        --fg-soft: #4A5361;
+        --fg-muted: #8B949E;
+        --line: #D8DEE4;
+        --line-soft: #EFF2F5;
+        --card: #F6F8FA;
+        --code-bg: #F6F8FA;
+        --code-fg: #1F2328;
+        --accent: #0969DA;
+        --accent-hover: #1F6FEB;
+        --quote-bg: #F6F8FA;
+        --table-head: #F6F8FA;
+        --table-zebra: #FBFCFD;
+        --mark: #FFF8C5;
+        --tok-keyword: #CF222E;
+        --tok-string: #0A3069;
+        --tok-number: #0550AE;
+        --tok-comment: #6E7781;
+        --tok-func: #8250DF;
+        --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+        --font-code: Consolas, "Cascadia Mono", monospace;
+        --line-height: 1.7;
+        --radius: 6px;
+    }
+
+    html, body { background: #FFFFFF; color: #1F2328; }
+    /* 宽屏模式的 body.wide 权重比 body 高，这里要一起写，否则打印会带上 20px 留白 */
+    body,
+    body.wide { padding: 0; max-width: none; }
+    #readbar, .copy-btn, .code-lang { display: none !important; }
+    a { color: var(--fg); }
+    a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 11px; color: #8B949E; }
+    /* 纸上没有横向滚动条：撤掉最小列宽，让浏览器按纸张宽度重新分配，
+       宽表宁可每列窄一点也别溢出到页面外 */
+    .table-wrap { overflow: visible; }
+    th, td { min-width: 0; padding: 5px 7px; }
+    table { font-size: 0.78em; }
+    pre, blockquote, table, img { page-break-inside: avoid; }
+    h1, h2, h3 { page-break-after: avoid; }
+}
+
+/* 导出 HTML 时由 app.js 挂上（隐藏只在阅读器里有意义的外壳） */
+body.for-export #readbar,
+body.for-export .copy-btn,
+body.for-export .code-lang { display: none !important; }

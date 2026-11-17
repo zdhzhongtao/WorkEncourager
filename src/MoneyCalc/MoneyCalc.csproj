@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <AssemblyName>MoneyCalc</AssemblyName>
+    <RootNamespace>MoneyCalc</RootNamespace>
+    <Product>财务小算盘</Product>
+    <AssemblyTitle>财务小算盘</AssemblyTitle>
+
+    <Version>0.1.1</Version>
+    <Company>zhend</Company>
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="MoneyCalc.Core\MoneyCalc.Core.csproj" />
+  </ItemGroup>
+
+  <!-- 主项目只编译根目录源码，排除子项目里的文件 -->
+  <ItemGroup>
+    <Compile Remove="MoneyCalc.Core\**\*.cs" />
+    <Compile Remove="MoneyCalc.Tests\**\*.cs" />
+    <None Remove="MoneyCalc.Core\**" />
+    <None Remove="MoneyCalc.Tests\**" />
+    <EmbeddedResource Remove="MoneyCalc.Core\**" />
+    <EmbeddedResource Remove="MoneyCalc.Tests\**" />
+  </ItemGroup>
+
+</Project>

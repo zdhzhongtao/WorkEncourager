@@ -1,0 +1,286 @@
+<Window x:Class="SheetSplitter.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="表格拆合器" Height="720" Width="900" MinWidth="820" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource ThemeWindowBg}"
+        FontFamily="Microsoft YaHei UI" FontSize="13"
+        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="表格拆合器" Style="{StaticResource TitleText}" />
+                <TextBlock Text="按列值拆分 / 多文件合并 / 多 sheet 合并 / 按行数切分"
+                           Style="{StaticResource MutedText}" Margin="12,0,0,2" VerticalAlignment="Bottom" />
+            </StackPanel>
+            <Button x:Name="ThemeButton" Content="深色模式" Style="{StaticResource GhostButton}"
+                    HorizontalAlignment="Right" Click="ThemeButton_Click" />
+        </Grid>
+
+        <!-- 四个模式 -->
+        <TabControl Grid.Row="1" x:Name="Tabs" SelectionChanged="Tabs_SelectionChanged">
+
+            <!-- ========== 模式 1：按列值拆分 ========== -->
+            <TabItem Header="按列值拆分">
+                <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Style="{StaticResource MutedText}"
+                                   Text="一张总表按某一列的值拆成多个文件，比如按「部门」拆成 12 个文件。空值归到「_空白」。" />
+
+                        <Grid Grid.Row="1" Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="源文件" Style="{StaticResource LabelText}" Margin="0,0,8,0" />
+                            <TextBox x:Name="SourceBox1" Grid.Column="1" IsReadOnly="True"
+                                     ToolTip="也可以把文件拖进窗口" />
+                            <Button Grid.Column="2" Content="浏览…" Style="{StaticResource GhostButton}"
+                                    Margin="8,0,0,0" Click="Browse1_Click" />
+                        </Grid>
+
+                        <Grid Grid.Row="2" Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="220" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="220" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="工作表" Style="{StaticResource LabelText}" Margin="0,0,8,0" />
+                            <ComboBox x:Name="Sheet1Combo" Grid.Column="1" SelectionChanged="Sheet1_SelectionChanged" />
+                            <TextBlock Grid.Column="2" Text="按哪一列拆" Style="{StaticResource LabelText}" Margin="16,0,8,0" />
+                            <ComboBox x:Name="SplitColumnCombo" Grid.Column="3" />
+                        </Grid>
+
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,12,0,0">
+                            <RadioButton x:Name="SplitFileRadio" Content="每个值一个文件" IsChecked="True"
+                                         GroupName="splitTarget" Margin="0,0,16,0" />
+                            <RadioButton x:Name="SplitSheetRadio" Content="拆成同一个文件里的多个 sheet"
+                                         GroupName="splitTarget" Margin="0,0,16,0" />
+                            <CheckBox x:Name="HeaderCheck1" Content="保留表头" IsChecked="True" />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="4" x:Name="Preview1Text" Style="{StaticResource MutedText}"
+                                   Margin="0,12,0,0" VerticalAlignment="Top" />
+                    </Grid>
+                </Border>
+            </TabItem>
+
+            <!-- ========== 模式 2：多文件合并 ========== -->
+            <TabItem Header="多文件合并">
+                <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Style="{StaticResource MutedText}"
+                                   Text="把多个文件的表合成一张。缺的列留空并列出缺了哪些，多出来的列追加到末尾。" />
+
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="添加文件…" Style="{StaticResource GhostButton}" Click="AddFiles_Click" />
+                            <Button Content="添加文件夹…" Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                                    Click="AddFolder_Click" />
+                            <Button Content="移除选中" Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                                    Click="RemoveFiles_Click" />
+                            <CheckBox x:Name="SubDirCheck" Content="含子目录" Margin="12,0,0,0" />
+                            <TextBlock x:Name="MergeCountText" Style="{StaticResource MutedText}"
+                                       Margin="12,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <Border Grid.Row="2" BorderBrush="{DynamicResource ThemeCardBorder}" BorderThickness="1"
+                                CornerRadius="8" Margin="0,8,0,0" Padding="8">
+                            <ListBox x:Name="MergeList" />
+                        </Border>
+
+                        <WrapPanel Grid.Row="3" Margin="0,12,0,0">
+                            <TextBlock Text="取哪些 sheet" Style="{StaticResource LabelText}" Margin="0,0,8,0" />
+                            <ComboBox x:Name="StrategyCombo" Width="200" SelectionChanged="Strategy_Changed">
+                                <ComboBoxItem Content="每个文件的第一张" IsSelected="True" />
+                                <ComboBoxItem Content="每个文件的同名 sheet" />
+                                <ComboBoxItem Content="每个文件的所有 sheet" />
+                            </ComboBox>
+                            <TextBox x:Name="SameNameBox" Width="120" Margin="8,0,0,0" Text="Sheet1"
+                                     ToolTip="同名 sheet 的名字" />
+                            <TextBlock Text="表头对齐" Style="{StaticResource LabelText}" Margin="16,0,8,0" />
+                            <ComboBox x:Name="AlignCombo2" Width="140">
+                                <ComboBoxItem Content="按列名（默认）" IsSelected="True" />
+                                <ComboBoxItem Content="按列位置" />
+                            </ComboBox>
+                            <CheckBox x:Name="SourceColsCheck2" Content="追加来源文件/sheet 两列"
+                                      IsChecked="True" Margin="16,0,0,0" />
+                        </WrapPanel>
+
+                        <TextBlock Grid.Row="4" x:Name="Preview2Text" Style="{StaticResource MutedText}"
+                                   Margin="0,12,0,0" />
+                    </Grid>
+                </Border>
+            </TabItem>
+
+            <!-- ========== 模式 3：单文件多 sheet 合并 ========== -->
+            <TabItem Header="多 sheet 合并">
+                <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Style="{StaticResource MutedText}"
+                                   Text="一个文件里的多张 sheet 合成一张（比如 1~12 月的分月表）。" />
+
+                        <Grid Grid.Row="1" Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="源文件" Style="{StaticResource LabelText}" Margin="0,0,8,0" />
+                            <TextBox x:Name="SourceBox3" Grid.Column="1" IsReadOnly="True" />
+                            <Button Grid.Column="2" Content="浏览…" Style="{StaticResource GhostButton}"
+                                    Margin="8,0,0,0" Click="Browse3_Click" />
+                        </Grid>
+
+                        <Border Grid.Row="2" BorderBrush="{DynamicResource ThemeCardBorder}" BorderThickness="1"
+                                CornerRadius="8" Margin="0,12,0,0" Padding="8">
+                            <ListBox x:Name="SheetList" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+                        </Border>
+
+                        <WrapPanel Grid.Row="3" Margin="0,12,0,0">
+                            <Button Content="全选" Style="{StaticResource GhostButton}" Padding="10,3" Click="SelectAllSheets_Click" />
+                            <Button Content="全不选" Style="{StaticResource GhostButton}" Padding="10,3" Margin="8,0,0,0"
+                                    Click="SelectNoSheets_Click" />
+                            <TextBlock Text="表头对齐" Style="{StaticResource LabelText}" Margin="16,0,8,0" />
+                            <ComboBox x:Name="AlignCombo3" Width="140">
+                                <ComboBoxItem Content="按列名（默认）" IsSelected="True" />
+                                <ComboBoxItem Content="按列位置" />
+                            </ComboBox>
+                            <CheckBox x:Name="SourceColsCheck3" Content="追加来源文件/sheet 两列"
+                                      IsChecked="True" Margin="16,0,0,0" />
+                        </WrapPanel>
+
+                        <TextBlock Grid.Row="4" x:Name="Preview3Text" Style="{StaticResource MutedText}"
+                                   Margin="0,12,0,0" />
+                    </Grid>
+                </Border>
+            </TabItem>
+
+            <!-- ========== 模式 4：按行数拆分 ========== -->
+            <TabItem Header="按行数拆分">
+                <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Style="{StaticResource MutedText}"
+                                   Text="大表按行数切开，方便分批发邮件。每份都带表头。" />
+
+                        <Grid Grid.Row="1" Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="源文件" Style="{StaticResource LabelText}" Margin="0,0,8,0" />
+                            <TextBox x:Name="SourceBox4" Grid.Column="1" IsReadOnly="True" />
+                            <Button Grid.Column="2" Content="浏览…" Style="{StaticResource GhostButton}"
+                                    Margin="8,0,0,0" Click="Browse4_Click" />
+                        </Grid>
+
+                        <Grid Grid.Row="2" Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="220" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="工作表" Style="{StaticResource LabelText}" Margin="0,0,8,0" />
+                            <ComboBox x:Name="Sheet4Combo" Grid.Column="1" />
+                            <TextBlock Grid.Column="2" Text="每份最多" Style="{StaticResource LabelText}" Margin="16,0,8,0" />
+                            <TextBox x:Name="RowsPerFileBox" Grid.Column="3" Width="100" Text="1000" />
+                            <TextBlock Grid.Column="4" Text="行" Style="{StaticResource LabelText}" Margin="8,0,0,0" />
+                        </Grid>
+
+                        <CheckBox x:Name="HeaderCheck4" Grid.Row="3" Content="保留表头" IsChecked="True" Margin="0,12,0,0" />
+
+                        <TextBlock Grid.Row="4" x:Name="Preview4Text" Style="{StaticResource MutedText}"
+                                   Margin="0,12,0,0" VerticalAlignment="Top" />
+                    </Grid>
+                </Border>
+            </TabItem>
+        </TabControl>
+
+        <!-- 底部：输出目录 + 执行 -->
+        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="输出目录" Style="{StaticResource LabelText}" Margin="0,0,8,0" />
+                <TextBox x:Name="OutDirBox" Grid.Column="1" IsReadOnly="True" TextChanged="OutDir_TextChanged" />
+                <Button Grid.Column="2" Content="选择…" Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                        Click="BrowseOut_Click" />
+                <Button x:Name="PreviewButton" Grid.Column="3" Content="预览源表" Style="{StaticResource GhostButton}"
+                        Margin="8,0,0,0" Click="PreviewSource_Click" />
+                <Button x:Name="PlanButton" Grid.Column="4" Content="预览计划" Style="{StaticResource GhostButton}"
+                        Margin="8,0,0,0" Click="Preview_Click" />
+                <Button x:Name="RunButton" Grid.Column="5" Content="开始执行" Style="{StaticResource PrimaryButton}"
+                        Margin="8,0,0,0" Click="Run_Click" />
+                <Button x:Name="OpenOutButton" Grid.Column="6" Content="打开输出目录" Style="{StaticResource GhostButton}"
+                        Margin="8,0,0,0" Click="OpenOut_Click" IsEnabled="False" />
+
+                <Grid Grid.Row="1" Grid.ColumnSpan="7" Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="StatusText" Style="{StaticResource MutedText}" VerticalAlignment="Center"
+                               Text="先选源文件，再选输出目录" />
+                    <ProgressBar x:Name="Progress" Grid.Column="1" Width="200" Visibility="Collapsed" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

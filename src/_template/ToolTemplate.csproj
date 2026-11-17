@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <!-- ↓↓↓ 复制模板后必须改这四项 ↓↓↓ -->
+    <AssemblyName>ToolTemplate</AssemblyName>
+    <RootNamespace>ToolTemplate</RootNamespace>
+    <Product>工具模板</Product>
+    <AssemblyTitle>工具模板</AssemblyTitle>
+    <!-- ↑↑↑ 复制模板后必须改这四项 ↑↑↑ -->
+
+    <Version>0.1.0</Version>
+    <Company>zhend</Company>
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <AssemblyName>SheetSplitter</AssemblyName>
+    <RootNamespace>SheetSplitter</RootNamespace>
+    <Product>表格拆合器</Product>
+    <AssemblyTitle>表格拆合器</AssemblyTitle>
+
+    <Version>0.1.1</Version>
+    <Company>zhend</Company>
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="SheetSplitter.Core\SheetSplitter.Core.csproj" />
+  </ItemGroup>
+
+  <!-- 主项目只编译根目录源码，排除子项目里的文件 -->
+  <ItemGroup>
+    <Compile Remove="SheetSplitter.Core\**\*.cs" />
+    <Compile Remove="SheetSplitter.Tests\**\*.cs" />
+    <None Remove="SheetSplitter.Core\**" />
+    <None Remove="SheetSplitter.Tests\**" />
+    <EmbeddedResource Remove="SheetSplitter.Core\**" />
+    <EmbeddedResource Remove="SheetSplitter.Tests\**" />
+  </ItemGroup>
+
+</Project>

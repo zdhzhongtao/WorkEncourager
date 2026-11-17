@@ -1,0 +1,27 @@
+<Solution>
+  <Folder Name="/src/WorkEnc/">
+    <Project Path="src/WorkEnc/WorkEncourager.csproj" />
+    <Project Path="src/WorkEnc/WorkEnc.Core/WorkEnc.Core.csproj" />
+    <Project Path="src/WorkEnc/WorkEnc.Tests/WorkEnc.Tests.csproj" />
+  </Folder>
+  <Folder Name="/src/TableDiff/">
+    <Project Path="src/TableDiff/TableDiff.csproj" />
+    <Project Path="src/TableDiff/TableDiff.Core/TableDiff.Core.csproj" />
+    <Project Path="src/TableDiff/TableDiff.Tests/TableDiff.Tests.csproj" />
+  </Folder>
+  <Folder Name="/src/SheetSplitter/">
+    <Project Path="src/SheetSplitter/SheetSplitter.csproj" />
+    <Project Path="src/SheetSplitter/SheetSplitter.Core/SheetSplitter.Core.csproj" />
+    <Project Path="src/SheetSplitter/SheetSplitter.Tests/SheetSplitter.Tests.csproj" />
+  </Folder>
+  <Folder Name="/src/MoneyCalc/">
+    <Project Path="src/MoneyCalc/MoneyCalc.csproj" />
+    <Project Path="src/MoneyCalc/MoneyCalc.Core/MoneyCalc.Core.csproj" />
+    <Project Path="src/MoneyCalc/MoneyCalc.Tests/MoneyCalc.Tests.csproj" />
+  </Folder>
+  <Folder Name="/src/MdViewer/">
+    <Project Path="src/MdViewer/MdViewer.csproj" />
+    <Project Path="src/MdViewer/MdViewer.Core/MdViewer.Core.csproj" />
+    <Project Path="src/MdViewer/MdViewer.Tests/MdViewer.Tests.csproj" />
+  </Folder>
+</Solution>

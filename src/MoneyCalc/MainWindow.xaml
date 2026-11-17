@@ -1,0 +1,305 @@
+<Window x:Class="MoneyCalc.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="财务小算盘" Height="700" Width="820" MinWidth="760" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource ThemeWindowBg}"
+        FontFamily="Microsoft YaHei UI" FontSize="13"
+        PreviewKeyDown="Window_PreviewKeyDown">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="财务小算盘" Style="{StaticResource TitleText}" />
+                <TextBlock Text="大写、工作日、含税、日期、汇率　·　不联网"
+                           Style="{StaticResource MutedText}" Margin="12,0,0,2" VerticalAlignment="Bottom" />
+            </StackPanel>
+            <Button x:Name="ThemeButton" Content="深色模式" Style="{StaticResource GhostButton}"
+                    HorizontalAlignment="Right" Click="ThemeButton_Click" />
+        </Grid>
+
+        <!-- 左导航 + 右侧计算区 -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Style="{StaticResource Card}" Padding="8">
+                <ListBox x:Name="Nav" BorderThickness="0" Background="Transparent"
+                         SelectionChanged="Nav_SelectionChanged">
+                    <ListBoxItem Content="人民币大写" />
+                    <ListBoxItem Content="工作日计算" />
+                    <ListBoxItem Content="含税 / 不含税" />
+                    <ListBoxItem Content="日期计算" />
+                    <ListBoxItem Content="汇率换算" />
+                </ListBox>
+            </Border>
+
+            <!-- ============ 1 人民币大写 ============ -->
+            <Border x:Name="PanelWords" Grid.Column="2" Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="人民币大写" Style="{StaticResource SectionText}" />
+                    <TextBlock Style="{StaticResource MutedText}" Margin="0,4,0,0"
+                               Text="按《正确填写票据和结算凭证的基本规定》。支持千分位逗号、小数、负数，最大 999,999,999,999.99。" />
+
+                    <TextBox x:Name="AmountBox" Margin="0,16,0,0" FontSize="18" Height="42"
+                             TextChanged="Amount_TextChanged" ToolTip="例如 1234567.89" />
+                    <TextBlock x:Name="AmountHint" Style="{StaticResource MutedText}" Margin="0,6,0,0" Text=" " />
+
+                    <Border Background="{DynamicResource ThemeGridAltBg}" CornerRadius="8" Padding="16" Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock x:Name="WordsResult" Text="零元整" FontSize="28" FontWeight="SemiBold"
+                                       TextWrapping="Wrap" />
+                            <TextBlock x:Name="WordsSub" Style="{StaticResource MutedText}" Margin="0,8,0,0" Text=" " />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="复制大写" Style="{StaticResource GhostButton}" Click="CopyWords_Click" />
+                        <Button Content="清空" Style="{StaticResource GhostButton}" Margin="8,0,0,0" Click="ClearAmount_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ============ 2 工作日 ============ -->
+            <Border x:Name="PanelWorkday" Grid.Column="2" Style="{StaticResource Card}" Visibility="Collapsed">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="工作日计算" Style="{StaticResource SectionText}" />
+                        <TextBlock x:Name="HolidayNote" Style="{StaticResource MutedText}" Margin="0,4,0,0" Text=" " />
+
+                        <TextBlock Text="① 从某天起，过 N 个工作日是哪天" Style="{StaticResource LabelText}"
+                                   Margin="0,16,0,0" FontWeight="SemiBold" />
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <DatePicker x:Name="StartPicker" Width="150" SelectedDateChanged="Workday_Changed" />
+                            <TextBlock Text="起，过" Style="{StaticResource LabelText}" Margin="8,0" />
+                            <TextBox x:Name="WorkdayCountBox" Width="70" Text="10" TextChanged="Workday_Changed" />
+                            <TextBlock Text="个工作日" Style="{StaticResource LabelText}" Margin="8,0" />
+                            <CheckBox x:Name="IncludeStartCheck" Content="含起始日" Margin="8,0,0,0"
+                                      Checked="Workday_Changed" Unchecked="Workday_Changed" />
+                        </StackPanel>
+                        <TextBlock x:Name="AddWorkdayResult" Margin="0,8,0,0" FontSize="18" FontWeight="SemiBold"
+                                   FontFamily="Consolas" Text="—" />
+
+                        <Border Height="1" Background="{DynamicResource ThemeDivider}" Margin="0,16,0,0" />
+
+                        <TextBlock Text="② 两个日期之间有几个工作日" Style="{StaticResource LabelText}"
+                                   Margin="0,16,0,0" FontWeight="SemiBold" />
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <DatePicker x:Name="RangeStart" Width="150" SelectedDateChanged="Workday_Changed" />
+                            <TextBlock Text="→" Style="{StaticResource LabelText}" Margin="8,0" />
+                            <DatePicker x:Name="RangeEnd" Width="150" SelectedDateChanged="Workday_Changed" />
+                        </StackPanel>
+                        <TextBlock x:Name="RangeResult" Margin="0,8,0,0" FontSize="16" FontFamily="Consolas" Text="—" />
+
+                        <Border Height="1" Background="{DynamicResource ThemeDivider}" Margin="0,16,0,0" />
+
+                        <TextBlock Text="③ 日期差" Style="{StaticResource LabelText}" Margin="0,16,0,0" FontWeight="SemiBold" />
+                        <TextBlock x:Name="SpanResult" Margin="0,8,0,0" FontSize="16" FontFamily="Consolas"
+                                   TextWrapping="Wrap" Text="—" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                            <Button Content="编辑节假日表…" Style="{StaticResource GhostButton}" Click="EditHolidays_Click" />
+                            <Button Content="一键清空（只按周一到周五）" Style="{StaticResource GhostButton}"
+                                    Margin="8,0,0,0" Click="ClearHolidays_Click" />
+                            <Button Content="复制结果" Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                                    Click="CopyWorkday_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- ============ 3 含税 ============ -->
+            <Border x:Name="PanelTax" Grid.Column="2" Style="{StaticResource Card}" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="含税 / 不含税" Style="{StaticResource SectionText}" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <RadioButton x:Name="FromGrossRadio" Content="由含税算不含税" GroupName="dir" IsChecked="True"
+                                     Checked="Tax_Changed" />
+                        <RadioButton x:Name="FromNetRadio" Content="由不含税算含税" GroupName="dir" Margin="16,0,0,0"
+                                     Checked="Tax_Changed" />
+                    </StackPanel>
+
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="90" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="金额" Style="{StaticResource LabelText}" Margin="0,0,8,0" />
+                        <TextBox x:Name="TaxAmountBox" Grid.Column="1" Text="1130" TextChanged="Tax_Changed" />
+                        <TextBlock Grid.Column="2" Text="税率 %" Style="{StaticResource LabelText}" Margin="12,0,8,0" />
+                        <TextBox x:Name="TaxRateBox" Grid.Column="3" Text="13" TextChanged="Tax_Changed" />
+                        <TextBlock Grid.Column="4" Text="%" Style="{StaticResource LabelText}" Margin="6,0,0,0" />
+                    </Grid>
+
+                    <WrapPanel Margin="0,8,0,0">
+                        <TextBlock Text="快捷" Style="{StaticResource LabelText}" Margin="0,0,8,0" />
+                        <Button Content="13%" Style="{StaticResource GhostButton}" Padding="10,3" Click="Rate13_Click" />
+                        <Button Content="9%" Style="{StaticResource GhostButton}" Padding="10,3" Margin="6,0,0,0" Click="Rate9_Click" />
+                        <Button Content="6%" Style="{StaticResource GhostButton}" Padding="10,3" Margin="6,0,0,0" Click="Rate6_Click" />
+                        <Button Content="5%" Style="{StaticResource GhostButton}" Padding="10,3" Margin="6,0,0,0" Click="Rate5_Click" />
+                        <Button Content="3%" Style="{StaticResource GhostButton}" Padding="10,3" Margin="6,0,0,0" Click="Rate3_Click" />
+                        <Button Content="1%" Style="{StaticResource GhostButton}" Padding="10,3" Margin="6,0,0,0" Click="Rate1_Click" />
+                    </WrapPanel>
+
+                    <Border Background="{DynamicResource ThemeGridAltBg}" CornerRadius="8" Padding="16" Margin="0,16,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="不含税" Style="{StaticResource LabelText}" />
+                                <TextBlock x:Name="NetText" Grid.Column="1" Text="—" FontFamily="Consolas" FontSize="22" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="税额" Style="{StaticResource LabelText}" />
+                                <TextBlock x:Name="TaxText" Grid.Column="1" Text="—" FontFamily="Consolas" FontSize="22"
+                                           Foreground="{DynamicResource ThemeDanger}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="含税" Style="{StaticResource LabelText}" />
+                                <TextBlock x:Name="GrossText" Grid.Column="1" Text="—" FontFamily="Consolas" FontSize="22" />
+                            </Grid>
+                            <Border Height="1" Background="{DynamicResource ThemeDivider}" Margin="0,12,0,0" />
+                            <TextBlock x:Name="TaxExactText" Style="{StaticResource MutedText}" Margin="0,8,0,0"
+                                       FontFamily="Consolas" Text=" " />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="复制结果" Style="{StaticResource GhostButton}" Click="CopyTax_Click" />
+                        <TextBlock x:Name="TaxHint" Style="{StaticResource MutedText}" Margin="12,0,0,0"
+                                   VerticalAlignment="Center" Text="输入变即时出结果" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ============ 4 日期计算 ============ -->
+            <Border x:Name="PanelDate" Grid.Column="2" Style="{StaticResource Card}" Visibility="Collapsed">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="日期计算" Style="{StaticResource SectionText}" />
+
+                        <TextBlock Text="① 两个日期相差多少" Style="{StaticResource LabelText}" Margin="0,16,0,0"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <DatePicker x:Name="DateA" Width="150" SelectedDateChanged="Date_Changed" />
+                            <TextBlock Text="→" Style="{StaticResource LabelText}" Margin="8,0" />
+                            <DatePicker x:Name="DateB" Width="150" SelectedDateChanged="Date_Changed" />
+                        </StackPanel>
+                        <TextBlock x:Name="DateDiffResult" Margin="0,8,0,0" FontSize="16" FontFamily="Consolas"
+                                   TextWrapping="Wrap" Text="—" />
+
+                        <Border Height="1" Background="{DynamicResource ThemeDivider}" Margin="0,16,0,0" />
+
+                        <TextBlock Text="② 从某天推 N 天 / 月 / 年" Style="{StaticResource LabelText}"
+                                   Margin="0,16,0,0" FontWeight="SemiBold" />
+                        <WrapPanel Margin="0,6,0,0">
+                            <DatePicker x:Name="DateBase" Width="150" SelectedDateChanged="Date_Changed" />
+                            <TextBlock Text="加" Style="{StaticResource LabelText}" Margin="8,0" />
+                            <TextBox x:Name="AmountBox2" Width="70" Text="1" TextChanged="Date_Changed" />
+                            <ComboBox x:Name="UnitCombo" Width="90" Margin="8,0,0,0" SelectionChanged="Date_Changed">
+                                <ComboBoxItem Content="天" IsSelected="True" />
+                                <ComboBoxItem Content="月" />
+                                <ComboBoxItem Content="年" />
+                            </ComboBox>
+                        </WrapPanel>
+                        <TextBlock x:Name="DateAddResult" Margin="0,8,0,0" FontSize="18" FontWeight="SemiBold"
+                                   FontFamily="Consolas" Text="—" />
+
+                        <TextBlock Style="{StaticResource MutedText}" Margin="0,12,0,0"
+                                   Text="月末对齐：1 月 31 日加 1 个月 = 2 月 28/29 日；2 月 29 日加 1 年 = 2 月 28 日。" />
+
+                        <Button Content="复制结果" Style="{StaticResource GhostButton}" Margin="0,12,0,0"
+                                HorizontalAlignment="Left" Click="CopyDate_Click" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- ============ 5 汇率 ============ -->
+            <Border x:Name="PanelRate" Grid.Column="2" Style="{StaticResource Card}" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="汇率换算" Style="{StaticResource SectionText}" />
+                    <Border BorderBrush="{DynamicResource ThemeWarning}" BorderThickness="1" CornerRadius="6"
+                            Padding="10,6" Margin="0,12,0,0">
+                        <TextBlock Text="汇率需手动输入，本工具不联网、不抓行情"
+                                   Foreground="{DynamicResource ThemeWarning}" FontWeight="SemiBold" FontSize="12" />
+                    </Border>
+
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="FromCurrency" IsEditable="True" SelectionChanged="Rate_Changed" />
+                        <TextBlock Grid.Column="2" Text="→" Style="{StaticResource LabelText}" Margin="8,0" />
+                        <ComboBox x:Name="ToCurrency" Grid.Column="3" IsEditable="True" SelectionChanged="Rate_Changed" />
+                        <TextBlock Grid.Column="4" Text="手动填汇率" Style="{StaticResource LabelText}" Margin="12,0,0,0" />
+                    </Grid>
+
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="120" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="金额" Style="{StaticResource LabelText}" Margin="0,0,8,0" />
+                        <TextBox x:Name="RateAmountBox" Grid.Column="1" Text="100" TextChanged="Rate_Changed" />
+                        <TextBlock Grid.Column="2" Text="汇率" Style="{StaticResource LabelText}" Margin="12,0,8,0" />
+                        <TextBox x:Name="RateBox" Grid.Column="3" Text="7.1234" TextChanged="Rate_Changed" />
+                    </Grid>
+
+                    <Border Background="{DynamicResource ThemeGridAltBg}" CornerRadius="8" Padding="16" Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock x:Name="RateForward" Text="—" FontFamily="Consolas" FontSize="22" />
+                            <TextBlock x:Name="RateBackward" Style="{StaticResource MutedText}" Margin="0,8,0,0"
+                                       FontFamily="Consolas" FontSize="15" Text=" " />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="存为常用汇率" Style="{StaticResource PrimaryButton}" Click="SaveRate_Click" />
+                        <Button Content="复制结果" Style="{StaticResource GhostButton}" Margin="8,0,0,0" Click="CopyRate_Click" />
+                        <Button Content="清空常用" Style="{StaticResource GhostButton}" Margin="8,0,0,0" Click="ClearRates_Click" />
+                    </StackPanel>
+
+                    <TextBlock Text="常用汇率（最近 20 条，点一条即填入）" Style="{StaticResource LabelText}" Margin="0,12,0,0" />
+                    <Border BorderBrush="{DynamicResource ThemeCardBorder}" BorderThickness="1" CornerRadius="8"
+                            Margin="0,6,0,0" Padding="6" MaxHeight="160">
+                        <ListBox x:Name="RateList" BorderThickness="0" Background="Transparent"
+                                 MouseDoubleClick="RateList_DoubleClick" />
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <TextBlock x:Name="StatusText" Grid.Row="2" Style="{StaticResource MutedText}" Margin="0,10,0,0"
+                   Text="输入即算，不用按计算按钮" />
+    </Grid>
+</Window>
