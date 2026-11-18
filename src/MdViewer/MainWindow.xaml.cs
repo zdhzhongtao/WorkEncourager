@@ -91,6 +91,9 @@ namespace MdViewer
         private bool _suppressRecentFilter;
         private List<TocRow> _tocRows = new List<TocRow>();
 
+        /// <summary>目录里当前真正显示出来的那一段（过滤后）。高亮要按这个算下标。</summary>
+        private List<TocRow> _tocView;
+
         /// <summary>打开文件的序号：连着点两个文件时，先发起的那次回来要作废。</summary>
         private int _openSeq;
 
@@ -179,19 +182,34 @@ namespace MdViewer
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            InitFolderPanel();
+            RestoreTabsOnStartup();
+            SwitchSidebarTab(App.Settings.SidebarTab);
             UpdateChrome();
             UpdateWelcomeRecent();
+            StartAutoDimTimer();
+
+            // 启动顺序：命令行给的路径 > 上次看的那篇（会话恢复可在设置里关掉）
+            string initial = _initialPath;
+            if (string.IsNullOrWhiteSpace(initial) && App.Settings.RestoreLastDocument)
+            {
+                string last = App.Settings.LastDocument;
+                if (!string.IsNullOrWhiteSpace(last) && File.Exists(last)) initial = last;
+            }
 
             // 不在启动时就建 WebView2：它一建就是 7 个进程、三四百 MB。
             // 等真要显示内容时再建（见 OpenFile 里的 EnsureWebView）。
-            if (!string.IsNullOrWhiteSpace(_initialPath))
+            if (!string.IsNullOrWhiteSpace(initial))
             {
-                OpenFile(_initialPath, true);
+                OpenFile(initial, true);
             }
             else
             {
                 ShowWelcome();
             }
+
+            if (!string.IsNullOrWhiteSpace(App.Settings.FolderRoot)) ReloadFolderTree();
+            ApplyAutoDim();
         }
 
         // ───────────────────────── WebView2 ─────────────────────────
@@ -287,6 +305,30 @@ namespace MdViewer
                         // 页面 DOM 好了才还原滚动位置，早了会算错
                         RestoreScrollIfPending();
                     }
+                    else if (kind == "annotate")
+                    {
+                        string payloadJson = json.RootElement.TryGetProperty("payload", out var ap)
+                            ? ap.GetRawText()
+                            : null;
+                        HandleAnnotateRequest(payloadJson);
+                    }
+                    else if (kind == "speakState")
+                    {
+                        string state = json.RootElement.TryGetProperty("payload", out var sp)
+                            ? sp.GetString()
+                            : null;
+
+                        _speakState = state ?? "stopped";
+                        UpdateSpeakButton();
+                        SpeakHint.Visibility = _speakState == "playing" || _speakState == "paused"
+                            ? Visibility.Visible
+                            : Visibility.Collapsed;
+
+                        if (_speakState == "unsupported")
+                            StatusRight.Text = "这台机器没有可用的朗读语音，装一个中文语音包就行";
+                        else if (_speakState == "stopped" && SpeakHint.Visibility != Visibility.Visible)
+                            StatusRight.Text = "朗读结束";
+                    }
                 }
             }
             catch (Exception ex)
@@ -380,9 +422,6 @@ namespace MdViewer
         {
             if (string.IsNullOrWhiteSpace(path)) return;
 
-            // 连着点两个文件时，先发起的那次可能在 await 之后才回来。发个号，回来对不上就作废。
-            int seq = ++_openSeq;
-
             string full;
             try { full = Path.GetFullPath(path.Trim().Trim('"')); }
             catch (Exception ex)
@@ -399,9 +438,33 @@ namespace MdViewer
                 return;
             }
 
+            // 这个文件已经在某个标签里开着：切过去就行，别重新加载（也就不会丢滚动位置）
+            if (FindTab(full) != null && !NoteStore.SamePath(full, _currentPath))
+            {
+                await SwitchTabAsync(full);
+                return;
+            }
+
+            await LoadDocumentAsync(full, addToRecent);
+        }
+
+        /// <summary>
+        /// 真正把文档读进视图。打开文件、切标签、前进后退都走这里。
+        /// 标签的登记不在这里做 —— 切标签时不该更新「最近打开」和标签顺序。
+        /// </summary>
+        private async Task LoadDocumentAsync(string full, bool addToRecent)
+        {
+            // 连着点两个文件时，先发起的那次可能在 await 之后才回来。发个号，回来对不上就作废。
+            int seq = ++_openSeq;
+
             if (EpubReader.IsEpubFile(full))
             {
                 await OpenEpubAsync(full, addToRecent);
+                if (seq == _openSeq)
+                {
+                    TouchTab(full, true);
+                    RefreshNotesForDocument();
+                }
                 return;
             }
 
@@ -418,7 +481,8 @@ namespace MdViewer
             }
 
             // 换文档前记下上一份读到哪了
-            if (!string.IsNullOrEmpty(_currentPath) && _currentPath != full) RememberScroll(_currentPath);
+            if (!string.IsNullOrEmpty(_currentPath) && !NoteStore.SamePath(_currentPath, full))
+                RememberScroll(_currentPath);
 
             _currentPath = full;
             _currentText = text;
@@ -426,6 +490,7 @@ namespace MdViewer
             _epub = null;
             _epubHost = null;
             App.Settings.LastDir = Path.GetDirectoryName(full) ?? string.Empty;
+            App.Settings.LastDocument = full;
 
             if (addToRecent)
             {
@@ -442,6 +507,9 @@ namespace MdViewer
             _restorePending = App.Settings.RememberScroll && TryRecallScroll(full);
             Render();
             StartWatching();
+
+            TouchTab(full, false);
+            RefreshNotesForDocument();
         }
 
         /// <summary>把当前文本重新渲染成页面（打开文件、切主题、改字号、刷新都走这里）。</summary>
@@ -475,15 +543,7 @@ namespace MdViewer
 
             var page = MarkdownRenderer.BuildPage(
                 new RenderedMarkdown { BodyHtml = body, Toc = _doc.Toc },
-                new PageOptions
-                {
-                    Title = Path.GetFileName(_currentPath),
-                    ThemeId = App.EffectiveMarkdownTheme.Id,
-                    FontSize = App.Settings.FontSize,
-                    ContentWidth = ContentWidthForHost,
-                    ContentOrigin = "https://" + _docHost,
-                    BodyClass = App.Settings.WideMode ? "wide" : null
-                });
+                BuildPageOptions(Path.GetFileName(_currentPath), "https://" + _docHost));
 
             try
             {
@@ -499,6 +559,36 @@ namespace MdViewer
 
             FillToc();
             UpdateStatus();
+            PostAnnotationsToPage();
+        }
+
+        /// <summary>
+        /// 组一份整页 html 的选项。阅读器和导出共用 —— 差别只在 ContentOrigin / VendorBase：
+        /// 导出给别人看的文件不能引用虚拟域里的第三方库（对方机器上没有），所以那两项要清掉。
+        /// </summary>
+        private PageOptions BuildPageOptions(string title, string contentOrigin, RenderedMarkdown doc = null)
+        {
+            RenderedMarkdown source = doc ?? _doc;
+            bool vendor = App.VendorReady;
+            string vendorBase = vendor ? "https://" + CacheHost + "/vendor/" : null;
+
+            return new PageOptions
+            {
+                Title = title,
+                ThemeId = App.EffectiveMarkdownTheme.Id,
+                FontSize = App.Settings.FontSize,
+                FontBody = App.Settings.FontBody,
+                FontCode = App.Settings.FontCode,
+                FontHeading = App.Settings.FontHeading,
+                ContentWidth = ContentWidthForHost,
+                ContentOrigin = contentOrigin,
+                BodyClass = App.Settings.WideMode ? "wide" : null,
+                IncludeMath = vendor && source != null && source.HasMath,
+                IncludeMermaid = vendor && source != null && source.HasMermaid,
+                IncludeCodeHighlight = vendor && source != null && source.HasCodeBlock,
+                VendorBase = vendorBase,
+                CustomCss = CurrentSkinCss()
+            };
         }
 
         /// <summary>EPUB 已经解析过就直接拼页面；没解析过说明是重渲染（切主题/改字号）。</summary>
@@ -508,20 +598,18 @@ namespace MdViewer
 
             _docSeq++;
 
-            var page = MarkdownRenderer.BuildPage(
-                new RenderedMarkdown { BodyHtml = _epub.BodyHtml, Toc = _epub.Toc },
-                new PageOptions
-                {
-                    Title = string.IsNullOrWhiteSpace(_epub.Title)
-                        ? Path.GetFileNameWithoutExtension(_currentPath)
-                        : _epub.Title,
-                    ThemeId = App.EffectiveMarkdownTheme.Id,
-                    FontSize = App.Settings.FontSize,
-                    ContentWidth = ContentWidthForHost,
-                    ContentOrigin = "https://" + CacheHost,
-                    ExtraOrigins = new List<string> { "https://" + _epubHost },
-                    BodyClass = App.Settings.WideMode ? "epub-body wide" : "epub-body"
-                });
+            var epubDoc = new RenderedMarkdown { BodyHtml = _epub.BodyHtml, Toc = _epub.Toc };
+            var options = BuildPageOptions(
+                string.IsNullOrWhiteSpace(_epub.Title)
+                    ? Path.GetFileNameWithoutExtension(_currentPath)
+                    : _epub.Title,
+                "https://" + CacheHost,
+                epubDoc);
+
+            options.ExtraOrigins = new List<string> { "https://" + _epubHost };
+            options.BodyClass = App.Settings.WideMode ? "epub-body wide" : "epub-body";
+
+            var page = MarkdownRenderer.BuildPage(epubDoc, options);
 
             try
             {
@@ -571,13 +659,19 @@ namespace MdViewer
             }
 
             _tocRows = rows;
+            _tocView = rows;
             TocList.ItemsSource = null;
-            TocList.ItemsSource = rows;
             TocList.IsHitTestVisible = _doc != null && _doc.Toc != null && _doc.Toc.Count > 0;
 
-            TocTitle.Text = _currentKind == KindEpub ? "章节" : "目录";
-            int count = _doc != null && _doc.Toc != null ? _doc.Toc.Count : 0;
-            TocCount.Text = count > 0 ? count + " 项" : string.Empty;
+            // 换了一篇文档，上一轮的过滤条件不能留着 —— 否则目录看着像空的
+            if (TocFilterBox != null && !string.IsNullOrEmpty(TocFilterBox.Text))
+                TocFilterBox.Text = string.Empty;
+
+            ApplyTocFilter();
+
+            // 只在「大纲」页签上改标题，否则会盖掉文件 / 笔记页签自己的标题
+            if (TabToc == null || TabToc.IsChecked == true)
+                TocTitle.Text = _currentKind == KindEpub ? "章节" : "目录";
 
             // 刚打开文档时页面停在顶部，把第一项标成"当前章节"，
             // 否则目录里一片没有焦点，看不出读到哪了
@@ -592,13 +686,15 @@ namespace MdViewer
         private void HighlightToc(string id)
         {
             if (string.IsNullOrEmpty(id)) return;
-            for (int i = 0; i < _tocRows.Count; i++)
+
+            var view = _tocView ?? _tocRows;
+            for (int i = 0; i < view.Count; i++)
             {
-                if (!string.Equals(_tocRows[i].Id, id, StringComparison.Ordinal)) continue;
+                if (!string.Equals(view[i].Id, id, StringComparison.Ordinal)) continue;
                 if (TocList.SelectedIndex == i) return;
                 _suppressToc = true;
                 TocList.SelectedIndex = i;
-                TocList.ScrollIntoView(_tocRows[i]);
+                TocList.ScrollIntoView(view[i]);
                 _suppressToc = false;
                 return;
             }

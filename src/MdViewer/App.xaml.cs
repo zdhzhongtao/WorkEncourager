@@ -32,6 +32,32 @@ namespace MdViewer
             get { return Path.Combine(DataDir, "epub"); }
         }
 
+        /// <summary>用户自定义皮肤（*.css）放这里，设置窗口里可以导入。</summary>
+        public static string ThemesDir
+        {
+            get { return Path.Combine(DataDir, "themes"); }
+        }
+
+        /// <summary>
+        /// 第三方库（KaTeX / Mermaid / highlight.js）释放出来的目录，页面通过虚拟域从这里按需加载。
+        /// null = 释放失败，数学公式与图表会降级成源码显示（不影响看文档）。
+        /// </summary>
+        public static string VendorDir { get; private set; }
+
+        /// <summary>第三方库能不能用（少一个文件就当作不能用）。</summary>
+        public static bool VendorReady
+        {
+            get { return VendorAssets.IsUsable(VendorDir); }
+        }
+
+        /// <summary>
+        /// 定时换肤算出来的明暗覆盖。null = 不覆盖（按设置里的 light / dark / system 走）。
+        ///
+        /// 单独一个字段而不是直接改 Settings.Theme：改 Theme 会把「跟随系统」变成固定值，
+        /// 用户第二天早上就永远停在浅色了 —— 覆盖只影响「此刻用哪套」，不动用户的选择。
+        /// </summary>
+        public static bool? DarkOverride { get; set; }
+
         /// <summary>当前实际生效的正文主题（把「跟随系统」换算成具体一套）。</summary>
         public static MarkdownTheme EffectiveMarkdownTheme
         {
@@ -41,7 +67,8 @@ namespace MdViewer
 
                 string mode = (Settings.Theme ?? "system").Trim().ToLowerInvariant();
                 bool dark;
-                if (string.Equals(mode, "dark", StringComparison.OrdinalIgnoreCase)) dark = true;
+                if (DarkOverride.HasValue) dark = DarkOverride.Value;
+                else if (string.Equals(mode, "dark", StringComparison.OrdinalIgnoreCase)) dark = true;
                 else if (string.Equals(mode, "light", StringComparison.OrdinalIgnoreCase)) dark = false;
                 else dark = SystemPrefersDark();
 
@@ -127,6 +154,7 @@ namespace MdViewer
                 Directory.CreateDirectory(CacheDir);
                 Directory.CreateDirectory(WebViewDataDir);
                 Directory.CreateDirectory(EpubCacheDir);
+                Directory.CreateDirectory(ThemesDir);
             }
             catch (Exception ex)
             {
@@ -140,6 +168,20 @@ namespace MdViewer
 
             // 渲染缓存只留最近 20 个，别让 %APPDATA% 无限长
             try { CacheStore.Trim(CacheDir); } catch (Exception ex) { Log.Error("清理渲染缓存失败", ex); }
+
+            // 第三方库：首次运行从 exe 里释放出来（3.2MB），之后就走缓存。
+            // 失败不致命 —— 页面会退化成「公式显示原始 TeX、图表显示代码块」。
+            try
+            {
+                VendorDir = VendorAssets.Ensure(CacheDir);
+                if (!VendorAssets.IsUsable(VendorDir))
+                    Log.Error("第三方渲染库释放不完整，数学公式与图表将降级显示", null);
+            }
+            catch (Exception ex)
+            {
+                VendorDir = null;
+                Log.Error("释放第三方渲染库失败", ex);
+            }
 
             Settings = SettingsStore.Load(DataDir);
             if (Settings.RecentFiles == null) Settings.RecentFiles = new System.Collections.Generic.List<string>();

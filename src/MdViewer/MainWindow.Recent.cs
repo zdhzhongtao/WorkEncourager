@@ -343,9 +343,24 @@ namespace MdViewer
             pdf.Click += (s, args) => ExportPdf_Click(s, new RoutedEventArgs());
             menu.Items.Add(pdf);
 
+            var png = new MenuItem { Header = "导出长图（PNG）", InputGestureText = "Ctrl+Shift+S", IsEnabled = hasDoc };
+            png.Click += (s, args) => ExportPng_Click(s, new RoutedEventArgs());
+            menu.Items.Add(png);
+
             var html = new MenuItem { Header = "导出 HTML", IsEnabled = hasDoc };
             html.Click += (s, args) => ExportHtml_Click(s, new RoutedEventArgs());
             menu.Items.Add(html);
+
+            menu.Items.Add(new Separator());
+
+            var external = new MenuItem
+            {
+                Header = "用外部程序编辑",
+                InputGestureText = "Ctrl+Shift+E",
+                IsEnabled = hasDoc
+            };
+            external.Click += (s, args) => OpenInExternalEditor();
+            menu.Items.Add(external);
 
             menu.Items.Add(new Separator());
 

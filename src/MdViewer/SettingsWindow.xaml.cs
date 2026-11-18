@@ -67,12 +67,18 @@ namespace MdViewer
             DarkThemeBox.SelectedItem = MarkdownThemes.Resolve(App.Settings.DarkThemeId) ?? MarkdownThemes.DefaultDark;
 
             FontValue.Text = App.Settings.FontSize.ToString();
+            LoadFontBoxes();
             WidthSlider.Value = App.Settings.MaxContentWidth;
             WidthValue.Text = ((int)WidthSlider.Value) + " px";
 
             AutoReloadBox.IsChecked = App.Settings.AutoReload;
             RememberScrollBox.IsChecked = App.Settings.RememberScroll;
             TocVisibleBox.IsChecked = App.Settings.TocVisible;
+
+            AutoDimBox.IsChecked = App.Settings.AutoDim;
+            DimFromBox.Text = string.IsNullOrWhiteSpace(App.Settings.AutoDimFrom) ? "19:00" : App.Settings.AutoDimFrom;
+            DimToBox.Text = string.IsNullOrWhiteSpace(App.Settings.AutoDimTo) ? "07:00" : App.Settings.AutoDimTo;
+            EditorBox.Text = App.Settings.ExternalEditor ?? string.Empty;
 
             CheckOnStartBox.IsChecked = App.Settings.CheckUpdateOnStart;
             RepoBox.Text = App.Settings.UpdateRepo;
@@ -192,8 +198,176 @@ namespace MdViewer
             App.Settings.RememberScroll = RememberScrollBox.IsChecked == true;
             App.Settings.TocVisible = TocVisibleBox.IsChecked == true;
             App.Settings.CheckUpdateOnStart = CheckOnStartBox.IsChecked == true;
+
+            bool dimChanged = App.Settings.AutoDim != (AutoDimBox.IsChecked == true);
+            App.Settings.AutoDim = AutoDimBox.IsChecked == true;
+
             App.SaveSettings();
             NotifyOwner();
+
+            // 定时换肤是主窗口的活儿：开关一变就让它重算一次，不用等下一个整分
+            if (dimChanged)
+            {
+                var owner = Owner as MainWindow;
+                if (owner != null) owner.RefreshAutoDim();
+            }
+        }
+
+        // ───────────────────────── 字体 ─────────────────────────
+
+        private void LoadFontBoxes()
+        {
+            var names = new System.Collections.Generic.List<string>();
+            names.Add(string.Empty);   // 第一项留空 = 跟随主题
+            try
+            {
+                foreach (var family in System.Windows.Media.Fonts.SystemFontFamilies)
+                {
+                    string name = family.Source;
+                    if (!string.IsNullOrWhiteSpace(name)) names.Add(name);
+                }
+            }
+            catch (Exception)
+            {
+                // 枚举字体失败就让用户自己敲
+            }
+            names.Sort(StringComparer.OrdinalIgnoreCase);
+
+            FontBodyBox.ItemsSource = names;
+            FontCodeBox.ItemsSource = names;
+            FontHeadingBox.ItemsSource = names;
+
+            FontBodyBox.Text = App.Settings.FontBody ?? string.Empty;
+            FontCodeBox.Text = App.Settings.FontCode ?? string.Empty;
+            FontHeadingBox.Text = App.Settings.FontHeading ?? string.Empty;
+        }
+
+        private void FontBox_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_loading) return;
+            CommitFonts();
+        }
+
+        private void FontBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            CommitFonts();
+        }
+
+        private void FontReset_Click(object sender, RoutedEventArgs e)
+        {
+            FontBodyBox.Text = string.Empty;
+            FontCodeBox.Text = string.Empty;
+            FontHeadingBox.Text = string.Empty;
+            CommitFonts();
+        }
+
+        /// <summary>三个框一起提交，避免每改一个就重建一遍整页。</summary>
+        private void CommitFonts()
+        {
+            string body = (FontBodyBox.Text ?? string.Empty).Trim();
+            string code = (FontCodeBox.Text ?? string.Empty).Trim();
+            string heading = (FontHeadingBox.Text ?? string.Empty).Trim();
+
+            if (body == (App.Settings.FontBody ?? string.Empty)
+                && code == (App.Settings.FontCode ?? string.Empty)
+                && heading == (App.Settings.FontHeading ?? string.Empty))
+                return;
+
+            App.Settings.FontBody = body;
+            App.Settings.FontCode = code;
+            App.Settings.FontHeading = heading;
+            App.SaveSettings();
+            NotifyOwner();
+        }
+
+        // ───────────────────────── 定时换肤 / 外部编辑器 ─────────────────────────
+
+        private void DimBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+
+            string from = NormalizeClock(DimFromBox.Text, "19:00");
+            string to = NormalizeClock(DimToBox.Text, "07:00");
+
+            DimFromBox.Text = from;
+            DimToBox.Text = to;
+
+            if (from == App.Settings.AutoDimFrom && to == App.Settings.AutoDimTo) return;
+
+            App.Settings.AutoDimFrom = from;
+            App.Settings.AutoDimTo = to;
+            App.SaveSettings();
+
+            var owner = Owner as MainWindow;
+            if (owner != null) owner.RefreshAutoDim();
+        }
+
+        /// <summary>用户可能敲 "7"、"7:5"、"0700"，一律收敛成 HH:mm；实在认不出就回默认值。</summary>
+        private static string NormalizeClock(string raw, string fallback)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return fallback;
+
+            string text = raw.Trim().Replace('：', ':');
+
+            int hour, minute = 0;
+            string[] parts = text.Split(':');
+            if (parts.Length >= 2)
+            {
+                if (!int.TryParse(parts[0], out hour)) return fallback;
+                if (!int.TryParse(parts[1], out minute)) return fallback;
+            }
+            else if (text.Length <= 2)
+            {
+                if (!int.TryParse(text, out hour)) return fallback;
+            }
+            else if (text.Length == 4 && int.TryParse(text.Substring(0, 2), out hour)
+                     && int.TryParse(text.Substring(2, 2), out minute))
+            {
+                // "0700" 这种
+            }
+            else
+            {
+                return fallback;
+            }
+
+            if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return fallback;
+            return hour.ToString("00") + ":" + minute.ToString("00");
+        }
+
+        private void EditorBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+
+            string path = (EditorBox.Text ?? string.Empty).Trim().Trim('"');
+            if (path == (App.Settings.ExternalEditor ?? string.Empty)) return;
+
+            App.Settings.ExternalEditor = path;
+            App.SaveSettings();
+        }
+
+        private void BrowseEditor_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "选一个用来编辑 Markdown 的程序",
+                Filter = "程序|*.exe|所有文件|*.*",
+                CheckFileExists = true
+            };
+
+            string current = (EditorBox.Text ?? string.Empty).Trim().Trim('"');
+            try
+            {
+                if (File.Exists(current)) dialog.InitialDirectory = Path.GetDirectoryName(current);
+            }
+            catch (Exception)
+            {
+                // 路径不合法就不预设目录
+            }
+
+            if (dialog.ShowDialog(this) != true) return;
+            EditorBox.Text = dialog.FileName;
+            EditorBox_LostFocus(EditorBox, new RoutedEventArgs());
         }
 
         private void NotifyOwner()

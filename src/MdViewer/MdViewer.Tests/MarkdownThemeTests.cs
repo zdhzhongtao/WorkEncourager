@@ -79,8 +79,39 @@ namespace MdViewer.Tests
 
             Theme dark = Theme.ForMarkdownTheme(MarkdownThemes.Resolve("nord"));
             Assert.Equal("#88C0D0", dark.Accent);
-            Assert.Equal("#1E293B", dark.WindowBg);       // 深色骨架
+            Assert.Equal("#2E3440", dark.WindowBg);       // 0.5.0 起壳色直接取主题自己的底色
             Assert.NotEqual("#FFFFFF", dark.OnAccent);    // 浅主色上要配深字，否则看不清
+        }
+
+        [Fact]
+        public void 不同深色主题的壳色不再共用一套骨架()
+        {
+            // 0.4.x 所有深色主题都派生自 #1E293B 那套骨架，切主题只是换主色。
+            // 0.5.0 要的就是「整个壳跟着主题走」，所以两套深色主题的窗口底色必须不同。
+            Theme tokyo = Theme.ForMarkdownTheme(MarkdownThemes.Resolve("tokyo-night"));
+            Theme mocha = Theme.ForMarkdownTheme(MarkdownThemes.Resolve("catppuccin-mocha"));
+
+            Assert.NotEqual(tokyo.WindowBg, mocha.WindowBg);
+            Assert.NotEqual(tokyo.NavBg, mocha.NavBg);
+            Assert.NotEqual(tokyo.CardBg, mocha.CardBg);
+        }
+
+        [Fact]
+        public void 壳色能派生出一整套可读的界面色()
+        {
+            foreach (var markdown in MarkdownThemes.All)
+            {
+                Theme theme = Theme.ForMarkdownTheme(markdown);
+
+                Assert.Matches("^#[0-9A-Fa-f]{6}$", theme.WindowBg);
+                Assert.Matches("^#[0-9A-Fa-f]{6}$", theme.TextPrimary);
+                Assert.Matches("^#[0-9A-Fa-f]{6}$", theme.TextSecondary);
+                Assert.Matches("^#[0-9A-Fa-f]{6}$", theme.TextMuted);
+
+                Assert.NotEqual(theme.WindowBg, theme.TextPrimary);
+                Assert.NotEqual(theme.CardBg, theme.TextPrimary);
+                Assert.NotEqual(theme.WindowBg, theme.CardBg);
+            }
         }
 
         [Fact]

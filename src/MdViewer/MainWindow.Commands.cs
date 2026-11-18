@@ -528,15 +528,8 @@ namespace MdViewer
             var files = e.Data.GetData(DataFormats.FileDrop) as string[];
             if (files == null || files.Length == 0) return;
 
-            foreach (var file in files)
-            {
-                if (IsReadableDocument(file) && File.Exists(file))
-                {
-                    OpenFile(file, true);
-                    return;
-                }
-            }
-            OpenFile(files[0], true);
+            // 多文件：第一个打开，其余挂成标签；拖一个文件夹则把它设为侧栏根目录
+            OpenMany(files);
         }
 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -559,9 +552,15 @@ namespace MdViewer
             }
             if (ctrl && shift && e.Key == Key.D) { Theme_Click(sender, new RoutedEventArgs()); e.Handled = true; return; }
             if (ctrl && shift && e.Key == Key.W) { SetWideMode(!App.Settings.WideMode); e.Handled = true; return; }
+            if (ctrl && shift && e.Key == Key.R) { ToggleSpeak(); e.Handled = true; return; }
+            if (ctrl && shift && e.Key == Key.B) { AddBookmark(); e.Handled = true; return; }
+            if (ctrl && shift && e.Key == Key.E) { OpenInExternalEditor(); e.Handled = true; return; }
+            if (ctrl && shift && e.Key == Key.S) { ExportPng_Click(sender, new RoutedEventArgs()); e.Handled = true; return; }
             if (ctrl && (e.Key == Key.OemPlus || e.Key == Key.Add)) { ChangeFontSize(1); e.Handled = true; return; }
             if (ctrl && (e.Key == Key.OemMinus || e.Key == Key.Subtract)) { ChangeFontSize(-1); e.Handled = true; return; }
             if (ctrl && e.Key == Key.D0) { ChangeFontSize(16 - App.Settings.FontSize); e.Handled = true; return; }
+
+            if (e.Key == Key.F11) { ToggleZenMode(); e.Handled = true; return; }
 
             if (alt && e.Key == Key.Left) { Back_Click(sender, new RoutedEventArgs()); e.Handled = true; return; }
             if (alt && e.Key == Key.Right) { Forward_Click(sender, new RoutedEventArgs()); e.Handled = true; return; }
@@ -569,6 +568,14 @@ namespace MdViewer
             if (e.Key == Key.Escape && FindBar.Visibility == Visibility.Visible)
             {
                 HideFindBar();
+                e.Handled = true;
+                return;
+            }
+
+            // 无干扰模式下 Esc 先退模式，别的都不用管
+            if (e.Key == Key.Escape && IsZenMode)
+            {
+                ToggleZenMode();
                 e.Handled = true;
                 return;
             }

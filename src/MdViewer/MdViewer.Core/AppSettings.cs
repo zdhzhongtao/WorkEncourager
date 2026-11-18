@@ -25,6 +25,15 @@ namespace MdViewer.Core
         /// <summary>正文字号 14~22。</summary>
         public int FontSize { get; set; } = 16;
 
+        /// <summary>正文字体名（系统字体）。空 = 用主题内置的默认字体栈。</summary>
+        public string FontBody { get; set; } = string.Empty;
+
+        /// <summary>代码字体名。空 = Consolas 那一套。</summary>
+        public string FontCode { get; set; } = string.Empty;
+
+        /// <summary>标题字体名。空 = 跟随正文（不受 <see cref="FontBody"/> 影响时也一样，因为 css 里是 inherit）。</summary>
+        public string FontHeading { get; set; } = string.Empty;
+
         /// <summary>正文栏最大宽度（px）。640~1400，用来控制每行字数，太宽不好读。</summary>
         public double MaxContentWidth { get; set; } = 880;
 
@@ -71,12 +80,50 @@ namespace MdViewer.Core
 
         /// <summary>上次检查更新的时间（ISO 8601）。</summary>
         public string LastUpdateCheck { get; set; } = string.Empty;
+
+        // ───────────────────────── 0.5.0 新增 ─────────────────────────
+
+        /// <summary>
+        /// 定时换肤：到了 <see cref="AutoDimFrom"/> 自动切深色，到 <see cref="AutoDimTo"/> 切回浅色。
+        /// 比「跟随系统」更贴合实际 —— 很多人 Windows 的应用模式永远不切。
+        /// </summary>
+        public bool AutoDim { get; set; }
+
+        /// <summary>切深色的时刻（HH:mm）。</summary>
+        public string AutoDimFrom { get; set; } = "19:00";
+
+        /// <summary>切回浅色的时刻（HH:mm）。</summary>
+        public string AutoDimTo { get; set; } = "07:00";
+
+        /// <summary>侧栏当前页签：toc（大纲）/ files（文件）/ notes（书签 + 标注）。</summary>
+        public string SidebarTab { get; set; } = "toc";
+
+        /// <summary>当前自定义皮肤（%APPDATA%\MdViewer\themes 下的 css 文件名，空 = 用内置主题）。</summary>
+        public string SkinFile { get; set; } = string.Empty;
+
+        /// <summary>文件夹树打开的根目录。</summary>
+        public string FolderRoot { get; set; } = string.Empty;
+
+        /// <summary>启动时打开上次看的那篇。</summary>
+        public bool RestoreLastDocument { get; set; } = true;
+
+        /// <summary>上次看的文档（会话恢复用）。</summary>
+        public string LastDocument { get; set; } = string.Empty;
+
+        /// <summary>上次打开着的标签（会话恢复用，最新的在最后）。</summary>
+        public List<string> OpenTabs { get; set; } = new List<string>();
+
+        /// <summary>「用其他程序编辑」用的命令（空 = 自动找 VS Code → Typora → 记事本）。</summary>
+        public string ExternalEditor { get; set; } = string.Empty;
+
+        /// <summary>朗读语速 0.5~2.0，1 = 正常。</summary>
+        public double ReadRate { get; set; } = 1.0;
     }
 
     public static class SettingsStore
     {
-        /// <summary>3 = 加正文主题 id（light / dark 各一套可自选）。</summary>
-        public const int CurrentVersion = 3;
+        /// <summary>4 = 加字体、定时换肤、侧栏页签、会话恢复、外部编辑器、朗读语速。</summary>
+        public const int CurrentVersion = 4;
 
         public static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
@@ -145,7 +192,92 @@ namespace MdViewer.Core
             if (settings.LastUpdateCheck == null) settings.LastUpdateCheck = string.Empty;
             if (settings.LastDir == null) settings.LastDir = string.Empty;
 
+            // ── 0.5.0 新增字段的收敛 ──
+            settings.FontBody = CleanFontName(settings.FontBody);
+            settings.FontCode = CleanFontName(settings.FontCode);
+            settings.FontHeading = CleanFontName(settings.FontHeading);
+
+            settings.AutoDimFrom = CleanClock(settings.AutoDimFrom, "19:00");
+            settings.AutoDimTo = CleanClock(settings.AutoDimTo, "07:00");
+
+            string tab = (settings.SidebarTab ?? string.Empty).Trim().ToLowerInvariant();
+            if (tab == "marks") tab = "notes";   // 早期版本叫 marks，读老配置时改过来
+            if (tab != "toc" && tab != "files" && tab != "notes") tab = "toc";
+            settings.SidebarTab = tab;
+
+            if (settings.FolderRoot == null) settings.FolderRoot = string.Empty;
+            if (settings.LastDocument == null) settings.LastDocument = string.Empty;
+            if (settings.ExternalEditor == null) settings.ExternalEditor = string.Empty;
+            if (settings.SkinFile == null) settings.SkinFile = string.Empty;
+
+            if (settings.OpenTabs == null) settings.OpenTabs = new List<string>();
+            else
+            {
+                // 去空、去重（同一个文件不该在标签栏里出现两次），最多留 20 个
+                var kept = new List<string>();
+                foreach (var path in settings.OpenTabs)
+                {
+                    if (string.IsNullOrWhiteSpace(path)) continue;
+                    if (kept.Contains(path)) continue;
+                    kept.Add(path);
+                }
+                if (kept.Count > 20) kept.RemoveRange(0, kept.Count - 20);
+                settings.OpenTabs = kept;
+            }
+
+            if (double.IsNaN(settings.ReadRate) || settings.ReadRate < 0.5 || settings.ReadRate > 2.0)
+                settings.ReadRate = 1.0;
+
             if (settings.Version < CurrentVersion) settings.Version = CurrentVersion;
+        }
+
+        /// <summary>字体名只留第一个名字，去掉引号和逗号 —— 这个值会被拼进 css 的 font-family。</summary>
+        private static string CleanFontName(string value)
+        {
+            string text = (value ?? string.Empty).Trim();
+            if (text.Length == 0) return string.Empty;
+
+            int comma = text.IndexOf(',');
+            if (comma > 0) text = text.Substring(0, comma).Trim();
+            text = text.Replace("\"", string.Empty).Replace("'", string.Empty).Trim();
+            if (text.Length > 120) text = text.Substring(0, 120);
+            return text;
+        }
+
+        /// <summary>
+        /// 把 "9:5"、"19:00"、"0700" 这类输入收敛成 "09:05" / "07:00"；认不出来就用默认值。
+        /// 宽容一点是因为用户手改配置时经常省掉冒号。
+        /// </summary>
+        private static string CleanClock(string value, string fallback)
+        {
+            string text = (value ?? string.Empty).Trim().Replace('：', ':');
+            if (text.Length == 0) return fallback;
+
+            int hour, minute = 0;
+            int colon = text.IndexOf(':');
+
+            if (colon > 0)
+            {
+                if (!int.TryParse(text.Substring(0, colon), out hour)) return fallback;
+                if (!int.TryParse(text.Substring(colon + 1), out minute)) return fallback;
+            }
+            else if (text.Length <= 2)
+            {
+                if (!int.TryParse(text, out hour)) return fallback;
+            }
+            else if (text.Length == 4
+                     && int.TryParse(text.Substring(0, 2), out hour)
+                     && int.TryParse(text.Substring(2, 2), out minute))
+            {
+                // "0700" 这种紧凑写法
+            }
+            else
+            {
+                return fallback;
+            }
+
+            if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return fallback;
+            return hour.ToString("00") + ":" + minute.ToString("00");
         }
 
         /// <summary>
@@ -170,6 +302,12 @@ namespace MdViewer.Core
             defaults.TocWidth = current.TocWidth;
 
             defaults.LastDir = current.LastDir ?? string.Empty;
+
+            // 会话痕迹也保留：下次打开还是那几篇、那个目录
+            defaults.OpenTabs = current.OpenTabs ?? new List<string>();
+            defaults.LastDocument = current.LastDocument ?? string.Empty;
+            defaults.FolderRoot = current.FolderRoot ?? string.Empty;
+            defaults.SidebarTab = current.SidebarTab ?? "toc";
 
             Normalize(defaults);
             return defaults;

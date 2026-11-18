@@ -17,7 +17,7 @@
 | [表格比对器 TableDiff](src/TableDiff/README.md) | 比两个 xlsx / csv 的差异：按键 / 按位置 / 按整行，导出 CSV 或高亮 xlsx | WPF 桌面程序 | 🚧 v0.1.1 |
 | [表格拆合器 SheetSplitter](src/SheetSplitter/README.md) | 按列值拆分、多文件合并、多 sheet 合并、按行数拆分，源文件只读 | WPF 桌面程序 | 🚧 v0.1.1 |
 | [财务小算盘 MoneyCalc](src/MoneyCalc/README.md) | 人民币大写、工作日计算、含税换算、日期推算、汇率换算 | WPF 桌面程序 | 🚧 v0.1.1 |
-| [Markdown 阅读器 MdViewer](src/MdViewer/README.md) | 双击 .md / .epub 直接打开，自动刷新 + 目录侧栏 + 搜索 + 导出 PDF + 设置 + 自动更新，自带安装脚本 | WPF 桌面程序 | ✅ v0.4.3 |
+| [Markdown 阅读器 MdViewer](src/MdViewer/README.md) | 双击 .md / .epub 直接打开，20 套主题 + 公式图表 + 标注书签 + 朗读 + 多标签 + 导出 PDF/长图，自带安装脚本 | WPF 桌面程序 | ✅ v0.5.0 |
 
 > 新增工具请同时在 `WadeToolbox.slnx` 里加一行、在这张表里加一行。
 
@@ -35,7 +35,7 @@ WadeToolbox/
 │   ├── ci-tablediff.yml           表格比对器：编译 + 64 个单元测试 + 发布 exe
 │   ├── ci-sheetsplitter.yml       表格拆合器：编译 + 38 个单元测试 + 发布 exe
 │   ├── ci-moneycalc.yml           财务小算盘：编译 + 89 个单元测试 + 发布 exe
-│   ├── ci-mdviewer.yml            Markdown 阅读器：编译 + 169 个单元测试 + 发布 exe
+│   ├── ci-mdviewer.yml            Markdown 阅读器：编译 + 217 个单元测试 + 发布 exe
 │   └── (未来) ci-<工具名>.yml      每个工具一条独立流水线，互不干扰
 ├── docs/
 │   ├── 库结构说明.md               这套目录怎么用、约定是什么
@@ -67,7 +67,7 @@ WadeToolbox/
 ## 怎么开始
 
 ### 用现成的工具
-去对应工具的 `README.md` 看安装方式。上班鼓励器 `v2.2.2`；表格那三个是 `v0.1.1`（初版 + 一轮自检修复）；Markdown 阅读器 `v0.4.3`（自动刷新 + EPUB + 设置 + 自动更新 + 双发布 + 宽表宽屏 + 导出跟随 + 恢复默认设置）。阅读器出两种包：`local` 约 2 MB（依赖本机 .NET 10 桌面运行时）、`portable` 约 62 MB（自带运行时，任何人都能双击跑）。
+去对应工具的 `README.md` 看安装方式。上班鼓励器 `v2.2.2`；表格那三个是 `v0.1.1`（初版 + 一轮自检修复）；Markdown 阅读器 `v0.5.0`（20 套主题 + 三槽字体 + 公式图表 + 标注书签 + 朗读 + 文件树 + 多标签 + 导出长图）。阅读器出两种包：`local` 约 2 MB（依赖本机 .NET 10 桌面运行时）、`portable` 约 62 MB（自带运行时，任何人都能双击跑）。
 本仓库现在不挂 Release，需要安装包就在 `src/<工具>` 下用对应的 `publish.ps1` 自己出（产物落到 `dist/`，不入库）。
 每个工具都能用 `--demo` 或 `--maketestdata` 自查一遍（见各自 README 的「自检」）。
 

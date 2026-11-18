@@ -121,10 +121,12 @@ namespace MdViewer.Core
             string.Equals(name, "dark", StringComparison.OrdinalIgnoreCase) ? Dark() : Light();
 
         /// <summary>
-        /// 由正文主题派生界面配色。
+        /// 由正文主题派生整套界面配色。
         ///
-        /// 只做「浅底 / 深底」两套骨架 + 覆盖主色，不给每套主题重写 36 个字段：
-        /// 界面是背景，正文才是主角，主色对上了就不会违和，而维护成本只有一份。
+        /// 0.5.0 起不再是「浅底 / 深底两套骨架 + 只换主色」：主题自带 Bg/Fg/Line/Card 四个壳色，
+        /// 其余 30 多个字段全部由这四个色混出来（明度阶梯 0.02 / 0.04 / 0.07 / 0.12 ……）。
+        /// 好处是「换一套主题 = 整机换肤」，而维护成本仍然只有主题里的四个色值；
+        /// 代价是不能再给某套主题单独微调某一个字段 —— 需要微调就给它写更准的 Bg/Fg/Line/Card。
         /// </summary>
         public static Theme ForMarkdownTheme(MarkdownTheme markdown)
         {
@@ -133,6 +135,38 @@ namespace MdViewer.Core
             Theme theme = markdown.IsDark ? Dark() : Light();
             theme.Name = markdown.Id;
 
+            // 老配置 / 手写主题可能没填壳色，退回骨架值，不至于变成一片黑
+            string bg = Pick(markdown.Bg, markdown.SwatchBg, theme.CardBg);
+            string fg = Pick(markdown.Fg, markdown.SwatchFg, theme.TextPrimary);
+            string line = Pick(markdown.Line, theme.Divider);
+            string card = Pick(markdown.Card, Mix(bg, fg, 0.04));
+
+            theme.WindowBg = bg;
+            theme.CardBg = card;
+            theme.CardBorder = line;
+            theme.Divider = line;
+            theme.GridLine = line;
+
+            theme.TextPrimary = fg;
+            theme.TextSecondary = Mix(fg, bg, 0.20);
+            theme.TextMuted = Mix(fg, bg, 0.42);
+
+            theme.InputBg = Mix(bg, fg, 0.02);
+            theme.InputBorder = Mix(bg, fg, 0.28);
+            theme.InputFg = fg;
+
+            theme.BtnBg = Mix(bg, fg, 0.04);
+            theme.BtnBorder = Mix(bg, fg, 0.22);
+            theme.BtnFg = Mix(fg, bg, 0.08);
+            theme.HoverBg = Mix(bg, fg, 0.07);
+            theme.PressedBg = Mix(bg, fg, 0.12);
+            theme.DisabledFg = Mix(fg, bg, 0.55);
+
+            theme.GridHeaderBg = Mix(bg, fg, 0.05);
+            theme.GridAltBg = Mix(bg, fg, 0.025);
+            theme.ScrollThumb = Mix(bg, fg, 0.28);
+            theme.TrackBg = bg;
+
             string accent = string.IsNullOrWhiteSpace(markdown.Accent) ? theme.Accent : markdown.Accent.Trim();
             string hover = string.IsNullOrWhiteSpace(markdown.AccentHover) ? accent : markdown.AccentHover.Trim();
 
@@ -140,10 +174,25 @@ namespace MdViewer.Core
             theme.AccentHover = hover;
             theme.OnAccent = ContrastOn(accent, theme.OnAccent);
             theme.NavActiveFg = accent;
-            theme.NavActiveBg = Mix(theme.CardBg, accent, markdown.IsDark ? 0.24 : 0.12);
-            theme.SelectionBg = Mix(theme.CardBg, accent, markdown.IsDark ? 0.32 : 0.18);
+            theme.NavActiveBg = Mix(bg, accent, markdown.IsDark ? 0.24 : 0.12);
+            theme.SelectionBg = Mix(bg, accent, markdown.IsDark ? 0.32 : 0.18);
             theme.SelectionFg = theme.TextPrimary;
+
+            theme.NavBg = Mix(bg, fg, markdown.IsDark ? 0.05 : 0.035);
+            theme.NavFg = theme.TextSecondary;
+
+            // 语义色（对错 / 增删 / 差异）跟明暗走，不跟主题走：这是信号，不是风格
             return theme;
+        }
+
+        /// <summary>取第一个非空的颜色值。</summary>
+        private static string Pick(params string[] candidates)
+        {
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(candidates[i])) return candidates[i].Trim();
+            }
+            return "#808080";
         }
 
         // ───────────── 颜色小工具（Core 不引用 WPF，所以自己算） ─────────────

@@ -14,6 +14,9 @@
   <ItemGroup>
     <EmbeddedResource Include="Assets\style.css" />
     <EmbeddedResource Include="Assets\app.js" />
+    <!-- 第三方库打进 exe，首次运行释放到缓存目录再按需加载（见 VendorAssets）。
+         LogicalName 用 vendor: 前缀 + 相对路径，避免默认资源名里的点号把扩展名搅混。 -->
+    <EmbeddedResource Include="Assets\vendor\**\*" LogicalName="vendor:%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>
