@@ -319,15 +319,17 @@ namespace MdViewer
                             : null;
 
                         _speakState = state ?? "stopped";
-                        UpdateSpeakButton();
-                        SpeakHint.Visibility = _speakState == "playing" || _speakState == "paused"
-                            ? Visibility.Visible
-                            : Visibility.Collapsed;
+                        UpdateSpeakButton();     // 图标、提示、状态栏那行一起刷
 
                         if (_speakState == "unsupported")
+                        {
                             StatusRight.Text = "这台机器没有可用的朗读语音，装一个中文语音包就行";
-                        else if (_speakState == "stopped" && SpeakHint.Visibility != Visibility.Visible)
-                            StatusRight.Text = "朗读结束";
+                        }
+                        else if (_speakState == "stopped")
+                        {
+                            if (_stopSilent) _stopSilent = false;
+                            else StatusRight.Text = "朗读结束";
+                        }
                     }
                 }
             }
@@ -516,6 +518,9 @@ namespace MdViewer
         private void Render()
         {
             if (string.IsNullOrEmpty(_currentPath)) return;
+
+            // 页面马上要重载，旧文档的朗读队列不会跟着消失，得先掐掉
+            StopSpeak(true);
 
             if (_currentKind == KindEpub)
             {
@@ -928,6 +933,7 @@ namespace MdViewer
             _epub = null;
             _epubHost = null;
             StopWatching();
+            StopSpeak(true);        // 回到欢迎页就没正文可读了，别让声音继续
             UpdateWelcomeRecent();
             ApplyTocVisibility();   // 没打开文件时左侧不摆一个空目录栏
             UpdateNavButtons();
@@ -1149,6 +1155,7 @@ namespace MdViewer
             }
 
             StopWatching();
+            StopSpeak(true);        // 关窗口就得断掉，不然进程退了语音引擎还在读
             App.SaveSettings();
         }
     }

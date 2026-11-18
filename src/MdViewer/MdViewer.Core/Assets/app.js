@@ -658,13 +658,20 @@
 
     // ───────────────────────── 朗读 ─────────────────────────
 
+    // pause()/resume() 在 WebView2（Chromium + Windows SAPI）上不可靠：界面已经显示
+    // 「已暂停」，声音还在往下读。所以暂停的做法是取消当前 utterance，自己记住读到
+    // 第几段第几个字，继续时从那里重新开口 —— 代价只是那一句会重读一遍，换来的是
+    // 「按下去就一定停」。
     var speech = {
         parts: [],
-        index: 0,
+        index: 0,        // 正在读第几段
+        offset: 0,       // 这一段已经读到第几个字
         rate: 1,
-        active: false,
+        active: false,   // 会话还在（朗读中或暂停中）
         paused: false,
-        current: null
+        current: null,   // 高亮着的那个元素
+        seq: 0,          // 每次取消自增，用来丢弃旧 utterance 的回调
+        guard: null      // 看门狗定时器
     };
 
     function collectReadableBlocks() {
@@ -682,66 +689,121 @@
         return blocks;
     }
 
-    function stopSpeak() {
-        if (!window.speechSynthesis) return;
-        try { window.speechSynthesis.cancel(); } catch (e) { }
+    function clearHighlight() {
         if (speech.current && speech.current.classList) speech.current.classList.remove('tts-active');
+        speech.current = null;
+    }
+
+    function stopGuard() {
+        if (speech.guard) {
+            clearInterval(speech.guard);
+            speech.guard = null;
+        }
+    }
+
+    // 只清内部状态、不回报：切换文档或从头再读时用，免得状态栏闪一下「朗读结束」
+    function resetSpeech() {
+        stopGuard();
+        speech.seq++;
+        if (window.speechSynthesis) {
+            try { window.speechSynthesis.cancel(); } catch (e) { }
+        }
+        clearHighlight();
         speech.active = false;
         speech.paused = false;
         speech.index = 0;
+        speech.offset = 0;
         speech.parts = [];
-        speech.current = null;
+    }
+
+    function stopSpeak() {
+        resetSpeech();
         post('speakState', 'stopped');
     }
 
-    function speakFrom(index) {
+    // onend 偶尔不回调（语音包坏了、引擎静默丢掉 utterance），没有兜底的话按钮会
+    // 永远停在「朗读中」。每秒问一次引擎还在不在说话，连续 5 秒没动静就当读完了。
+    function startGuard() {
+        stopGuard();
+        var idle = 0;
+        speech.guard = setInterval(function () {
+            if (!speech.active || speech.paused) { idle = 0; return; }
+            if (window.speechSynthesis.speaking || window.speechSynthesis.pending) { idle = 0; return; }
+            if (++idle >= 5) stopSpeak();
+        }, 1000);
+    }
+
+    function speakFrom(index, offset) {
         if (!window.speechSynthesis) {
             post('speakState', 'unsupported');
             return;
         }
         if (!speech.parts.length) speech.parts = collectReadableBlocks();
+
+        // 这一段已经读到尾了（或者本来就是空的），顺延到下一段
+        while (index < speech.parts.length && offset >= speech.parts[index].text.length) {
+            index++;
+            offset = 0;
+        }
         if (index >= speech.parts.length) { stopSpeak(); return; }
 
-        speech.index = index;
         var part = speech.parts[index];
-        if (speech.current && speech.current.classList) speech.current.classList.remove('tts-active');
-        speech.current = part.el;
-        part.el.classList.add('tts-active');
+        var rest = part.text.slice(offset);
 
-        // 滚到正在读的段落，但不要打断用户自己翻页的意图 —— 只在它离开视口时才动
-        var rect = part.el.getBoundingClientRect();
-        if (rect.top < 0 || rect.bottom > window.innerHeight) {
-            part.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        clearHighlight();
+        if (part.el && part.el.classList) {
+            speech.current = part.el;
+            part.el.classList.add('tts-active');
+
+            // 滚到正在读的段落，但不要打断用户自己翻页 —— 只在它离开视口时才动
+            var rect = part.el.getBoundingClientRect();
+            if (rect.top < 0 || rect.bottom > window.innerHeight) {
+                part.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
         }
 
-        var utter = new SpeechSynthesisUtterance(part.text);
-        utter.lang = /[\u4e00-\u9fa5]/.test(part.text) ? 'zh-CN' : 'en-US';
+        var seq = speech.seq;
+        var utter = new SpeechSynthesisUtterance(rest);
+        utter.lang = /[\u4e00-\u9fa5]/.test(rest) ? 'zh-CN' : 'en-US';
         utter.rate = speech.rate;
+
+        // 读到哪个字了，暂停后就从这个位置接着读。有些语音不给 boundary 事件，
+        // 那就退回「整段重读」，总比从头读全文强。
+        utter.onboundary = function (e) {
+            if (seq !== speech.seq || speech.paused) return;
+            if (e && typeof e.charIndex === 'number' && e.charIndex >= 0) {
+                speech.offset = offset + e.charIndex;
+            }
+        };
         utter.onend = function () {
+            if (seq !== speech.seq) return;                            // 被暂停或停止取消掉的旧语句
             if (!speech.active || speech.paused) return;
-            speakFrom(index + 1);
+            speakFrom(index + 1, 0);
         };
-        utter.onerror = function () {
-            if (!speech.active) return;
-            speakFrom(index + 1);
+        utter.onerror = function (e) {
+            if (seq !== speech.seq) return;
+            if (!speech.active || speech.paused) return;
+            var why = e && e.error;
+            if (why === 'canceled' || why === 'interrupted') return;    // 自己取消的，不算错
+            speakFrom(index + 1, 0);                                   // 这句读不出来，跳过去别卡住
         };
+
+        speech.index = index;
+        speech.offset = offset;
         speech.active = true;
         speech.paused = false;
-        try { window.speechSynthesis.speak(utter); } catch (e) { stopSpeak(); }
+        try { window.speechSynthesis.speak(utter); } catch (e) { stopSpeak(); return; }
+        startGuard();
         post('speakState', 'playing');
     }
 
+    // 划词朗读：只读选中的那段，读完就结束
     function speakText(text) {
         if (!window.speechSynthesis) { post('speakState', 'unsupported'); return; }
-        stopSpeak();
-        var utter = new SpeechSynthesisUtterance(text);
-        utter.lang = /[\u4e00-\u9fa5]/.test(text) ? 'zh-CN' : 'en-US';
-        utter.rate = speech.rate;
-        speech.active = true;
-        speech.parts = [{ el: document.body, text: text }];
-        utter.onend = function () { if (speech.active && !speech.paused) stopSpeak(); };
-        try { window.speechSynthesis.speak(utter); } catch (e) { stopSpeak(); }
-        post('speakState', 'playing');
+        if (!text) return;
+        resetSpeech();
+        speech.parts = [{ el: null, text: text }];
+        speakFrom(0, 0);
     }
 
     function handleSpeak(payload) {
@@ -753,27 +815,28 @@
         if (!window.speechSynthesis) { post('speakState', 'unsupported'); return; }
 
         if (action === 'stop') { stopSpeak(); return; }
+
         if (action === 'pause') {
-            try { window.speechSynthesis.pause(); } catch (e) { }
+            if (!speech.active) { post('speakState', 'stopped'); return; }
+            // 先立暂停标记再取消：cancel 之后 offset 就不会再被 boundary 更新了
             speech.paused = true;
+            speech.seq++;
+            stopGuard();
+            try { window.speechSynthesis.cancel(); } catch (e) { }
             post('speakState', 'paused');
             return;
         }
+
         if (action === 'resume') {
-            try { window.speechSynthesis.resume(); } catch (e) { }
+            if (!speech.active) { speakFrom(0, 0); return; }
             speech.paused = false;
-            post('speakState', 'playing');
+            speakFrom(speech.index, speech.offset);
             return;
         }
-        // play：从当前段落开始（暂停过就接着读）
-        if (speech.paused) {
-            try { window.speechSynthesis.resume(); } catch (e) { }
-            speech.paused = false;
-            post('speakState', 'playing');
-            return;
-        }
-        speech.parts = collectReadableBlocks();
-        speakFrom(0);
+
+        // play：从头读，段落列表重新收集（改过字号、切过主题后位置会变）
+        resetSpeech();
+        speakFrom(0, 0);
     }
 
     // ───────────────────────── 进度条 + 章节回报 ─────────────────────────

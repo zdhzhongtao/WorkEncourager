@@ -265,6 +265,9 @@ namespace MdViewer
 
         private string _speakState = "stopped";
 
+        /// <summary>换文档、退出这种「顺带停一下」的场合，不往状态栏写「朗读结束」。</summary>
+        private bool _stopSilent;
+
         /// <summary>播放 / 暂停 / 停止。状态由页面回报，按钮文案跟着走。</summary>
         private void ToggleSpeak()
         {
@@ -279,15 +282,32 @@ namespace MdViewer
             else if (_speakState == "paused") action = "resume";
             else action = "play";
 
+            _stopSilent = false;
             PostSpeak(action);
-            if (action == "play") StatusRight.Text = "开始朗读，语速 " + App.Settings.ReadRate.ToString("0.0") + "×";
+            if (action == "play")
+                StatusRight.Text = "开始朗读，语速 " + App.Settings.ReadRate.ToString("0.0") + "×";
         }
 
-        private void StopSpeak()
+        /// <summary>
+        /// 停朗读。quiet = true 用在换文档、退出这种「顺带停一下」的地方，
+        /// 不然状态栏会莫名其妙跳一句「朗读结束」。
+        /// </summary>
+        private void StopSpeak(bool quiet = false)
         {
+            bool wasActive = _speakState != "stopped";
             _speakState = "stopped";
-            PostSpeak("stop");
             UpdateSpeakButton();
+
+            // 本来就没在读：不发指令，也别留「静默」标记 —— 否则会吃掉下一次
+            // 正常读完时那句「朗读结束」。
+            if (!wasActive || !_webReady)
+            {
+                _stopSilent = false;
+                return;
+            }
+
+            _stopSilent = quiet;
+            PostSpeak("stop");
         }
 
         private void PostSpeak(string action)
@@ -312,6 +332,7 @@ namespace MdViewer
         private void UpdateSpeakButton()
         {
             if (SpeakButton == null) return;
+
             switch (_speakState)
             {
                 case "playing":
@@ -325,6 +346,27 @@ namespace MdViewer
                 default:
                     SpeakIcon.Data = Geometry_Play();
                     SpeakButton.ToolTip = "从开头朗读全文 (Ctrl+Shift+R)";
+                    break;
+            }
+
+            // 暂停得明确写「已暂停」。以前这里只有「● 朗读中」一种文案，
+            // 暂停后状态栏还挂着这四个字，看起来就像没停下来。
+            if (SpeakHint == null) return;
+
+            switch (_speakState)
+            {
+                case "playing":
+                    SpeakHint.Text = "● 朗读中";
+                    SpeakHint.SetResourceReference(TextBlock.ForegroundProperty, "ThemeAccent");
+                    SpeakHint.Visibility = Visibility.Visible;
+                    break;
+                case "paused":
+                    SpeakHint.Text = "已暂停";
+                    SpeakHint.SetResourceReference(TextBlock.ForegroundProperty, "ThemeTextMuted");
+                    SpeakHint.Visibility = Visibility.Visible;
+                    break;
+                default:
+                    SpeakHint.Visibility = Visibility.Collapsed;
                     break;
             }
         }
