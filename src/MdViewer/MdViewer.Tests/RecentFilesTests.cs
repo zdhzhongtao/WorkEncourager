@@ -131,6 +131,20 @@ namespace MdViewer.Tests
         }
 
         [Fact]
+        public void 相对时间只跟着传入的偏移走()
+        {
+            var entry = new RecentEntry { Path = @"C:\a.md", OpenedAt = Now.AddHours(-3).ToString("o") };
+
+            // 同一条记录，换一种偏移表示 now：只要没跨日界，说法都该是「3 小时前」。
+            // 这里曾经用 LocalDateTime 判断"同一天"，在 UTC 的 CI 上会变成「昨天」。
+            Assert.Equal("3 小时前", RecentFiles.Describe(entry, Now));
+            Assert.Equal("3 小时前", RecentFiles.Describe(entry, Now.ToOffset(TimeSpan.FromHours(-5))));
+
+            // 换成跨过日界的视角就说「昨天」—— 这是有意的：凌晨两点说「昨天 23 点」比「3 小时前」清楚
+            Assert.Equal("昨天", RecentFiles.Describe(entry, Now.ToOffset(TimeSpan.Zero)));
+        }
+
+        [Fact]
         public void 没有时间戳的条目不显示时间()
         {
             var entry = new RecentEntry { Path = @"C:\a.md", OpenedAt = null };

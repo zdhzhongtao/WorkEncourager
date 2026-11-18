@@ -156,14 +156,21 @@ namespace MdViewer.Core
             if (time == DateTimeOffset.MinValue) return string.Empty;
 
             TimeSpan span = now - time;
+
+            // 判断「同一天 / 昨天」要按 now 自己的偏移换算，不能用机器的本地时区。
+            // 用 LocalDateTime 的话，同一份数据在 UTC 的 CI 和 UTC+8 的机器上会得出不同说法
+            // （10:00 减 3 小时，在 UTC 下已经跨到前一天，于是「3 小时前」被说成「昨天」）。
+            DateTime nowWall = now.DateTime;
+            DateTime timeWall = time.ToOffset(now.Offset).DateTime;
+
             if (span.TotalSeconds < 60) return "刚刚";
             if (span.TotalMinutes < 60) return (int)span.TotalMinutes + " 分钟前";
-            if (span.TotalHours < 24 && time.LocalDateTime.Date == now.LocalDateTime.Date)
+            if (span.TotalHours < 24 && timeWall.Date == nowWall.Date)
                 return (int)span.TotalHours + " 小时前";
-            if (time.LocalDateTime.Date == now.LocalDateTime.Date.AddDays(-1)) return "昨天";
+            if (timeWall.Date == nowWall.Date.AddDays(-1)) return "昨天";
             if (span.TotalDays < 7) return (int)span.TotalDays + " 天前";
-            if (time.Year == now.Year) return time.LocalDateTime.ToString("M月d日", CultureInfo.InvariantCulture);
-            return time.LocalDateTime.ToString("yyyy年M月d日", CultureInfo.InvariantCulture);
+            if (timeWall.Year == nowWall.Year) return timeWall.ToString("M月d日", CultureInfo.InvariantCulture);
+            return timeWall.ToString("yyyy年M月d日", CultureInfo.InvariantCulture);
         }
     }
 }
