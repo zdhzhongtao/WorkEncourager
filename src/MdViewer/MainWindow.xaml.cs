@@ -633,7 +633,13 @@ namespace MdViewer
             AtomicFile.WriteAllText(Path.Combine(App.CacheDir, fileName), page);
             // 一次会话里开着几百个文档也不该把磁盘塞满
             CacheStore.Trim(App.CacheDir, keep: 20);
-            View.CoreWebView2.Navigate("https://" + CacheHost + "/" + fileName);
+
+            // 文件名的序号每次启动都从 1 开始，URL 会和上一次运行完全一样，
+            // WebView2 有自己的磁盘缓存，可能直接把上次那篇的 html 拿回来，
+            // 表现就是「打开 A 却显示上一次读的那篇」。带个唯一参数绕开缓存。
+            // （本地文件，每次重新读的成本可以忽略；vendor 那些静态库不受影响，照旧走缓存）
+            string stamp = DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture);
+            View.CoreWebView2.Navigate("https://" + CacheHost + "/" + fileName + "?v=" + stamp);
         }
 
         private void FillToc()

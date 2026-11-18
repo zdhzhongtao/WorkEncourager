@@ -261,12 +261,15 @@
         </Border>
 
         <!-- ══════════ 标签栏 ══════════ -->
+        <!-- 标签栏：标签彼此紧贴，当前那个和正文同色相连（Chrome 那种），
+             所以这里不画底部分隔线，靠活动标签自己的背景把交界处连起来。 -->
         <Border x:Name="TabBar" Grid.Row="1" Visibility="Collapsed"
                 Background="{DynamicResource ThemeNavBg}"
-                BorderBrush="{DynamicResource ThemeDivider}" BorderThickness="0,0,0,1" Padding="8,5">
+                Padding="8,0,8,0">
             <ScrollViewer x:Name="TabScroller" HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Disabled">
                 <StackPanel x:Name="TabBarHost" Orientation="Horizontal"
+                            VerticalAlignment="Bottom"
                             MouseDown="TabBar_MouseDown" />
             </ScrollViewer>
         </Border>

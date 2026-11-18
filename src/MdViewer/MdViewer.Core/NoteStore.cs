@@ -204,7 +204,24 @@ namespace MdViewer.Core
 
         public static bool SamePath(string a, string b)
         {
-            return string.Equals(a ?? string.Empty, b ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
+            return string.Equals(NormalizePath(a), NormalizePath(b), StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// 统一写法再比较。Windows 上 "C:/docs/a.md" 和 "C:\docs\a.md" 是同一个文件，
+        /// 但字符串不相等；不统一的话，同一篇文档会被开出两个标签、两份标注。
+        /// </summary>
+        private static string NormalizePath(string path)
+        {
+            string text = (path ?? string.Empty).Trim();
+            if (text.Length == 0) return text;
+
+            text = text.Replace('/', '\\');
+            // 尾部多余的反斜杠去掉（"C:\docs\" 与 "C:\docs" 指同一处），"C:\" 这种根保留
+            while (text.Length > 3 && text.EndsWith("\\", StringComparison.Ordinal))
+                text = text.Substring(0, text.Length - 1);
+            return text;
         }
     }
 }

@@ -73,12 +73,21 @@ namespace MdViewer
             foreach (string path in App.Settings.OpenTabs)
             {
                 if (string.IsNullOrWhiteSpace(path)) continue;
-                if (!File.Exists(path)) continue;
+
+                // 老配置里可能存着 "C:/a/b.md" 这种正斜杠写法，统一成完整路径再收进来，
+                // 否则加进来的是另一条字符串，同一篇文档会出现两个标签
+                string full;
+                try { full = Path.GetFullPath(path); }
+                catch (Exception) { continue; }
+
+                if (!File.Exists(full)) continue;
+                if (_tabs.Exists(t => NoteStore.SamePath(t.Path, full))) continue;
+
                 _tabs.Add(new TabEntry
                 {
-                    Path = path,
-                    Title = Path.GetFileNameWithoutExtension(path),
-                    IsEpub = EpubReader.IsEpubFile(path)
+                    Path = full,
+                    Title = Path.GetFileNameWithoutExtension(full),
+                    IsEpub = EpubReader.IsEpubFile(full)
                 });
             }
             RefreshTabBar();
@@ -92,9 +101,26 @@ namespace MdViewer
             TabBarHost.Children.Clear();
             TabBar.Visibility = _tabs.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
 
-            foreach (var tab in _tabs)
+            bool prevActive = false;
+
+            for (int i = 0; i < _tabs.Count; i++)
             {
+                TabEntry tab = _tabs[i];
                 bool active = NoteStore.SamePath(tab.Path, _currentPath);
+
+                // 相邻两个都不是当前标签时夹一条细竖线。Chrome 用这条线区分相邻标签，
+                // 而不是靠留缝；当前标签两侧不画，看上去才是「凸出来」的那一枚。
+                if (i > 0 && !active && !prevActive)
+                {
+                    TabBarHost.Children.Add(new Border
+                    {
+                        Width = 1,
+                        Height = 15,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Background = Res("ThemeDivider", Brushes.Gray)
+                    });
+                }
+                prevActive = active;
 
                 var panel = new StackPanel { Orientation = Orientation.Horizontal };
 
@@ -109,37 +135,64 @@ namespace MdViewer
                 };
                 panel.Children.Add(label);
 
-                var close = new Button
+                // 关闭按钮用两条线画出来，不用 "✕" 字符：字符的字形基线和字号跟正文对不上，
+                // 视觉上总是偏上偏下，换字体还会变。矢量按 8×8 的方框居中，跟文字中心严格对齐。
+                var closeIcon = new System.Windows.Shapes.Path
                 {
-                    Content = "✕",
-                    Width = 16,
-                    Height = 16,
-                    Margin = new Thickness(7, 0, 0, 0),
-                    Padding = new Thickness(0),
-                    FontSize = 9,
-                    Background = Brushes.Transparent,
-                    BorderThickness = new Thickness(0),
-                    Foreground = Res("ThemeTextMuted", Brushes.Gray),
-                    Cursor = Cursors.Hand,
-                    ToolTip = "关闭这个标签"
+                    Data = Geometry.Parse("M 0,0 L 8,8 M 8,0 L 0,8"),
+                    Stroke = Res("ThemeTextMuted", Brushes.Gray),
+                    StrokeThickness = 1.3,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    Stretch = Stretch.None,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
                 };
-                close.Click += (s, e) => CloseTab(tab.Path);
+
+                var close = new Border
+                {
+                    Width = 18,
+                    Height = 18,
+                    Margin = new Thickness(6, 0, 0, 0),
+                    Background = Brushes.Transparent,
+                    Cursor = Cursors.Hand,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    ToolTip = "关闭这个标签",
+                    Child = closeIcon
+                };
+
+                close.MouseEnter += (s, e) => closeIcon.Stroke = Res("ThemeTextPrimary", Brushes.Black);
+                close.MouseLeave += (s, e) => closeIcon.Stroke = Res("ThemeTextMuted", Brushes.Gray);
+                close.MouseLeftButtonDown += (s, e) =>
+                {
+                    // 别让这次点击继续冒泡到标签上，否则"关标签"会顺带触发"切到这个标签"
+                    e.Handled = true;
+                    CloseTab(tab.Path);
+                };
                 panel.Children.Add(close);
 
                 var border = new Border
                 {
-                    Padding = new Thickness(11, 5, 7, 5),
-                    Margin = new Thickness(0, 0, 4, 0),
-                    CornerRadius = new CornerRadius(7),
+                    Height = 34,
+                    Padding = new Thickness(12, 0, 8, 0),
+                    Margin = new Thickness(0),
+                    // 只圆上面两角，底边是直角才能和下面的正文接成一片
+                    CornerRadius = new CornerRadius(7, 7, 0, 0),
                     Cursor = Cursors.Hand,
-                    Background = active
-                        ? Res("ThemeCardBg", Brushes.White)
-                        : Res("ThemeHoverBg", Brushes.Transparent),
-                    BorderBrush = active ? Res("ThemeCardBorder", Brushes.Gray) : Brushes.Transparent,
-                    BorderThickness = new Thickness(1),
+                    Background = active ? Res("ThemeWindowBg", Brushes.White) : Brushes.Transparent,
+                    BorderThickness = new Thickness(0),
                     Child = panel,
                     Tag = tab.Path
                 };
+
+                if (!active)
+                {
+                    // 没被选中的标签只在鼠标路过时给一点底色，平时是透明的，
+                    // 让它彻底融进标签栏，视觉重心只落在当前那一个上
+                    border.MouseEnter += (s, e) => border.Background = Res("ThemeHoverBg", Brushes.Transparent);
+                    border.MouseLeave += (s, e) => border.Background = Brushes.Transparent;
+                }
+
                 border.MouseLeftButtonDown += Tab_Click;
                 border.MouseDown += Tab_MouseDown;
                 border.ContextMenu = BuildTabMenu(tab.Path);

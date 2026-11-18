@@ -100,7 +100,11 @@ namespace MdViewer.Tests
         {
             Assert.True(NoteStore.SamePath(@"C:\Docs\A.md", @"c:\docs\a.md"));
             Assert.False(NoteStore.SamePath(@"C:\Docs\A.md", @"C:\Docs\B.md"));
-            Assert.True(NoteStore.SamePath(null, string.Empty));
+
+            // 空路径不代表任何文档。以前两个空串会被当成"相等"，
+            // 导致拿一个空路径去查标注时可能撞上另一条同样为空的记录。
+            Assert.False(NoteStore.SamePath(null, string.Empty));
+            Assert.False(NoteStore.SamePath(string.Empty, string.Empty));
         }
 
         [Fact]
@@ -204,6 +208,26 @@ namespace MdViewer.Tests
             Assert.Equal(2, paths.Count);
             Assert.Contains(@"c:\a.md", paths);
             Assert.Contains(@"c:\b.md", paths);
+        }
+
+        [Fact]
+        public void 正斜杠和反斜杠算同一个路径()
+        {
+            // 同一次启动里，命令行/拖放给的可能是 "C:/docs/a.md"，双击给的是 "C:\docs\a.md"。
+            // 不认成同一个就会给同一篇文档开两个标签。
+            Assert.True(NoteStore.SamePath(@"C:/docs/a.md", @"C:\docs\a.md"));
+            Assert.True(NoteStore.SamePath(@"C:\docs\a.md", @"C:/docs/a.md"));
+            Assert.True(NoteStore.SamePath(@"C:\docs\a.md", @"c:\DOCS\A.MD"));
+            Assert.True(NoteStore.SamePath(@"C:\docs\", @"C:\docs"));
+        }
+
+        [Fact]
+        public void 不同文件不会因为归一化被判成同一个()
+        {
+            Assert.False(NoteStore.SamePath(@"C:\docs\a.md", @"C:\docs\b.md"));
+            Assert.False(NoteStore.SamePath(@"C:\docs\a.md", @"D:\docs\a.md"));
+            Assert.False(NoteStore.SamePath(@"C:\docs", @"C:\docs2"));
+            Assert.False(NoteStore.SamePath(null, @"C:\docs\a.md"));
         }
     }
 }
