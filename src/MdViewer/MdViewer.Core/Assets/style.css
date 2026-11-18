@@ -38,8 +38,14 @@ html[data-theme="github-light"] {
     --tok-number: #0550AE;
     --tok-comment: #6E7781;
     --tok-func: #8250DF;
+    /* 字体不跟主题走，跟设置走：宿主把 --font-body / --font-code / --font-heading
+       写在 body 的内联 style 上，覆盖这里的默认值。主题块里因此不再重复声明字体 ——
+       否则「换主题」会顺手把用户选的字体冲掉。 */
     --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
-    --font-code: Consolas, "Cascadia Mono", monospace;
+    --font-code: Consolas, "Cascadia Mono", "Cascadia Code", monospace;
+    /* --font-heading 故意不在这里定义：定义在 html 上会把 var(--font-body) 提前解析成默认值，
+       用户在设置里换正文字体时标题就不跟了。正文标题一律用 var(--font-heading, var(--font-body))，
+       由元素自己继承 body 上的值。 */
     --line-height: 1.72;
     --radius: 8px;
 }
@@ -69,8 +75,6 @@ html[data-theme="vue"] {
     --tok-number: #005CC5;
     --tok-comment: #6A737D;
     --tok-func: #6F42C1;
-    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
-    --font-code: Consolas, "Cascadia Mono", monospace;
     --line-height: 1.72;
     --radius: 8px;
 }
@@ -100,8 +104,6 @@ html[data-theme="solarized-light"] {
     --tok-number: #D33682;
     --tok-comment: #93A1A1;
     --tok-func: #268BD2;
-    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
-    --font-code: Consolas, "Cascadia Mono", monospace;
     --line-height: 1.75;
     --radius: 6px;
 }
@@ -131,8 +133,6 @@ html[data-theme="sepia"] {
     --tok-number: #9A5B00;
     --tok-comment: #A08F79;
     --tok-func: #7C5AA6;
-    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
-    --font-code: Consolas, "Cascadia Mono", monospace;
     --line-height: 1.8;
     --radius: 6px;
 }
@@ -162,8 +162,6 @@ html[data-theme="newsprint"] {
     --tok-number: #7A4B12;
     --tok-comment: #8A857A;
     --tok-func: #4A4A8C;
-    --font-body: Georgia, "Times New Roman", "Songti SC", "SimSun", serif;
-    --font-code: Consolas, "Cascadia Mono", monospace;
     --line-height: 1.85;
     --radius: 2px;
 }
@@ -193,8 +191,6 @@ html[data-theme="github-dark"] {
     --tok-number: #79C0FF;
     --tok-comment: #8B949E;
     --tok-func: #D2A8FF;
-    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
-    --font-code: Consolas, "Cascadia Mono", monospace;
     --line-height: 1.72;
     --radius: 8px;
 }
@@ -224,8 +220,6 @@ html[data-theme="nord"] {
     --tok-number: #B48EAD;
     --tok-comment: #616E88;
     --tok-func: #88C0D0;
-    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
-    --font-code: Consolas, "Cascadia Mono", monospace;
     --line-height: 1.75;
     --radius: 8px;
 }
@@ -255,8 +249,6 @@ html[data-theme="dracula"] {
     --tok-number: #BD93F9;
     --tok-comment: #6272A4;
     --tok-func: #50FA7B;
-    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
-    --font-code: Consolas, "Cascadia Mono", monospace;
     --line-height: 1.75;
     --radius: 8px;
 }
@@ -286,8 +278,6 @@ html[data-theme="one-dark"] {
     --tok-number: #D19A66;
     --tok-comment: #5C6370;
     --tok-func: #61AFEF;
-    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
-    --font-code: Consolas, "Cascadia Mono", monospace;
     --line-height: 1.75;
     --radius: 8px;
 }
@@ -317,9 +307,304 @@ html[data-theme="solarized-dark"] {
     --tok-number: #D33682;
     --tok-comment: #586E75;
     --tok-func: #268BD2;
-    --font-body: "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
-    --font-code: Consolas, "Cascadia Mono", monospace;
     --line-height: 1.75;
+    --radius: 8px;
+}
+
+/* ───────────── 0.5.0 新增皮肤 ─────────────
+ *
+ * 命名和配色都照抄各主题的官方色板（均为 MIT / 开源许可），不自己发明颜色：
+ * 认识 Atom One 的人打开 One Light 要能认出来，否则这套主题就没意义。
+ * 只写变量，不写任何排版规则 —— 排版骨架统一在后面一套。
+ */
+
+html[data-theme="one-light"] {
+    --bg: #FAFAFA;
+    --fg: #383A42;
+    --fg-soft: #4F525E;
+    --fg-muted: #A0A1A7;
+    --line: #DBDBDC;
+    --line-soft: #ECECEC;
+    --card: #F0F0F1;
+    --code-bg: #F0F0F1;
+    --code-fg: #383A42;
+    --accent: #4078F2;
+    --accent-hover: #2F63D8;
+    --accent-soft: rgba(64, 120, 242, .10);
+    --quote-bg: #F0F0F1;
+    --table-head: #EDEDEE;
+    --table-zebra: #F7F7F8;
+    --mark: #FCF4C4;
+    --scroll-thumb: #C9C9CA;
+    --selection: #D7E4FD;
+    --shadow: 0 1px 2px rgba(56, 58, 66, .06);
+    --tok-keyword: #A626A4;
+    --tok-string: #50A14F;
+    --tok-number: #986801;
+    --tok-comment: #A0A1A7;
+    --tok-func: #4078F2;
+    --line-height: 1.72;
+    --radius: 8px;
+}
+
+html[data-theme="catppuccin-latte"] {
+    --bg: #EFF1F5;
+    --fg: #4C4F69;
+    --fg-soft: #5C5F77;
+    --fg-muted: #8C8FA1;
+    --line: #DCE0E8;
+    --line-soft: #E6E9EF;
+    --card: #E6E9EF;
+    --code-bg: #E6E9EF;
+    --code-fg: #4C4F69;
+    --accent: #8839EF;
+    --accent-hover: #7287FD;
+    --accent-soft: rgba(136, 57, 239, .10);
+    --quote-bg: #E8EBF0;
+    --table-head: #E2E5EC;
+    --table-zebra: #EAEDF2;
+    --mark: #F6E3BC;
+    --scroll-thumb: #CCD0DA;
+    --selection: #D7E0F5;
+    --shadow: 0 1px 2px rgba(76, 79, 105, .08);
+    --tok-keyword: #8839EF;
+    --tok-string: #40A02B;
+    --tok-number: #FE640B;
+    --tok-comment: #9CA0B0;
+    --tok-func: #1E66F5;
+    --line-height: 1.74;
+    --radius: 8px;
+}
+
+html[data-theme="gruvbox-light"] {
+    --bg: #FBF1C7;
+    --fg: #3C3836;
+    --fg-soft: #504945;
+    --fg-muted: #928374;
+    --line: #D5C4A1;
+    --line-soft: #EBDFC0;
+    --card: #F2E5BC;
+    --code-bg: #F2E5BC;
+    --code-fg: #3C3836;
+    --accent: #AF3A03;
+    --accent-hover: #8F2E02;
+    --accent-soft: rgba(175, 58, 3, .10);
+    --quote-bg: #F2E5BC;
+    --table-head: #EBDBB2;
+    --table-zebra: #F6EDD0;
+    --mark: #F3DE9C;
+    --scroll-thumb: #C9B99A;
+    --selection: #E3D6AE;
+    --shadow: 0 1px 2px rgba(60, 56, 54, .08);
+    --tok-keyword: #9D0006;
+    --tok-string: #79740E;
+    --tok-number: #8F3F71;
+    --tok-comment: #928374;
+    --tok-func: #427B58;
+    --line-height: 1.76;
+    --radius: 4px;
+}
+
+html[data-theme="rose-pine-dawn"] {
+    --bg: #FAF4ED;
+    --fg: #575279;
+    --fg-soft: #6E6A86;
+    --fg-muted: #9893A5;
+    --line: #DFD8D0;
+    --line-soft: #EFE8E0;
+    --card: #F2E9E1;
+    --code-bg: #F2E9E1;
+    --code-fg: #575279;
+    --accent: #907AA9;
+    --accent-hover: #7C6795;
+    --accent-soft: rgba(144, 122, 169, .12);
+    --quote-bg: #F2E9E1;
+    --table-head: #EFE5DC;
+    --table-zebra: #F7F0E8;
+    --mark: #F2DCA8;
+    --scroll-thumb: #D8CFC7;
+    --selection: #E9DFEA;
+    --shadow: 0 1px 2px rgba(87, 82, 121, .08);
+    --tok-keyword: #286983;
+    --tok-string: #56949F;
+    --tok-number: #D7827E;
+    --tok-comment: #9893A5;
+    --tok-func: #907AA9;
+    --line-height: 1.78;
+    --radius: 8px;
+}
+
+html[data-theme="high-contrast"] {
+    --bg: #FFFFFF;
+    --fg: #000000;
+    --fg-soft: #1A1A1A;
+    --fg-muted: #4A4A4A;
+    --line: #000000;
+    --line-soft: #767676;
+    --card: #F2F2F2;
+    --code-bg: #F2F2F2;
+    --code-fg: #000000;
+    --accent: #0B49C4;
+    --accent-hover: #06349A;
+    --accent-soft: rgba(11, 73, 196, .12);
+    --quote-bg: #F2F2F2;
+    --table-head: #E0E0E0;
+    --table-zebra: #F7F7F7;
+    --mark: #FFE95C;
+    --scroll-thumb: #767676;
+    --selection: #BBD3FF;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .18);
+    --tok-keyword: #A30000;
+    --tok-string: #005A2B;
+    --tok-number: #00429B;
+    --tok-comment: #4A4A4A;
+    --tok-func: #6A1B9A;
+    --line-height: 1.85;
+    --radius: 4px;
+}
+
+html[data-theme="monochrome"] {
+    --bg: #FFFFFF;
+    --fg: #222222;
+    --fg-soft: #444444;
+    --fg-muted: #888888;
+    --line: #DDDDDD;
+    --line-soft: #EEEEEE;
+    --card: #F6F6F6;
+    --code-bg: #F6F6F6;
+    --code-fg: #222222;
+    --accent: #333333;
+    --accent-hover: #000000;
+    --accent-soft: rgba(0, 0, 0, .06);
+    --quote-bg: #F6F6F6;
+    --table-head: #F0F0F0;
+    --table-zebra: #FAFAFA;
+    --mark: #EAEAEA;
+    --scroll-thumb: #CCCCCC;
+    --selection: #E0E0E0;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .05);
+    --tok-keyword: #222222;
+    --tok-string: #555555;
+    --tok-number: #444444;
+    --tok-comment: #999999;
+    --tok-func: #333333;
+    --line-height: 1.8;
+    --radius: 0;
+}
+
+html[data-theme="catppuccin-mocha"] {
+    --bg: #1E1E2E;
+    --fg: #CDD6F4;
+    --fg-soft: #BAC2DE;
+    --fg-muted: #7F849C;
+    --line: #313244;
+    --line-soft: #292A3A;
+    --card: #181825;
+    --code-bg: #181825;
+    --code-fg: #CDD6F4;
+    --accent: #CBA6F7;
+    --accent-hover: #DDB6F9;
+    --accent-soft: rgba(203, 166, 247, .16);
+    --quote-bg: #27283A;
+    --table-head: #313244;
+    --table-zebra: #252636;
+    --mark: #4A3F1E;
+    --scroll-thumb: #45475A;
+    --selection: #3A3654;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .45);
+    --tok-keyword: #CBA6F7;
+    --tok-string: #A6E3A1;
+    --tok-number: #FAB387;
+    --tok-comment: #6C7086;
+    --tok-func: #89B4FA;
+    --line-height: 1.74;
+    --radius: 8px;
+}
+
+html[data-theme="gruvbox-dark"] {
+    --bg: #282828;
+    --fg: #EBDBB2;
+    --fg-soft: #D5C4A1;
+    --fg-muted: #928374;
+    --line: #3C3836;
+    --line-soft: #32302F;
+    --card: #1D2021;
+    --code-bg: #1D2021;
+    --code-fg: #EBDBB2;
+    --accent: #FABD2F;
+    --accent-hover: #FFC94D;
+    --accent-soft: rgba(250, 189, 47, .16);
+    --quote-bg: #32302F;
+    --table-head: #3C3836;
+    --table-zebra: #2E2C2B;
+    --mark: #52401A;
+    --scroll-thumb: #504945;
+    --selection: #4A4238;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .45);
+    --tok-keyword: #FB4934;
+    --tok-string: #B8BB26;
+    --tok-number: #D3869B;
+    --tok-comment: #928374;
+    --tok-func: #8EC07C;
+    --line-height: 1.76;
+    --radius: 4px;
+}
+
+html[data-theme="tokyo-night"] {
+    --bg: #1A1B26;
+    --fg: #C0CAF5;
+    --fg-soft: #A9B1D6;
+    --fg-muted: #565F89;
+    --line: #292E42;
+    --line-soft: #22263A;
+    --card: #16161E;
+    --code-bg: #1E2030;
+    --code-fg: #C0CAF5;
+    --accent: #7AA2F7;
+    --accent-hover: #8FB4FF;
+    --accent-soft: rgba(122, 162, 247, .16);
+    --quote-bg: #1E2030;
+    --table-head: #232433;
+    --table-zebra: #1C1D2A;
+    --mark: #3D3A22;
+    --scroll-thumb: #3B4261;
+    --selection: #283457;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .45);
+    --tok-keyword: #BB9AF7;
+    --tok-string: #9ECE6A;
+    --tok-number: #FF9E64;
+    --tok-comment: #565F89;
+    --tok-func: #7AA2F7;
+    --line-height: 1.76;
+    --radius: 8px;
+}
+
+html[data-theme="everforest-dark"] {
+    --bg: #2D353B;
+    --fg: #D3C6AA;
+    --fg-soft: #BFB9A4;
+    --fg-muted: #859289;
+    --line: #3D484D;
+    --line-soft: #343F44;
+    --card: #272E33;
+    --code-bg: #272E33;
+    --code-fg: #D3C6AA;
+    --accent: #A7C080;
+    --accent-hover: #B8D49A;
+    --accent-soft: rgba(167, 192, 128, .16);
+    --quote-bg: #333C43;
+    --table-head: #343F44;
+    --table-zebra: #303A40;
+    --mark: #3E4B33;
+    --scroll-thumb: #475258;
+    --selection: #42504A;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    --tok-keyword: #E67E80;
+    --tok-string: #A7C080;
+    --tok-number: #D699B6;
+    --tok-comment: #859289;
+    --tok-func: #7FBBB3;
+    --line-height: 1.76;
     --radius: 8px;
 }
 
@@ -417,6 +702,8 @@ h1, h2, h3, h4, h5, h6 {
     margin: 1.8em 0 0.7em;
     font-weight: 600;
     color: var(--fg);
+    /* 标题字体默认跟随正文；设置里可以单独指定（衬线标题 + 无衬线正文是常见组合） */
+    font-family: var(--font-heading, var(--font-body));
     scroll-margin-top: 20px;
 }
 
@@ -623,6 +910,318 @@ section.epub-chapter > :first-child { margin-top: 0; }
 /* 书里的图片经常是整页封面，别给它加圆角留白 */
 section.epub-chapter img { border-radius: calc(var(--radius, 8px) * .5); }
 
+/* ───────────── front matter 信息卡 ─────────────
+ *
+ * YAML 头不再被当成正文渲染成一堆 --- 和表格，而是变成文档顶部的一张卡片。
+ * 读文档的人要的是「谁写的、什么时候、什么标签」，不是 YAML 本身。
+ */
+.frontmatter {
+    margin: 0 0 2.2em;
+    padding: 14px 18px;
+    background: var(--card);
+    border: 1px solid var(--line-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius, 8px);
+}
+
+.fm-title {
+    font-family: var(--font-heading, var(--font-body));
+    font-size: 1.32em;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--fg);
+    margin-bottom: 8px;
+}
+
+.fm-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 6px;
+    font-size: 0.86em;
+    color: var(--fg-muted);
+}
+
+.fm-key::after { content: " "; }
+.fm-val { color: var(--fg-soft); margin-right: 10px; }
+.fm-sep { color: var(--line); }
+
+.fm-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 11px;
+}
+
+.fm-tag {
+    font-size: 0.76em;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    letter-spacing: .2px;
+}
+
+/* ───────────── 数学公式 ───────────── */
+
+.math-display {
+    display: block;
+    margin: 1.3em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    text-align: center;
+}
+
+.katex-display { margin: 0; }
+.katex { font-size: 1.05em; }
+/* 公式里的字重别被正文继承走样 */
+.katex .mord, .katex .mbin, .katex .mrel { color: inherit; }
+
+/* ───────────── Mermaid 图表 ───────────── */
+
+.mermaid {
+    margin: 1.4em 0;
+    text-align: center;
+    overflow-x: auto;
+}
+
+.mermaid svg { max-width: 100%; height: auto; }
+
+/* 库没加载出来时把源码还回去，至少能看 */
+pre.mermaid-failed {
+    border-style: dashed;
+    color: var(--fg-muted);
+}
+
+/* ───────────── 代码高亮（highlight.js 的 class → 主题变量） ───────────── */
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-built_in,
+.hljs-type,
+.hljs-doctag,
+.hljs-selector-pseudo { color: var(--tok-keyword); }
+
+.hljs-string,
+.hljs-regexp,
+.hljs-attr,
+.hljs-template-tag,
+.hljs-addition,
+.hljs-selector-attr { color: var(--tok-string); }
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-attribute { color: var(--tok-number); }
+
+.hljs-comment,
+.hljs-quote { color: var(--tok-comment); font-style: italic; }
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_,
+.hljs-section,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class { color: var(--tok-func); }
+
+.hljs-meta,
+.hljs-meta .hljs-keyword { color: var(--fg-muted); }
+
+.hljs-variable,
+.hljs-template-variable,
+.hljs-params,
+.hljs-property,
+.hljs-subst { color: inherit; }
+
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+
+/* 保留老分词器的 class，旧缓存页还能正常上色 */
+.tok-kw { color: var(--tok-keyword); }
+.tok-str { color: var(--tok-string); }
+.tok-num { color: var(--tok-number); }
+.tok-com { color: var(--tok-comment); font-style: italic; }
+.tok-fn { color: var(--tok-func); }
+
+/* ───────────── 表格：排序 + 长表吸附表头 ─────────────
+ *
+ * 注意 sticky 的坑：.table-wrap 是 overflow-x:auto，它因此成了 scroll container，
+ * 表头只会相对它吸附 —— 而它纵向不滚，等于不吸附。
+ * 所以只在「行数很多」的表上给 wrap 加纵向滚动（app.js 加 .table-tall），
+ * 让表头在表格自己的滚动区里吸附。这样不牺牲普通表格的排版。
+ */
+
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+th.sortable:hover { background: var(--accent-soft); }
+
+th[data-sort="asc"]::after {
+    content: "▲";
+    font-size: 8px;
+    margin-left: 5px;
+    color: var(--accent);
+    vertical-align: 1px;
+}
+
+th[data-sort="desc"]::after {
+    content: "▼";
+    font-size: 8px;
+    margin-left: 5px;
+    color: var(--accent);
+    vertical-align: 1px;
+}
+
+.table-wrap.table-tall {
+    max-height: 72vh;
+    overflow-y: auto;
+}
+
+.table-wrap.table-tall thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--table-head);
+    box-shadow: 0 1px 0 var(--line);
+}
+
+/* ───────────── 图片点击放大 ───────────── */
+
+img.zoomable { cursor: zoom-in; }
+
+.lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, .88);
+    cursor: grab;
+    backdrop-filter: blur(2px);
+}
+
+.lightbox.on { display: flex; }
+.lightbox.dragging { cursor: grabbing; }
+
+.lightbox-img {
+    max-width: 92vw;
+    max-height: 92vh;
+    margin: 0;
+    border-radius: 4px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, .5);
+    transform-origin: center center;
+    user-select: none;
+    transition: transform .06s linear;
+}
+
+.lightbox.dragging .lightbox-img { transition: none; }
+
+.lightbox-hint {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: rgba(255, 255, 255, .62);
+    background: rgba(0, 0, 0, .45);
+    padding: 5px 14px;
+    border-radius: 999px;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+/* ───────────── 标注 / 批注 ───────────── */
+
+mark.annot {
+    background: var(--mark);
+    color: inherit;
+    padding: 0 1px;
+    border-radius: 2px;
+    box-decoration-break: clone;
+}
+
+mark.annot-note {
+    background: transparent;
+    border-bottom: 2px solid var(--accent);
+    border-radius: 0;
+    cursor: help;
+}
+
+mark.annot-note::after {
+    content: "✎";
+    font-size: 0.72em;
+    color: var(--accent);
+    vertical-align: super;
+    margin-left: 1px;
+}
+
+/* 选中文字后浮出来的小工具条 */
+.bubble {
+    position: fixed;
+    z-index: 150;
+    display: none;
+    gap: 2px;
+    padding: 3px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .2);
+}
+
+.bubble.on { display: flex; }
+
+.bubble button {
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 4px 11px;
+    background: transparent;
+    color: var(--fg-soft);
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.bubble button:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+/* ───────────── 朗读 ───────────── */
+
+.tts-active {
+    background: var(--accent-soft);
+    border-radius: 3px;
+    box-shadow: -3px 0 0 var(--accent);
+}
+
+/* ───────────── 无干扰模式 ─────────────
+ * 宿主藏起工具栏/状态栏后，页面顶部和两侧再收一点，视口才真的全是字。
+ */
+body.zen {
+    padding-top: 18px;
+    padding-bottom: 60px;
+    padding-left: 28px;
+    padding-right: 28px;
+}
+
+body.zen.wide {
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+/* 导出 PNG 时先藏掉临时 UI */
+body.capturing #readbar,
+body.capturing .bubble { display: none !important; }
+
 /* ══════════════════════ 3. 打印 / 导出 PDF ══════════════════════ */
 
 /*
@@ -665,7 +1264,11 @@ section.epub-chapter img { border-radius: calc(var(--radius, 8px) * .5); }
     /* 宽屏模式的 body.wide 权重比 body 高，这里要一起写，否则打印会带上 20px 留白 */
     body,
     body.wide { padding: 0; max-width: none; }
-    #readbar, .copy-btn, .code-lang { display: none !important; }
+    #readbar, .copy-btn, .code-lang, .bubble, .lightbox, .lightbox-hint { display: none !important; }
+    th.sortable::after { content: none !important; }
+    /* 纸上不要嵌套滚动条：长表一律整张铺开，靠分页解决 */
+    .table-wrap.table-tall { max-height: none; overflow: visible; }
+    .table-wrap.table-tall thead th { position: static; box-shadow: none; }
     a { color: var(--fg); }
     a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 11px; color: #8B949E; }
     /* 纸上没有横向滚动条：撤掉最小列宽，让浏览器按纸张宽度重新分配，
@@ -680,4 +1283,5 @@ section.epub-chapter img { border-radius: calc(var(--radius, 8px) * .5); }
 /* 导出 HTML 时由 app.js 挂上（隐藏只在阅读器里有意义的外壳） */
 body.for-export #readbar,
 body.for-export .copy-btn,
-body.for-export .code-lang { display: none !important; }
+body.for-export .code-lang,
+body.for-export .bubble { display: none !important; }

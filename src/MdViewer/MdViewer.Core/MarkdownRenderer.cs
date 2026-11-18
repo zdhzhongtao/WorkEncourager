@@ -14,6 +14,31 @@ namespace MdViewer.Core
     {
         public string BodyHtml { get; set; }
         public List<TocItem> Toc { get; set; }
+
+        /// <summary>文档头的 YAML front matter（没有就是 Found=false）。</summary>
+        public FrontMatter FrontMatter { get; set; }
+
+        /// <summary>正文里有数学公式 —— 决定要不要把 KaTeX 加载进来。</summary>
+        public bool HasMath
+        {
+            get { return !string.IsNullOrEmpty(BodyHtml) && BodyHtml.Contains("class=\"math\""); }
+        }
+
+        /// <summary>正文里有 mermaid 图表代码块。</summary>
+        public bool HasMermaid
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(BodyHtml)) return false;
+                return BodyHtml.Contains("language-mermaid") || BodyHtml.Contains("class=\"mermaid\"");
+            }
+        }
+
+        /// <summary>正文里有代码块 —— 决定要不要把 highlight.js 加载进来。</summary>
+        public bool HasCodeBlock
+        {
+            get { return !string.IsNullOrEmpty(BodyHtml) && BodyHtml.Contains("<pre"); }
+        }
     }
 
     /// <summary>整页 html 的选项。</summary>
@@ -28,6 +53,15 @@ namespace MdViewer.Core
         public bool DarkTheme { get; set; }
 
         public int FontSize { get; set; }
+
+        /// <summary>正文字体名（空 = 用 css 里的默认字体栈）。</summary>
+        public string FontBody { get; set; }
+
+        /// <summary>代码字体名。</summary>
+        public string FontCode { get; set; }
+
+        /// <summary>标题字体名（空 = 跟随正文）。</summary>
+        public string FontHeading { get; set; }
 
         /// <summary>正文栏最大宽度（px），控制每行字数。0 表示不限制。</summary>
         public int ContentWidth { get; set; } = 880;
@@ -49,13 +83,39 @@ namespace MdViewer.Core
 
         public bool ForExport { get; set; }
 
+        /// <summary>是否加载 KaTeX（正文里真有公式才加载，省一次解析）。</summary>
+        public bool IncludeMath { get; set; }
+
+        /// <summary>是否加载 Mermaid（正文里真有图表才加载 —— 它有 2.5MB）。</summary>
+        public bool IncludeMermaid { get; set; }
+
+        /// <summary>是否加载 highlight.js 做代码高亮（有代码块才加载）。</summary>
+        public bool IncludeCodeHighlight { get; set; }
+
+        /// <summary>
+        /// 第三方脚本 / 样式所在的虚拟域名目录，形如 <c>https://mdviewer.tmp/vendor/</c>。
+        /// 留空则不注入任何外部资源（导出用）。
+        /// </summary>
+        public string VendorBase { get; set; }
+
+        /// <summary>用户自定义皮肤 css（空 = 不用）。排在 style.css 之后，好让它覆盖变量。</summary>
+        public string CustomCss { get; set; }
+
         public PageOptions()
         {
             Title = "Markdown";
             FontSize = 16;
             ExtraOrigins = new List<string>();
         }
+
+        /// <summary>把设置里的字体名拼成 css 的 font-family 值。字体名里的单引号已在设置侧清掉。</summary>
+        public static string FontStack(string name, string fallback)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            return "'" + name.Trim() + "', " + fallback;
+        }
     }
+
 
     /// <summary>
     /// md → html。流程固定为：Markdig 渲染 → 清洗内联 HTML → 任务列表换字形 → 补标题 id。
@@ -75,15 +135,31 @@ namespace MdViewer.Core
             .UseTaskLists()
             .UseFootnotes()
             .UseAutoLinks()
+            // 数学要排在 EmphasisExtras 之前处理（Markdig 内部按扩展优先级走），
+            // 否则 $a^2$ 里的 ^ 会被当成上标语法吃掉。
+            .UseMathematics()
             .Build();
 
         public static RenderedMarkdown Render(string markdown)
         {
-            string raw = Markdown.ToHtml(markdown ?? string.Empty, Pipeline);
+            FrontMatter frontMatter;
+            string body = FrontMatter.Split(markdown ?? string.Empty, out frontMatter);
+
+            string raw = Markdown.ToHtml(body, Pipeline);
             string clean = HtmlSanitizer.Clean(raw);
             clean = NormalizeTaskLists(clean);
             HeadingScan scan = HeadingAnchors.Process(clean);
-            return new RenderedMarkdown { BodyHtml = scan.Html, Toc = scan.Toc };
+
+            // 信息卡放在正文最前面。它不属于 Markdown 语法，但读文档的人需要它。
+            string card = frontMatter.ToHtml();
+            string html = card.Length > 0 ? card + scan.Html : scan.Html;
+
+            return new RenderedMarkdown
+            {
+                BodyHtml = html,
+                Toc = scan.Toc,
+                FrontMatter = frontMatter
+            };
         }
 
         /// <summary>只出 html 片段，不包整页。</summary>
@@ -149,6 +225,17 @@ namespace MdViewer.Core
                 }
             }
 
+            // 第三方库（KaTeX / Mermaid / highlight.js）从虚拟域按需加载：
+            // 内联进每一页会把每篇文档都拖上 3MB，而绝大多数文档根本用不到它们。
+            string vendorBase = null;
+            string vendorOrigin = null;
+            if (!string.IsNullOrWhiteSpace(options.VendorBase))
+            {
+                vendorBase = options.VendorBase.TrimEnd('/') + "/";
+                try { vendorOrigin = new Uri(vendorBase).GetLeftPart(UriPartial.Authority); }
+                catch (UriFormatException) { vendorBase = null; vendorOrigin = null; }
+            }
+
             // 有 ContentOrigin = 阅读器里的页面，最严格；没有 = 导出给别人看的页面，
             // 只锁脚本，图片/字体照常放行（导出的 md 经常挂着在线图片）。
             sb.Append("<meta http-equiv=\"Content-Security-Policy\" content=\"");
@@ -156,15 +243,31 @@ namespace MdViewer.Core
             {
                 sb.Append("default-src 'none'; base-uri 'none'; img-src ");
                 sb.Append(WebUtility.HtmlEncode(string.Join(" ", origins.ToArray())));
-                sb.Append(" data:; style-src 'unsafe-inline'; font-src data:; ");
+                sb.Append(" data:; style-src 'unsafe-inline'");
+                if (vendorOrigin != null) sb.Append(' ').Append(vendorOrigin);
+                sb.Append("; font-src data:");
+                if (vendorOrigin != null) sb.Append(' ').Append(vendorOrigin);
+                sb.Append("; ");
             }
             else
             {
                 sb.Append("base-uri 'none'; ");
             }
-            sb.Append("script-src 'nonce-").Append(nonce).Append("';\">\r\n");
+            sb.Append("script-src 'nonce-").Append(nonce).Append('\'');
+            if (vendorOrigin != null) sb.Append(' ').Append(vendorOrigin);
+            sb.Append(";\">\r\n");
 
             sb.Append("<style>\r\n").Append(Assets.StyleCss).Append("\r\n</style>\r\n");
+
+            // 数学公式的样式表必须在 style.css 之后（KaTeX 自带一套排版规则）
+            if (options.IncludeMath && vendorBase != null)
+                sb.Append("<link rel=\"stylesheet\" href=\"").Append(WebUtility.HtmlEncode(vendorBase))
+                  .Append("katex/katex.min.css\">\r\n");
+
+            // 用户皮肤排在最后：它要能盖掉主题变量
+            if (!string.IsNullOrWhiteSpace(options.CustomCss))
+                sb.Append("<style>\r\n").Append(options.CustomCss).Append("\r\n</style>\r\n");
+
             sb.Append("</head>\r\n");
 
             // 字号与栏宽走 body 的内联变量：宿主改这两个值只要 postMessage，不用重新渲染整页
@@ -175,8 +278,35 @@ namespace MdViewer.Core
             sb.Append("<body");
             if (bodyClass.Length > 0) sb.Append(" class=\"").Append(WebUtility.HtmlEncode(bodyClass)).Append('"');
             sb.Append(" style=\"--md-font-size:").Append(fontSize.ToString(CultureInfo.InvariantCulture)).Append("px;");
-            sb.Append("--content-width:").Append(widthValue).Append("\">\r\n");
+            sb.Append("--content-width:").Append(widthValue).Append(';');
+
+            // 字体只在用户真的选过时才写：留空就让 css 的默认栈和「标题跟随正文」的继承规则生效。
+            // style 属性用双引号包着，所以字体名一律用单引号，避免把属性截断。
+            string bodyFont = PageOptions.FontStack(options.FontBody,
+                "'Microsoft YaHei UI', 'Microsoft YaHei', -apple-system, 'Segoe UI', sans-serif");
+            if (bodyFont != null) sb.Append("--font-body:").Append(bodyFont).Append(';');
+
+            string codeFont = PageOptions.FontStack(options.FontCode,
+                "Consolas, 'Cascadia Mono', 'Cascadia Code', monospace");
+            if (codeFont != null) sb.Append("--font-code:").Append(codeFont).Append(';');
+
+            string headingFont = PageOptions.FontStack(options.FontHeading, "inherit");
+            if (headingFont != null) sb.Append("--font-heading:").Append(headingFont).Append(';');
+
+            sb.Append("\">\r\n");
             sb.Append("<div class=\"markdown-body\">\r\n").Append(doc.BodyHtml).Append("\r\n</div>\r\n");
+
+            // 外部库先加载，app.js 在 DOMContentLoaded 里才用得上它们的全局变量
+            if (options.IncludeMath && vendorBase != null)
+                sb.Append("<script src=\"").Append(WebUtility.HtmlEncode(vendorBase))
+                  .Append("katex/katex.min.js\"></script>\r\n");
+            if (options.IncludeMermaid && vendorBase != null)
+                sb.Append("<script src=\"").Append(WebUtility.HtmlEncode(vendorBase))
+                  .Append("mermaid/mermaid.min.js\"></script>\r\n");
+            if (options.IncludeCodeHighlight && vendorBase != null)
+                sb.Append("<script src=\"").Append(WebUtility.HtmlEncode(vendorBase))
+                  .Append("hljs/highlight.min.js\"></script>\r\n");
+
             sb.Append("<script nonce=\"").Append(nonce).Append("\">\r\n").Append(Assets.AppJs).Append("\r\n</script>\r\n");
             sb.Append("</body>\r\n</html>\r\n");
             return sb.ToString();

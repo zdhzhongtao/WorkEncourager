@@ -317,6 +317,7 @@ namespace MdViewer
 
             PostThemeToPage();
             PostToPage("fontSize", App.Settings.FontSize.ToString());
+            PostFontsToPage();
             PostWidthToPage();
         }
 

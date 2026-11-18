@@ -65,10 +65,66 @@
                 </Trigger>
             </DataTemplate.Triggers>
         </DataTemplate>
+
+        <!-- 笔记面板的一行：标题 + 下面一行灰色细节 -->
+        <DataTemplate x:Key="NoteRowTemplate">
+            <StackPanel Margin="0,2">
+                <TextBlock Text="{Binding Title}" FontSize="12.5" TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource ThemeTextPrimary}" />
+                <TextBlock Text="{Binding Detail}" FontSize="11" Margin="0,2,0,0"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource ThemeTextMuted}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- 文件树：文件夹在前、文件在后，双击打开 -->
+        <HierarchicalDataTemplate x:Key="FileNodeTemplate" ItemsSource="{Binding Children}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource ThemeTextMuted}" />
+                <TextBlock Text="{Binding Name}" Margin="6,0,0,0" FontSize="12.5"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource ThemeTextPrimary}"
+                           TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </HierarchicalDataTemplate>
+
+        <Style x:Key="FileTreeItemStyle" TargetType="TreeViewItem">
+            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+            <Setter Property="Padding" Value="1" />
+        </Style>
+
+        <!-- 侧栏页签按钮 -->
+        <Style x:Key="SidebarTabButton" TargetType="RadioButton">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bg" Background="Transparent" CornerRadius="6" Padding="8,4"
+                                Cursor="Hand">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background"
+                                        Value="{DynamicResource ThemeHoverBg}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bg" Property="Background"
+                                        Value="{DynamicResource ThemeNavActiveBg}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Foreground" Value="{DynamicResource ThemeNavFg}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
     </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -76,7 +132,7 @@
         </Grid.RowDefinitions>
 
         <!-- ══════════ 工具栏 ══════════ -->
-        <Border Grid.Row="0" Background="{DynamicResource ThemeCardBg}"
+        <Border x:Name="Toolbar" Grid.Row="0" Background="{DynamicResource ThemeCardBg}"
                 BorderBrush="{DynamicResource ThemeDivider}" BorderThickness="0,0,0,1" Padding="10,8">
             <DockPanel LastChildFill="False">
 
@@ -118,17 +174,17 @@
                             Margin="9,0" VerticalAlignment="Center" />
 
                     <CheckBox x:Name="TocToggle" VerticalAlignment="Center" IsChecked="True"
-                              Click="TocToggle_Click" ToolTip="显示 / 隐藏左侧目录，关掉正文更宽 (Ctrl+T)">
+                              Click="TocToggle_Click" ToolTip="显示 / 隐藏左侧侧栏，关掉正文更宽 (Ctrl+T)">
                         <StackPanel Orientation="Horizontal">
                             <Path Style="{StaticResource IconPath}" StrokeThickness="1.5" Width="15" Height="15"
                                   Stroke="{DynamicResource ThemeTextSecondary}"
                                   Data="M2.6,4 H13.4 M2.6,8 H13.4 M2.6,12 H9.4" />
-                            <TextBlock Text="目录" Style="{StaticResource BtnLabel}" Margin="6,0,0,0" />
+                            <TextBlock Text="侧栏" Style="{StaticResource BtnLabel}" Margin="6,0,0,0" />
                         </StackPanel>
                     </CheckBox>
 
                     <CheckBox x:Name="WideToggle" VerticalAlignment="Center" Margin="12,0,0,0"
-                              Click="WideToggle_Click" ToolTip="宽屏：正文铺满窗口并收起目录，多列表格改成左右滚动 (Ctrl+Shift+W)">
+                              Click="WideToggle_Click" ToolTip="宽屏：正文铺满窗口并收起侧栏，多列表格改成左右滚动 (Ctrl+Shift+W)">
                         <StackPanel Orientation="Horizontal">
                             <Path Style="{StaticResource IconPath}" StrokeThickness="1.5" Width="15" Height="15"
                                   Stroke="{DynamicResource ThemeTextSecondary}"
@@ -156,6 +212,24 @@
 
                     <Border Width="1" Height="20" Background="{DynamicResource ThemeDivider}"
                             Margin="9,0" VerticalAlignment="Center" />
+
+                    <Button x:Name="SpeakButton" Style="{StaticResource IconButton}" Click="Speak_Click"
+                            ToolTip="从开头朗读全文 (Ctrl+Shift+R)">
+                        <Path x:Name="SpeakIcon" Style="{StaticResource IconPath}"
+                              Data="M4.6,2.6 L12.4,8 L4.6,13.4 Z" />
+                    </Button>
+
+                    <Button x:Name="BookmarkButton" Style="{StaticResource IconButton}" Click="Bookmark_Click"
+                            ToolTip="把当前位置加成书签 (Ctrl+Shift+B)">
+                        <Path Style="{StaticResource IconPath}"
+                              Data="M4.2,2.6 H11.8 V13.6 L8,10.7 L4.2,13.6 Z" />
+                    </Button>
+
+                    <Button x:Name="ZenButton" Style="{StaticResource IconButton}" Click="Zen_Click"
+                            ToolTip="无干扰全屏，只留正文 (F11)">
+                        <Path Style="{StaticResource IconPath}"
+                              Data="M2.6,6 V2.6 H6 M10,2.6 H13.4 V6 M13.4,10 V13.4 H10 M6,13.4 H2.6 V10" />
+                    </Button>
 
                     <Button x:Name="ThemeButton" Style="{StaticResource IconButton}"
                             Click="ThemeMenu_Click" ToolTip="主题">
@@ -186,8 +260,22 @@
             </DockPanel>
         </Border>
 
+        <!-- ══════════ 标签栏 ══════════ -->
+        <!-- 标签栏：标签彼此紧贴，当前那个和正文同色相连（Chrome 那种），
+             所以这里不画底部分隔线，靠活动标签自己的背景把交界处连起来。 -->
+        <Border x:Name="TabBar" Grid.Row="1" Visibility="Collapsed"
+                Background="{DynamicResource ThemeNavBg}"
+                Padding="8,0,8,0">
+            <ScrollViewer x:Name="TabScroller" HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="TabBarHost" Orientation="Horizontal"
+                            VerticalAlignment="Bottom"
+                            MouseDown="TabBar_MouseDown" />
+            </ScrollViewer>
+        </Border>
+
         <!-- ══════════ 搜索条 ══════════ -->
-        <Border x:Name="FindBar" Grid.Row="1" Visibility="Collapsed" Padding="10,6"
+        <Border x:Name="FindBar" Grid.Row="2" Visibility="Collapsed" Padding="10,6"
                 Background="{DynamicResource ThemeCardBg}"
                 BorderBrush="{DynamicResource ThemeDivider}" BorderThickness="0,0,0,1">
             <StackPanel Orientation="Horizontal">
@@ -205,10 +293,10 @@
             </StackPanel>
         </Border>
 
-        <!-- ══════════ 主体：目录 + 正文 ══════════ -->
-        <Grid Grid.Row="2">
+        <!-- ══════════ 主体：侧栏 + 正文 ══════════ -->
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="TocColumn" Width="240" MinWidth="0" MaxWidth="420" />
+                <ColumnDefinition x:Name="TocColumn" Width="260" MinWidth="0" MaxWidth="460" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -216,28 +304,137 @@
             <Border x:Name="TocPanel" Grid.Column="0" Background="{DynamicResource ThemeNavBg}"
                     BorderBrush="{DynamicResource ThemeDivider}" BorderThickness="0,0,1,0">
                 <DockPanel>
-                    <Grid DockPanel.Dock="Top" Margin="12,10,10,4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="TocTitle" Text="目录" Style="{StaticResource SectionText}"
-                                   VerticalAlignment="Center" />
-                        <TextBlock x:Name="TocCount" Grid.Column="1" Text="" Style="{StaticResource MutedText}"
-                                   VerticalAlignment="Center" />
+                    <!-- 页签头：大纲 / 文件 / 笔记 -->
+                    <StackPanel DockPanel.Dock="Top" Margin="8,8,8,4">
+                        <DockPanel Margin="4,0,2,6">
+                            <TextBlock x:Name="TocTitle" Text="大纲" Style="{StaticResource SectionText}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="TocCount" Grid.Column="1" Text="" Style="{StaticResource MutedText}"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        </DockPanel>
+
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="TabToc" Style="{StaticResource SidebarTabButton}"
+                                         Content="大纲" GroupName="sidebar"
+                                         Checked="SidebarTab_Checked" />
+                            <RadioButton x:Name="TabFiles" Style="{StaticResource SidebarTabButton}"
+                                         Content="文件" GroupName="sidebar" Margin="4,0,0,0"
+                                         Checked="SidebarTab_Checked" />
+                            <RadioButton x:Name="TabNotes" Style="{StaticResource SidebarTabButton}"
+                                         Content="笔记" GroupName="sidebar" Margin="4,0,0,0"
+                                         Checked="SidebarTab_Checked" />
+                            <TextBlock x:Name="NoteCount" Text="" Style="{StaticResource MutedText}"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- 三种面板叠在一起，用可见性切换 -->
+                    <Grid Margin="6,0,6,8">
+
+                        <!-- 大纲 -->
+                        <DockPanel x:Name="TocBody">
+                            <Grid DockPanel.Dock="Top" Margin="1,0,1,6">
+                                <TextBox x:Name="TocFilterBox" Padding="6,4" FontSize="12"
+                                         TextChanged="TocFilter_TextChanged"
+                                         KeyDown="TocFilter_KeyDown"
+                                         ToolTip="敲几个字过滤标题，回车跳到第一条，Esc 清空" />
+                                <TextBlock Text="过滤标题…" Margin="8,0,0,0" IsHitTestVisible="False"
+                                           VerticalAlignment="Center" FontSize="12"
+                                           Foreground="{DynamicResource ThemeTextMuted}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Text, ElementName=TocFilterBox}"
+                                                             Value="">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+
+                            <ListBox x:Name="TocList"
+                                     SelectionChanged="TocList_SelectionChanged"
+                                     PreviewMouseLeftButtonUp="TocList_PreviewMouseLeftButtonUp"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Text}" FontSize="{Binding FontSize}"
+                                                   Margin="{Binding Indent}" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding Text}" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+
+                        <!-- 文件树 -->
+                        <DockPanel x:Name="FolderPanel" Visibility="Collapsed">
+                            <Border DockPanel.Dock="Top" Margin="0,0,0,6">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="PickFolderButton" Content="选择文件夹"
+                                            Style="{StaticResource GhostButton}" Padding="10,4" FontSize="11.5"
+                                            Click="PickFolder_Click"
+                                            ToolTip="把一个文件夹当书库，双击里面的文档就能读" />
+                                    <Button x:Name="ReloadFolderButton" Content="刷新"
+                                            Style="{StaticResource GhostButton}" Padding="10,4" FontSize="11.5"
+                                            Margin="6,0,0,0" Click="ReloadFolder_Click" />
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock x:Name="FolderEmptyHint" DockPanel.Dock="Top" Visibility="Collapsed"
+                                       Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="2,10,2,0"
+                                       Text="还没有选文件夹。点上面的「选择文件夹」，之后这里会列出所有的 .md 和 .epub，双击打开。" />
+
+                            <TreeView x:Name="FileTree" Background="Transparent" BorderThickness="0"
+                                      ItemTemplate="{StaticResource FileNodeTemplate}"
+                                      ItemContainerStyle="{StaticResource FileTreeItemStyle}"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                      MouseDoubleClick="FileTree_MouseDoubleClick"
+                                      KeyDown="FileTree_KeyDown" />
+                        </DockPanel>
+
+                        <!-- 笔记：书签 + 标注 -->
+                        <DockPanel x:Name="NotesPanel" Visibility="Collapsed">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <DockPanel Margin="2,0,2,4">
+                                        <TextBlock Text="书签" Style="{StaticResource LabelText}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock x:Name="BookmarkEmpty" DockPanel.Dock="Right"
+                                                   Text="还没有书签" Style="{StaticResource MutedText}"
+                                                   FontSize="11" HorizontalAlignment="Right"
+                                                   VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <ListBox x:Name="BookmarkList" ItemTemplate="{StaticResource NoteRowTemplate}"
+                                             BorderThickness="0" Background="Transparent"
+                                             MaxHeight="220"
+                                             MouseDoubleClick="BookmarkList_MouseDoubleClick"
+                                             KeyDown="NoteList_KeyDown"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+
+                                    <Border Height="1" Background="{DynamicResource ThemeDivider}"
+                                            Margin="2,10,2,8" />
+
+                                    <DockPanel Margin="2,0,2,4">
+                                        <TextBlock Text="标注" Style="{StaticResource LabelText}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock x:Name="AnnotationEmpty" DockPanel.Dock="Right"
+                                                   Text="选中正文里的文字即可高亮或写批注"
+                                                   Style="{StaticResource MutedText}" FontSize="11"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DockPanel>
+                                    <ListBox x:Name="AnnotationList" ItemTemplate="{StaticResource NoteRowTemplate}"
+                                             BorderThickness="0" Background="Transparent"
+                                             MouseDoubleClick="AnnotationList_MouseDoubleClick"
+                                             KeyDown="NoteList_KeyDown"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </DockPanel>
                     </Grid>
-                    <ListBox x:Name="TocList" Margin="6,0,6,8"
-                             SelectionChanged="TocList_SelectionChanged"
-                             PreviewMouseLeftButtonUp="TocList_PreviewMouseLeftButtonUp"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Text}" FontSize="{Binding FontSize}"
-                                           Margin="{Binding Indent}" TextTrimming="CharacterEllipsis"
-                                           ToolTip="{Binding Text}" />
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
                 </DockPanel>
             </Border>
 
@@ -318,10 +515,25 @@
                                     <TextBlock Text="Ctrl+F 搜索" Style="{StaticResource MutedText}" />
                                 </Border>
                                 <Border Style="{StaticResource KeyBadge}">
-                                    <TextBlock Text="F5 刷新" Style="{StaticResource MutedText}" />
+                                    <TextBlock Text="F11 无干扰" Style="{StaticResource MutedText}" />
                                 </Border>
                                 <Border Style="{StaticResource KeyBadge}">
                                     <TextBlock Text="Ctrl+滚轮 缩放" Style="{StaticResource MutedText}" />
+                                </Border>
+                                <Border Style="{StaticResource KeyBadge}">
+                                    <TextBlock Text="Ctrl+Shift+R 朗读" Style="{StaticResource MutedText}" />
+                                </Border>
+                                <Border Style="{StaticResource KeyBadge}">
+                                    <TextBlock Text="Ctrl+Shift+B 书签" Style="{StaticResource MutedText}" />
+                                </Border>
+                                <Border Style="{StaticResource KeyBadge}">
+                                    <TextBlock Text="Ctrl+Shift+E 外部编辑" Style="{StaticResource MutedText}" />
+                                </Border>
+                                <Border Style="{StaticResource KeyBadge}">
+                                    <TextBlock Text="Ctrl+Shift+S 导出长图" Style="{StaticResource MutedText}" />
+                                </Border>
+                                <Border Style="{StaticResource KeyBadge}">
+                                    <TextBlock Text="Ctrl+T 目录" Style="{StaticResource MutedText}" />
                                 </Border>
                             </WrapPanel>
 
@@ -407,10 +619,13 @@
         </Grid>
 
         <!-- ══════════ 状态栏 ══════════ -->
-        <Border Grid.Row="3" Background="{DynamicResource ThemeCardBg}" Padding="12,5"
+        <Border x:Name="StatusBar" Grid.Row="4" Background="{DynamicResource ThemeCardBg}" Padding="12,5"
                 BorderBrush="{DynamicResource ThemeDivider}" BorderThickness="0,1,0,0">
             <DockPanel LastChildFill="True">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <TextBlock x:Name="SpeakHint" Text="● 朗读中" FontSize="11.5"
+                               Foreground="{DynamicResource ThemeAccent}" VerticalAlignment="Center"
+                               Margin="0,0,10,0" Visibility="Collapsed" />
                     <TextBlock x:Name="ReloadHint" Text="已重新载入" Foreground="{DynamicResource ThemeSuccess}"
                                FontSize="11.5" VerticalAlignment="Center" Margin="0,0,10,0"
                                Visibility="Collapsed" />
@@ -476,7 +691,7 @@
         <Popup x:Name="ThemePopup" PlacementTarget="{Binding ElementName=ThemeButton}"
                Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
                PopupAnimation="Fade" VerticalOffset="4">
-            <Border Width="252" Background="{DynamicResource ThemeCardBg}" CornerRadius="10"
+            <Border Width="264" Background="{DynamicResource ThemeCardBg}" CornerRadius="10"
                     BorderBrush="{DynamicResource ThemeCardBorder}" BorderThickness="1" Padding="7">
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.22" Color="#000000" />
@@ -494,7 +709,7 @@
 
                     <Border Height="1" Background="{DynamicResource ThemeDivider}" Margin="7,7" />
 
-                    <TextBlock Text="想跟着 Windows 自动切？设置 → 外观 → 跟随系统"
+                    <TextBlock Text="想跟着 Windows 自动切？设置 → 外观 → 跟随系统；也可以用「定时换肤」"
                                Style="{StaticResource MutedText}" FontSize="11"
                                Margin="9,0,9,4" TextWrapping="Wrap" />
                 </StackPanel>
