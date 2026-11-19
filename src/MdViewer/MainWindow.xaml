@@ -239,6 +239,16 @@
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button x:Name="ToolboxButton" Style="{StaticResource GhostButton}"
+                            Padding="10,6" Margin="0,0,6,0" Click="Toolbox_Click"
+                            ToolTip="在浏览器里打开 Web 工具箱（JSON / 编解码 / 哈希 / 时间戳 / 正则 / 二维码…）离线可用">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource IconPath}"
+                                  Data="M2.6,2.6 H7 V7 H2.6 Z M9,2.6 H13.4 V7 H9 Z M2.6,9 H7 V13.4 H2.6 Z M9,9 H13.4 V13.4 H9 Z" />
+                            <TextBlock Text="工具箱" Style="{StaticResource BtnLabel}" Margin="7,0,0,0" />
+                        </StackPanel>
+                    </Button>
+
                     <Button x:Name="UpdateBadge" Style="{StaticResource BadgeButton}" Visibility="Collapsed"
                             Click="UpdateBadge_Click" ToolTip="有新版本可用，点这里查看">
                         <TextBlock x:Name="UpdateBadgeText" Text="有新版本" />

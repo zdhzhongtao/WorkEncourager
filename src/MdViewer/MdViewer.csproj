@@ -29,6 +29,11 @@
     <ProjectReference Include="MdViewer.Core\MdViewer.Core.csproj" />
   </ItemGroup>
 
+  <!-- Web 工具箱：单文件 HTML，编译时嵌进 exe，按钮点开时释放到本地用浏览器打开 -->
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\toolbox.html" LogicalName="MdViewer.Assets.toolbox.html" Condition="Exists('Assets\toolbox.html')" />
+  </ItemGroup>
+
   <!-- 主项目只编译根目录源码，排除子项目里的文件 -->
   <ItemGroup>
     <Compile Remove="MdViewer.Core\**\*.cs" />

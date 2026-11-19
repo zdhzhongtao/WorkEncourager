@@ -362,6 +362,10 @@ namespace MdViewer
             external.Click += (s, args) => OpenInExternalEditor();
             menu.Items.Add(external);
 
+            var toolbox = new MenuItem { Header = "打开 Web 工具箱（浏览器）" };
+            toolbox.Click += (s, args) => Toolbox_Click(s, new RoutedEventArgs());
+            menu.Items.Add(toolbox);
+
             menu.Items.Add(new Separator());
 
             bool associated = FileAssoc.IsAssociated(Environment.ProcessPath ?? string.Empty);
