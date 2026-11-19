@@ -1,0 +1,22 @@
+{
+  "name": "wadetoolbox-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "WadeToolbox Web - 前端 / 开发者工具箱，纯浏览器本地运行",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:standalone": "node scripts/build-standalone.mjs",
+    "build:all": "npm run build && npm run build:standalone",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0"
+  }
+}

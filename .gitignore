@@ -27,6 +27,14 @@ Thumbs.db
 desktop.ini
 .DS_Store
 
+# ===== 网页工具箱 (web/) =====
+node_modules/
+.vite/
+web/dist/
+# 单文件打包产物：web/ 下这份是给人下载的，不进库；
+# src/MdViewer/Assets/toolbox.html 是同一份内容，那个必须提交（编译要嵌进 exe）
+web/release/
+
 # ===== WorkBuddy 项目数据 =====
 .workbuddy/
 *.tmp
