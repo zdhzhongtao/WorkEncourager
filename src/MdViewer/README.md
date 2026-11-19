@@ -4,20 +4,30 @@
 左边目录侧栏，`Ctrl+F` 页内搜索，能导出 PDF / HTML / 长图，**20 套主题随时切换**（含护眼米黄、报纸衬线），
 数学公式、Mermaid 图表、脚注、Task list 都能正常渲染。
 
-- **版本**：0.5.2
+- **版本**：0.5.3
 - **形态**：WPF 桌面程序，单文件 exe；带安装脚本（装到用户目录 + 开始菜单 + 文件关联）
 - **数据目录**：`%APPDATA%\MdViewer\`（配置、标注书签、日志、WebView2 缓存、EPUB 解压、`--demo` 样例）
 - **依赖**：.NET 10；渲染用 WebView2，需要本机有 WebView2 运行时（Win11 自带，装了 Edge 的 Win10 一般也有）
 - **联网**：默认不联网。全程序只有三个地方会发请求 —— 你点「去下载 WebView2」、你在设置里点「检查更新」、
   你打开了「启动时检查更新」。md 里的远程图片会被 CSP 挡掉，不会偷偷加载
 
+## 0.5.3 改了什么
+
+| 改动 | 说明 |
+| --- | --- |
+| 检查更新不再调用 GitHub API | 现在只拼一条地址：`https://github.com/<仓库>/releases.atom`。走网页边缘，不占「匿名查询每小时 60 次」的配额，也就不会再出现「GitHub 拒绝了请求（查询太频繁）」 |
+| 下载地址同样直接拼 | `.../releases/download/<tag>/MdViewer-<版本>-portable.exe`，不问接口要，按 CI 的命名约定拼出来就能下 |
+| 删掉整套 JSON 解析 | `PickBest` 那一串代码和 8 条只测 JSON 的用例一并移除 |
+
+代价：RSS 没有附件清单、也没有预发布标记，所以发版时**产物文件名不能改**，预发布会被当成正式版。
+
 ## 0.5.2 修了什么
 
 | 问题 | 现在的行为 |
 | --- | --- |
-| 「检查更新」报「GitHub 拒绝了请求（查询太频繁）」 | GitHub 的匿名 API 每小时只给 60 次，公司/共用代理的出口 IP 很容易一早就用光。现在被限流时自动改读 `releases.atom`（走网页边缘，不占这个配额），照样能查到新版本并下载 |
+| 「检查更新」报「GitHub 拒绝了请求（查询太频繁）」 | GitHub 的匿名 API 每小时只给 60 次，共用代理的出口 IP 很容易一早就用光。这一版加了 RSS 备用通道（被限流时改读 `releases.atom`）；0.5.3 起主路也走 RSS，API 完全不碰了 |
 
-走 RSS 备用通道时，更新说明正文和安装包大小拿不到（RSS 里没有这两样），「发现新版本 x.y.z」和下载按钮都正常。
+RSS 里没有更新说明正文和安装包大小这两样，所以更新对话框只显示版本号、发布页链接和下载按钮。
 
 ## 0.5.1 修了什么
 
@@ -113,6 +123,28 @@
 | `MdViewer-<版本>-portable.exe` | ~60 MB | 发给别人，任何 Win10/11 双击就跑 |
 
 两个都是真正的单文件：没有 dll、没有 runtimes 目录。
+
+## 改完代码想立刻用上（本地开发）
+
+别用「检查更新」——那是发给别人用的。改完源码直接跑：
+
+```powershell
+.\src\MdViewer\devrun.ps1
+```
+
+四步：编译单文件 → 关掉正在跑的实例 → 覆盖
+`%LOCALAPPDATA%\Programs\MdViewer\MdViewer.exe` → 带着刚才那个文档重新打开。
+
+```powershell
+.\src\MdViewer\devrun.ps1 -NoStart        # 只覆盖，不启动
+.\src\MdViewer\devrun.ps1 -File .\a.md    # 指定打开哪个文件
+.\src\MdViewer\devrun.ps1 -Portable       # 编自带运行时的 60 MB 版
+```
+
+- 只替换一枚 exe：不碰注册表、不碰快捷方式、不碰 `.md` 关联，装一次 `install.ps1` 之后一直有效
+- 覆盖前把旧版改名成 `MdViewer.exe.old`，新版起不来就把它改回 `MdViewer.exe` 退回去
+- 默认编 local，十来秒。成品 5.4 MB —— 20 套主题、KaTeX、Mermaid、highlight.js 都嵌在里面
+- 默认**不**勾「启动时检查更新」，所以本地版不会自己弹新版本提示
 
 ## 快捷键
 
