@@ -26,10 +26,12 @@ function sortDeep(value: unknown): unknown {
   return value
 }
 
-export default function render(root: HTMLElement): void {
+export default function render(root: HTMLElement, ctx?: { src: string | null; params?: URLSearchParams }): void {
   let indent: 2 | 4 | '\t' = 2
   let sortKeys = false
   let lastGood = ''
+  /** 当前输出形态：压缩过后再改缩进、改输入，应该还是压缩，不能自己跳回格式化 */
+  let mode: 'pretty' | 'minify' = 'pretty'
 
   const input = el('textarea', {
     class: 'ta',
@@ -58,7 +60,8 @@ export default function render(root: HTMLElement): void {
     outFoot.textContent = ''
   }
 
-  function run(mode: 'pretty' | 'minify' = 'pretty'): void {
+  function run(next?: 'pretty' | 'minify'): void {
+    if (next) mode = next
     const text = input.value.trim()
     inFoot.textContent = `${input.value.length} 字符`
 
@@ -80,19 +83,19 @@ export default function render(root: HTMLElement): void {
       msg.className = 'msg'
       msg.textContent = ''
       lastGood = final
-      outFoot.textContent = `${final.split('\n').length} 行 · ${final.length} 字符 · ${fmtBytes(new Blob([final]).size)}`
+      outFoot.textContent = `${mode === 'minify' ? '已压缩' : '已格式化'} · ${final.split('\n').length} 行 · ${final.length} 字符 · ${fmtBytes(new Blob([final]).size)}`
     } catch (err) {
       fail((err as Error).message)
     }
   }
 
-  const lazyRun = debounce(() => run('pretty'), 220)
+  const lazyRun = debounce(() => run(), 220)
 
   input.addEventListener('input', lazyRun)
   input.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault()
-      run('pretty')
+      run()
     }
   })
 
@@ -105,29 +108,50 @@ export default function render(root: HTMLElement): void {
     2,
     (v) => {
       indent = v
-      run('pretty')
+      run()
     },
   )
 
   const sortBox = check('键名排序', false, (v) => {
     sortKeys = v
-    run('pretty')
+    run()
   })
 
+  const modeSeg = seg<'pretty' | 'minify'>(
+    [
+      { label: '格式化', value: 'pretty' },
+      { label: '压缩', value: 'minify' },
+    ],
+    'pretty',
+    (v) => {
+      mode = v
+      run()
+    },
+  )
+
+  /** 外部改模式时，把 seg 的高亮也带上 */
+  function setMode(next: 'pretty' | 'minify'): void {
+    mode = next
+    modeSeg.querySelectorAll('button').forEach((b, i) => {
+      b.classList.toggle('on', (i === 0 ? 'pretty' : 'minify') === next)
+    })
+    run()
+  }
+
   const bar = toolbar(
+    modeSeg,
     indentSeg,
     sortBox,
-    btn('压缩', () => run('minify')),
     el('span', { class: 'spacer' }),
     btn('示例', () => {
       input.value = SAMPLE
       indent = 2
       sortKeys = false
-      run('pretty')
+      setMode('pretty')
     }, 'ghost'),
     btn('清空', () => {
       input.value = ''
-      run('pretty')
+      run()
     }, 'ghost'),
   )
 
@@ -145,5 +169,14 @@ export default function render(root: HTMLElement): void {
   })
 
   root.append(msg, bar, el('div', { class: 'panes' }, inputPane, outPane))
+
+  const wantMinify = ctx?.params?.get('mode') === 'minify'
+  if (ctx?.src) {
+    input.value = ctx.src
+    if (wantMinify) setMode('minify')
+    else run()
+    return
+  }
+  if (wantMinify) setMode('minify')
   input.focus()
 }

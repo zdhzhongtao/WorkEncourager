@@ -904,3 +904,20 @@ kbd {
 }
 .enc-radio.on .enc-radio-demo { background: #fff; color: var(--accent); }
 .enc-modes-tip { font-size: 11.5px; color: var(--text-faint); margin: 0 0 10px 2px; }
+
+/* 文件 ↔ Base64：类型行、输出形式、预览 */
+.enc-file-body { display: flex; flex-direction: column; gap: 9px; }
+.enc-file-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.enc-file-bar .field-label { min-width: 58px; }
+.enc-preview { display: flex; justify-content: center; }
+.enc-preview:empty { display: none; }
+.enc-file-tip { font-size: 11.5px; line-height: 1.7; color: var(--text-faint); }
+.enc-file-tip code {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--text-dim);
+}

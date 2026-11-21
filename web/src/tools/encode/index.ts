@@ -1,6 +1,6 @@
 import { el } from '../../core/dom'
 import { copy, download, toast } from '../../core/kit'
-import { btn, foot, pane, toolbar } from '../../core/ui'
+import { btn, foot, pane, seg, toolbar } from '../../core/ui'
 
 type Mode =
   | 'base64'
@@ -541,6 +541,133 @@ export function detect(raw: string): Hit[] {
   return strong.slice(0, 4)
 }
 
+/* ---------------- 文件类型：扩展名 ⇄ MIME ⇄ 文件头 ---------------- */
+
+const MIME_BY_EXT: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  avif: 'image/avif',
+  bmp: 'image/bmp',
+  svg: 'image/svg+xml',
+  ico: 'image/x-icon',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
+  pdf: 'application/pdf',
+  json: 'application/json',
+  xml: 'application/xml',
+  txt: 'text/plain',
+  csv: 'text/csv',
+  html: 'text/html',
+  css: 'text/css',
+  js: 'text/javascript',
+  md: 'text/markdown',
+  zip: 'application/zip',
+  gz: 'application/gzip',
+  tar: 'application/x-tar',
+  '7z': 'application/x-7z-compressed',
+  rar: 'application/vnd.rar',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  m4a: 'audio/mp4',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  woff: 'font/woff',
+  woff2: 'font/woff2',
+  ttf: 'font/ttf',
+  otf: 'font/otf',
+  wasm: 'application/wasm',
+}
+
+const EXT_BY_MIME: Record<string, string> = {}
+for (const [ext, mime] of Object.entries(MIME_BY_EXT)) if (!EXT_BY_MIME[mime]) EXT_BY_MIME[mime] = ext
+EXT_BY_MIME['image/jpeg'] = 'jpg'
+EXT_BY_MIME['image/tiff'] = 'tif'
+EXT_BY_MIME['text/plain'] = 'txt'
+
+function extOfName(name: string): string {
+  const m = /\.([A-Za-z0-9]{1,8})$/.exec(name.trim())
+  return m ? m[1].toLowerCase() : ''
+}
+
+/** 没有 file.type 时按扩展名猜 */
+function mimeOfName(name: string, declared?: string): string {
+  if (declared && declared !== 'application/octet-stream') return declared
+  return MIME_BY_EXT[extOfName(name)] ?? ''
+}
+
+/** 文件头嗅探：粘进来一段没名字的 Base64 也能判断出类型 */
+function sniffMime(bytes: Uint8Array): string {
+  const b = bytes
+  if (!b.length) return ''
+  const txt = (from: number, len: number): string => {
+    let s = ''
+    for (let i = from; i < Math.min(from + len, b.length); i++) s += String.fromCharCode(b[i])
+    return s
+  }
+  if (b.length >= 8 && b[0] === 0x89 && txt(1, 3) === 'PNG') return 'image/png'
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'
+  if (b.length >= 6 && (txt(0, 6) === 'GIF87a' || txt(0, 6) === 'GIF89a')) return 'image/gif'
+  if (b.length >= 12 && txt(0, 4) === 'RIFF' && txt(8, 4) === 'WEBP') return 'image/webp'
+  if (b.length >= 12 && txt(0, 4) === 'RIFF' && txt(8, 4) === 'WAVE') return 'audio/wav'
+  if (b.length >= 5 && txt(0, 5) === '%PDF-') return 'application/pdf'
+  if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04) return 'application/zip'
+  if (b.length >= 2 && b[0] === 0x1f && b[1] === 0x8b) return 'application/gzip'
+  if (b.length >= 4 && b[0] === 0x00 && b[1] === 0x00 && b[2] === 0x01 && b[3] === 0x00) return 'image/x-icon'
+  if (b.length >= 4 && txt(0, 4) === 'OggS') return 'audio/ogg'
+  if (b.length >= 4 && txt(0, 4) === 'fLaC') return 'audio/flac'
+  if (b.length >= 3 && txt(0, 3) === 'ID3') return 'audio/mpeg'
+  if (b.length >= 2 && b[0] === 0xff && (b[1] & 0xe0) === 0xe0) return 'audio/mpeg'
+  if (b.length >= 12 && txt(4, 4) === 'ftyp') return 'video/mp4'
+  if (b.length >= 4 && b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return 'video/webm'
+  if (b.length >= 4 && txt(0, 4) === 'wOFF') return 'font/woff'
+  if (b.length >= 4 && txt(0, 4) === 'wOF2') return 'font/woff2'
+  if (b.length >= 4 && b[0] === 0x00 && txt(1, 3) === 'asm') return 'application/wasm'
+  if (b.length >= 2 && txt(0, 2) === 'BM') return 'image/bmp'
+  return ''
+}
+
+/** 生成能直接贴进 HTML 的片段 */
+function htmlSnippet(mime: string, raw: string, name: string, ext: string): string {
+  const uri = `data:${mime || 'application/octet-stream'};base64,${raw}`
+  const file = name || `file.${ext}`
+  if (mime.startsWith('image/')) return `<img src="${uri}" alt="${file}" />`
+  if (mime.startsWith('audio/')) return `<audio controls src="${uri}"></audio>`
+  if (mime.startsWith('video/')) return `<video controls src="${uri}"></video>`
+  if (mime === 'application/pdf') return `<iframe src="${uri}" width="100%" height="600" title="${file}"></iframe>`
+  if (mime.startsWith('font/')) return `<style>@font-face { font-family: "custom"; src: url("${uri}"); }</style>`
+  return `<a download="${file}" href="${uri}">下载 ${file}</a>`
+}
+
+/** 粘进来的东西可能是纯 Base64，也可能是整串 data URI */
+function parseAnyBase64(text: string): { raw: string; mime: string } {
+  const t = text.trim()
+  const m = /^data:([^;,]*)(;[^,]*)?,/i.exec(t)
+  if (m) return { raw: t.slice(m[0].length).replace(/\s+/g, ''), mime: (m[1] || '').toLowerCase() }
+  return { raw: t.replace(/\s+/g, ''), mime: '' }
+}
+
+function approxBytes(b64: string): number {
+  const pad = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0
+  return Math.max(0, Math.floor((b64.length * 3) / 4) - pad)
+}
+
+function fmtSize(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / 1024 / 1024).toFixed(2)} MB`
+}
+
 /* ---------------- 页面 ---------------- */
 
 export default function render(root: HTMLElement, ctx: { src: string | null; params?: URLSearchParams }): void {
@@ -791,33 +918,173 @@ export default function render(root: HTMLElement, ctx: { src: string | null; par
 
   /* ---------- 文件 ↔ Base64 ---------- */
 
+  type FileForm = 'raw' | 'uri' | 'html'
+  let fileForm: FileForm = 'raw'
+  let rawB64 = ''
+  let fileName = ''
+  let sniffedMime = ''
+
   const fileInput = el('input', { type: 'file', style: { display: 'none' } })
-  const fileInfo = el('span', { class: 'hint', text: '没选文件' })
+  const fileInfo = el('span', { class: 'hint', text: '还没选文件' })
+  const mimeInput = el('input', {
+    class: 'inp',
+    type: 'text',
+    spellcheck: false,
+    placeholder: '自动识别',
+    style: { width: '224px' },
+    oninput: () => renderFile(),
+  })
+  mimeInput.setAttribute('list', 'enc-mime-options')
+  const mimeList = el('datalist', { id: 'enc-mime-options' })
+  for (const m of [
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+    'application/pdf',
+    'application/zip',
+    'audio/mpeg',
+    'video/mp4',
+    'text/plain',
+    'application/json',
+  ])
+    mimeList.append(el('option', { value: m }))
+
   const fileOut = el('textarea', {
     class: 'ta',
     spellcheck: false,
-    placeholder: '选文件后这里出现 Base64；反过来，粘 Base64 也可以下载成文件。',
-    style: { minHeight: '90px' },
+    placeholder: '选个文件，这里会出现能直接贴进网页的 Base64；反过来，粘 Base64 或整串 data:image/png;base64,... 也能下载成文件。',
+    style: { minHeight: '98px' },
   })
+  const preview = el('div', { class: 'enc-preview' })
+
+  function mimeNow(): string {
+    return mimeInput.value.trim() || sniffedMime || 'application/octet-stream'
+  }
+
+  function effectiveExt(): string {
+    return EXT_BY_MIME[mimeNow()] || extOfName(fileName) || 'bin'
+  }
+
+  function renderFile(): void {
+    const mime = mimeNow()
+    if (fileForm === 'raw') fileOut.value = rawB64
+    else if (fileForm === 'uri') fileOut.value = rawB64 ? `data:${mime};base64,${rawB64}` : ''
+    else fileOut.value = rawB64 ? htmlSnippet(mime, rawB64, fileName, effectiveExt()) : ''
+    renderPreview(mime)
+    renderFileInfo()
+  }
+
+  function renderFileInfo(): void {
+    if (!rawB64) {
+      fileInfo.textContent = '还没选文件'
+      return
+    }
+    const who = fileName || '粘贴进来的数据'
+    fileInfo.textContent = `${who} · ${fmtSize(approxBytes(rawB64))} · ${mimeNow()}`
+  }
+
+  function renderPreview(mime: string): void {
+    preview.innerHTML = ''
+    if (!rawB64) return
+    if (approxBytes(rawB64) > 8 * 1024 * 1024) {
+      preview.append(el('div', { class: 'hint', text: '文件超过 8 MB，为了不卡页面这里就不预览了，直接下载看。' }))
+      return
+    }
+    const uri = `data:${mime};base64,${rawB64}`
+    if (mime.startsWith('image/')) {
+      preview.append(
+        el('img', { src: uri, alt: '预览', style: { maxWidth: '100%', maxHeight: '240px', borderRadius: '8px', border: '1px solid var(--border)' } }),
+      )
+    } else if (mime.startsWith('audio/')) {
+      preview.append(el('audio', { controls: true, src: uri, style: { width: '100%' } }))
+    } else if (mime.startsWith('video/')) {
+      preview.append(el('video', { controls: true, src: uri, style: { maxWidth: '100%', maxHeight: '240px', borderRadius: '8px' } }))
+    } else if (mime === 'application/pdf') {
+      preview.append(el('iframe', { src: uri, title: 'PDF 预览', style: { width: '100%', height: '300px', border: '1px solid var(--border)', borderRadius: '8px' } }))
+    } else {
+      preview.append(el('div', { class: 'hint', text: `${mime || '未知类型'} 不能直接在网页里显示，下载后用对应程序打开。` }))
+    }
+  }
+
+  function loadBytes(bytes: Uint8Array, name: string, mime: string): void {
+    rawB64 = bytesToBase64(bytes)
+    fileName = name
+    sniffedMime = sniffMime(bytes)
+    mimeInput.value = mime || sniffedMime || 'application/octet-stream'
+    renderFile()
+  }
+
+  const formSeg = seg<FileForm>(
+    [
+      { label: '纯 Base64', value: 'raw' },
+      { label: 'data URI', value: 'uri' },
+      { label: 'HTML 片段', value: 'html' },
+    ],
+    'raw',
+    (v) => {
+      fileForm = v
+      renderFile()
+    },
+  )
 
   fileInput.addEventListener('change', async () => {
     const file = fileInput.files?.[0]
     if (!file) return
     const bytes = new Uint8Array(await file.arrayBuffer())
-    fileOut.value = bytesToBase64(bytes)
-    fileInfo.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB`
-    toast('已转成 Base64')
+    loadBytes(bytes, file.name, mimeOfName(file.name, file.type))
+    toast(`已转成 ${fileForm === 'raw' ? 'Base64' : fileForm === 'uri' ? 'data URI' : 'HTML 片段'}`)
   })
 
-  const filePane = pane('文件 ↔ Base64', fileOut, {
+  /* 手动粘/改内容时，同步回状态（不重写 textarea，免得光标乱跳） */
+  fileOut.addEventListener('input', () => {
+    const parsed = parseAnyBase64(fileOut.value)
+    rawB64 = parsed.raw
+    let sniffed = ''
+    try {
+      sniffed = sniffMime(base64ToBytes(parsed.raw))
+    } catch {
+      sniffed = ''
+    }
+    sniffedMime = sniffed
+    // 换了内容就重新认类型：data URI 里写明的优先，其次看文件头
+    mimeInput.value = parsed.mime || sniffed || ''
+    fileName = ''
+    renderPreview(mimeNow())
+    renderFileInfo()
+  })
+
+  const filePane = pane('文件 ↔ Base64（带类型）', el('div', { class: 'enc-file-body' },
+    el('div', { class: 'enc-file-bar' },
+      el('span', { class: 'field-label', text: 'MIME 类型' }),
+      mimeInput,
+      mimeList,
+      el('span', { class: 'hint', text: '选文件自动填 · 粘 Base64 按文件头猜' }),
+    ),
+    el('div', { class: 'enc-file-bar' },
+      el('span', { class: 'field-label', text: '输出形式' }),
+      formSeg,
+    ),
+    fileOut,
+    preview,
+    el('div', { class: 'enc-file-tip' },
+      '纯 Base64 用在 ',
+      el('code', { text: '<img src="data:image/png;base64,…">' }),
+      ' 这种要自己拼前缀的地方；data URI 是整串，可以直接粘到浏览器地址栏（图片、PDF 会打开，其它类型会下载但文件名可能丢）；要保住文件名、直接给人点，就用「HTML 片段」里的 ',
+      el('code', { text: '<a download>' }),
+      '。',
+    ),
+  ), {
     actions: [
       btn('选文件', () => fileInput.click()),
       btn('下载为文件', () => {
-        const raw = fileOut.value.trim()
-        if (!raw) return toast('先选个文件或粘一段 Base64')
+        const { raw } = parseAnyBase64(fileOut.value)
+        if (!raw) return toast('先选个文件，或粘一段 Base64')
         try {
           const bytes = base64ToBytes(raw)
-          download('decoded.bin', new Blob([bytes as unknown as BlobPart]), 'application/octet-stream')
+          const mime = mimeNow()
+          download(fileName || `decoded.${effectiveExt()}`, new Blob([bytes as unknown as BlobPart], { type: mime }), mime)
         } catch {
           toast('这段不是合法的 Base64')
         }
