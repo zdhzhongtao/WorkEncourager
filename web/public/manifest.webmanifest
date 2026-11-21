@@ -1,0 +1,19 @@
+{
+  "name": "WadeToolbox · 前端开发者工具箱",
+  "short_name": "WadeToolbox",
+  "description": "纯浏览器运行的开发者小工具集，断网可用，数据不上传。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f7f9",
+  "theme_color": "#2563eb",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%232563eb'/%3E%3Ctext x='256' y='344' font-family='system-ui,sans-serif' font-size='248' font-weight='700' fill='white' text-anchor='middle'%3EW%3C/text%3E%3C/svg%3E",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

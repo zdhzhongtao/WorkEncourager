@@ -2,7 +2,7 @@ import { el } from '../../core/dom'
 import { copy, download } from '../../core/kit'
 import { btn, check, foot, pane, seg, toolbar } from '../../core/ui'
 
-type Mode = 'uuid' | 'nanoid'
+type Mode = 'uuid' | 'nanoid' | 'ulid' | 'snowflake'
 
 const ALPHABETS: Array<{ value: string; label: string; chars: string }> = [
   { value: 'url', label: 'URL 安全（默认）', chars: 'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict' },
@@ -40,6 +40,42 @@ function randomId(size: number, alphabet: string): string {
 
 const clamp = (n: number, min: number, max: number): number => Math.min(max, Math.max(min, n))
 
+/* ULID：10 位时间戳 + 16 位随机，Crockford Base32 */
+const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+
+function ulid(): string {
+  let t = Date.now()
+  let time = ''
+  for (let i = 0; i < 10; i++) {
+    time = CROCKFORD[t % 32] + time
+    t = Math.floor(t / 32)
+  }
+  return time + randomId(16, CROCKFORD)
+}
+
+/* Snowflake：41 位毫秒时间戳 + 10 位机器号 + 12 位序列 */
+const EPOCH = 1700000000000n
+let seq = 0
+let lastMs = 0
+
+function snowflake(worker = 1): string {
+  let now = Date.now()
+  if (now === lastMs) {
+    seq = (seq + 1) & 0xfff
+    if (seq === 0) {
+      while (Date.now() === now) {
+        /* 同毫秒序列用尽，等下一毫秒 */
+      }
+      now = Date.now()
+    }
+  } else {
+    seq = 0
+  }
+  lastMs = now
+  const value = (BigInt(now) - EPOCH) << 22n | (BigInt(worker & 0x3ff) << 12n) | BigInt(seq)
+  return value.toString()
+}
+
 export default function render(root: HTMLElement): void {
   let mode: Mode = 'uuid'
   let upper = false
@@ -74,9 +110,12 @@ export default function render(root: HTMLElement): void {
 
     items = []
     for (let i = 0; i < count; i++) {
-      items.push(mode === 'uuid' ? uuidv4() : randomId(size, currentAlphabet()))
+      if (mode === 'uuid') items.push(uuidv4())
+      else if (mode === 'nanoid') items.push(randomId(size, currentAlphabet()))
+      else if (mode === 'ulid') items.push(ulid())
+      else items.push(snowflake())
     }
-    if (upper) items = items.map((s) => s.toUpperCase())
+    if (upper && mode !== 'ulid') items = items.map((s) => s.toUpperCase())
 
     listHost.innerHTML = ''
     const body = el('tbody', null)
@@ -110,6 +149,8 @@ export default function render(root: HTMLElement): void {
     [
       { label: 'UUID v4', value: 'uuid' },
       { label: 'NanoID', value: 'nanoid' },
+      { label: 'ULID', value: 'ulid' },
+      { label: 'Snowflake', value: 'snowflake' },
     ],
     'uuid',
     (v) => {
@@ -150,7 +191,7 @@ export default function render(root: HTMLElement): void {
     el(
       'div',
       { class: 'hint', style: { marginTop: '10px' } },
-      'UUID v4 与 NanoID 都由浏览器 crypto.getRandomValues 生成，不经过任何网络请求。',
+      'UUID v4 / NanoID / ULID 都由浏览器 crypto.getRandomValues 生成；Snowflake 用本地时钟，只是时间有序的 64 位整数，不作分布式唯一性保证。',
     ),
   )
 

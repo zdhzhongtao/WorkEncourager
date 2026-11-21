@@ -1,7 +1,7 @@
 {
   "name": "wadetoolbox-web",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "WadeToolbox Web - 前端 / 开发者工具箱，纯浏览器本地运行",
   "scripts": {
@@ -12,7 +12,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "qrcode": "^1.5.4"
+    "bcryptjs": "^3.0.3",
+    "dompurify": "^3.4.18",
+    "js-yaml": "^5.5.0",
+    "jsbarcode": "^3.12.3",
+    "jsqr": "^1.4.0",
+    "marked": "^18.2.1",
+    "opencc-js": "^1.4.2",
+    "pinyin-pro": "^3.29.5",
+    "qrcode": "^1.5.4",
+    "sm-crypto": "^0.5.9",
+    "sql-formatter": "^15.10.0"
   },
   "devDependencies": {
     "@types/qrcode": "^1.5.5",

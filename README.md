@@ -18,7 +18,7 @@
 | [表格拆合器 SheetSplitter](src/SheetSplitter/README.md) | 按列值拆分、多文件合并、多 sheet 合并、按行数拆分，源文件只读 | WPF 桌面程序 | 🚧 v0.1.1 |
 | [财务小算盘 MoneyCalc](src/MoneyCalc/README.md) | 人民币大写、工作日计算、含税换算、日期推算、汇率换算 | WPF 桌面程序 | 🚧 v0.1.1 |
 | [Markdown 阅读器 MdViewer](src/MdViewer/README.md) | 双击 .md / .epub 直接打开，20 套主题 + 公式图表 + 标注书签 + 朗读 + 多标签 + 导出 PDF/长图，自带安装脚本 | WPF 桌面程序 | ✅ v0.5.3 |
-| [网页工具箱 WadeToolbox Web](web/README.md) | 打开网页就能用的开发者小工具集（JSON / 编解码 / JWT / 时间戳 / 正则 / 对比 / 哈希 / UUID / 颜色 / 二维码），纯前端本地计算，可加进浏览器书签 | 静态网页（GitHub Pages） | ✅ v0.1.0 |
+| [网页工具箱 WadeToolbox Web](web/README.md) | 打开网页就能用的开发者小工具集（34 个：JSON / 格式互转 / 转代码 / SQL / Markdown / JWT 验签 / AES / 国密 / 正则 / Cron / 子网 / 图片 / 二维码…），支持工具接力、深链、片段库、PWA 离线，纯前端本地计算 | 静态网页（GitHub Pages） | ✅ v0.2.0 |
 
 > 新增工具请同时在 `WadeToolbox.slnx` 里加一行、在这张表里加一行。
 

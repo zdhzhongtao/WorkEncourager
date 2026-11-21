@@ -1,7 +1,13 @@
 import { CATEGORIES, TOOLS, countBy, findTool } from './core/registry'
-import type { ToolEntry } from './core/types'
+import type { ToolCtx, ToolEntry } from './core/types'
 import { el } from './core/dom'
 import { icon } from './core/icons'
+import { copy, toast } from './core/kit'
+import { btn } from './core/ui'
+import { emitFiles, isTextFile, readAsText } from './core/files'
+import { listSnippets, removeSnippet, renameSnippet, saveSnippet } from './core/store'
+import { sendTo } from './core/transfer'
+import { SHORTCUTS, openShortcuts } from './core/shortcuts'
 
 const FAV_KEY = 'wtb.favs.v1'
 const RECENT_KEY = 'wtb.recent.v1'
@@ -151,6 +157,15 @@ function buildSide(): HTMLElement {
   addItem('all', '全部工具', 'grid', TOOLS.length)
   addItem('fav', '我的收藏', 'star', readIds(FAV_KEY).length)
   addItem('recent', '最近使用', 'history', recents.length)
+  side.append(
+    el(
+      'button',
+      { class: 'side-item', onclick: () => { location.hash = '#/snippets' } },
+      el('span', { class: 'side-ico' }, icon('file')),
+      el('span', { text: '片段库' }),
+      listSnippets().length ? el('span', { class: 'count', text: String(listSnippets().length) }) : null,
+    ),
+  )
 
   side.append(el('div', { class: 'side-label', text: '分类' }))
   for (const c of CATEGORIES) addItem(c.id, c.label, c.icon, countBy(c.id))
@@ -173,6 +188,114 @@ function renderHome(): void {
   renderGrid()
 }
 
+/* ---------------- 片段库 ---------------- */
+
+function renderSnippets(): void {
+  cleanup()
+  loadToken++
+  view.innerHTML = ''
+  document.title = '片段库 · WadeToolbox'
+
+  const nameInput = el('input', { class: 'inp w-md', placeholder: '片段名称（比如「生产 JWT 公钥」）' })
+  const textInput = el('textarea', {
+    class: 'ta',
+    spellcheck: false,
+    placeholder: '粘贴要长期留存的 JSON / 正则 / Token / 命令…存在本机浏览器里，不上传。',
+    style: { minHeight: '110px' },
+  })
+
+  const listHost = el('div', { class: 'stack', style: { marginTop: '18px' } })
+
+  function renderList(): void {
+    listHost.innerHTML = ''
+    const items = listSnippets()
+    if (!items.length) {
+      listHost.append(el('div', { class: 'empty', text: '还没有片段。上面粘点东西，保存下来就会出现在这里。' }))
+      return
+    }
+    for (const s of items) {
+      const select = el('select', { class: 'inp w-md' })
+      select.append(el('option', { value: '', text: '打开到…' }))
+      for (const t of TOOLS) select.append(el('option', { value: t.id, text: t.name }))
+      select.addEventListener('change', () => {
+        if (select.value) sendTo(select.value, s.text)
+      })
+
+      const card = el(
+        'div',
+        { class: 'card-box' },
+        el(
+          'div',
+          { class: 'row' },
+          el('strong', { text: s.name }),
+          el('span', { class: 'hint', text: new Date(s.at).toLocaleString('zh-CN') }),
+          el('span', { class: 'spacer' }),
+          btn('复制', () => copy(s.text)),
+          select,
+          btn(
+            '重命名',
+            () => {
+              const next = window.prompt('新名字', s.name)
+              if (next) {
+                renameSnippet(s.id, next)
+                renderList()
+              }
+            },
+            'ghost',
+          ),
+          btn(
+            '删除',
+            () => {
+              if (!window.confirm(`删除片段「${s.name}」？`)) return
+              removeSnippet(s.id)
+              renderList()
+            },
+            'ghost',
+          ),
+        ),
+        el('pre', { class: 'plain', style: { marginTop: '8px', color: 'var(--text-dim)' }, text: s.text.slice(0, 320) + (s.text.length > 320 ? '…' : '') }),
+      )
+      listHost.append(card)
+    }
+  }
+
+  view.append(
+    el(
+      'div',
+      { class: 'tool-wrap' },
+      el('a', { class: 'back', href: '#/' }, '← 全部工具'),
+      el('h1', { class: 'tool-title', text: '片段库' }),
+      el('p', { class: 'tool-desc', text: '常用的长文本存在本机浏览器，随时复制或一键发到任意工具。' }),
+      el(
+        'div',
+        { class: 'card-box stack' },
+        el('div', { class: 'row' }, nameInput),
+        textInput,
+        el(
+          'div',
+          { class: 'row' },
+          btn(
+            '保存片段',
+            () => {
+              if (!textInput.value.trim()) return toast('内容是空的')
+              saveSnippet(nameInput.value, textInput.value)
+              nameInput.value = ''
+              textInput.value = ''
+              renderList()
+              toast('已保存到本机')
+            },
+            'primary',
+          ),
+          el('span', { class: 'hint', text: '只存在这台浏览器的 localStorage，换设备不同步。' }),
+        ),
+      ),
+      listHost,
+    ),
+  )
+  renderList()
+  textInput.focus()
+}
+
 /* ---------------- 工具页 ---------------- */
 
 function cleanup(): void {
@@ -186,7 +309,7 @@ function cleanup(): void {
   }
 }
 
-async function openTool(id: string): Promise<void> {
+async function openTool(id: string, src: string | null): Promise<void> {
   const tool = findTool(id)
   if (!tool) {
     location.hash = '#/'
@@ -218,12 +341,15 @@ async function openTool(id: string): Promise<void> {
   document.title = `${tool.name} · WadeToolbox`
   pushRecent(id)
 
+  const ctx: ToolCtx = { src, files: [] }
+
   try {
     const mod = await tool.load()
     if (token !== loadToken) return
     body.innerHTML = ''
-    const d = mod.default(body)
+    const d = mod.default(body, ctx)
     if (typeof d === 'function') dispose = d
+    if (src) toast('已填入传入的内容')
   } catch (err) {
     if (token !== loadToken) return
     body.innerHTML = ''
@@ -236,11 +362,43 @@ async function openTool(id: string): Promise<void> {
 
 function onRoute(): void {
   const raw = location.hash.replace(/^#\/?/, '')
-  if (raw.startsWith('t/')) {
-    void openTool(decodeURIComponent(raw.slice(2)))
-  } else {
-    renderHome()
+  const qIndex = raw.indexOf('?')
+  const path = qIndex >= 0 ? raw.slice(0, qIndex) : raw
+  const search = qIndex >= 0 ? raw.slice(qIndex + 1) : ''
+
+  if (path === 'snippets') {
+    renderSnippets()
+    return
   }
+  if (path.startsWith('t/')) {
+    const params = new URLSearchParams(search)
+    let src: string | null = null
+    const encoded = params.get('src')
+    if (encoded) {
+      try {
+        src = decodeBase64Url(encoded)
+      } catch {
+        src = null
+      }
+    } else if (params.get('pending')) {
+      try {
+        src = sessionStorage.getItem('wtb.pending.v1')
+        sessionStorage.removeItem('wtb.pending.v1')
+      } catch {
+        src = null
+      }
+    }
+    void openTool(decodeURIComponent(path.slice(2)), src)
+    return
+  }
+  renderHome()
+}
+
+function decodeBase64Url(raw: string): string {
+  const clean = raw.replace(/-/g, '+').replace(/_/g, '/')
+  const pad = (4 - (clean.length % 4)) % 4
+  const bin = atob(clean + '='.repeat(pad))
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)))
 }
 
 /* ---------------- 搜索 ---------------- */
@@ -252,6 +410,70 @@ function onSearchInput(e: Event): void {
     return
   }
   renderGrid()
+}
+
+/* ---------------- 全局拖拽 ---------------- */
+
+function setupDrop(): void {
+  let overlay: HTMLElement | null = null
+  let depth = 0
+
+  const show = () => {
+    if (overlay) return
+    overlay = el('div', { class: 'drop-overlay' }, el('div', { class: 'drop-card' }, '松手就丢给当前工具'))
+    document.body.appendChild(overlay)
+  }
+  const hide = () => {
+    overlay?.remove()
+    overlay = null
+    depth = 0
+  }
+
+  window.addEventListener('dragenter', (e) => {
+    if (!e.dataTransfer?.types.includes('Files')) return
+    depth++
+    show()
+  })
+  window.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer?.types.includes('Files')) return
+    e.preventDefault()
+  })
+  window.addEventListener('dragleave', () => {
+    depth--
+    if (depth <= 0) hide()
+  })
+  window.addEventListener('drop', (e) => {
+    if (!e.dataTransfer?.files?.length) return
+    e.preventDefault()
+    hide()
+    void handleDrop(Array.from(e.dataTransfer.files))
+  })
+}
+
+async function handleDrop(files: File[]): Promise<void> {
+  const first = files.find(isTextFile)
+  let text: string | undefined
+  if (first && first.size < 8 * 1024 * 1024) {
+    try {
+      text = await readAsText(first)
+    } catch {
+      text = undefined
+    }
+  }
+  const handled = emitFiles({ files, text, textName: first?.name })
+  if (handled) return
+
+  const body = document.querySelector('.tool-body')
+  if (text !== undefined && body) {
+    const ta = body.querySelector('textarea')
+    if (ta) {
+      ta.value = text
+      ta.dispatchEvent(new Event('input', { bubbles: true }))
+      toast(`已填入 ${first?.name ?? '文件内容'}`)
+      return
+    }
+  }
+  toast(files.length > 1 ? '这个工具一次只吃一个文件' : '当前工具不支持这种文件')
 }
 
 /* ---------------- 启动 ---------------- */
@@ -266,7 +488,7 @@ export function renderApp(root: HTMLElement): void {
 
   searchInput = el('input', {
     type: 'search',
-    placeholder: '搜索工具…',
+    placeholder: '搜索工具…（Ctrl / ⌘ + K）',
     autocomplete: 'off',
     spellcheck: false,
     oninput: onSearchInput,
@@ -287,6 +509,10 @@ export function renderApp(root: HTMLElement): void {
     { class: 'topbar' },
     brand,
     el('div', { class: 'search' }, searchInput),
+    el(
+      'button',
+      { class: 'btn ghost kb-btn', title: `快捷键（${SHORTCUTS.length} 条）`, text: '?', onclick: () => openShortcuts() },
+    ),
     el('div', { class: 'topmeta', text: `${TOOLS.length} 个工具 · 全部本地运行 · 不上传数据` }),
   )
 
@@ -295,12 +521,20 @@ export function renderApp(root: HTMLElement): void {
 
   window.addEventListener('hashchange', onRoute)
   window.addEventListener('keydown', (e) => {
+    const target = e.target as HTMLElement | null
+    const typing = target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault()
       searchInput.focus()
       searchInput.select()
+      return
+    }
+    if (!typing && (e.key === '?' || (e.shiftKey && e.key === '/'))) {
+      e.preventDefault()
+      openShortcuts()
     }
   })
 
+  setupDrop()
   onRoute()
 }

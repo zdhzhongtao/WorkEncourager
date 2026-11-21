@@ -101,13 +101,14 @@ function badge(ok: boolean, label: string): HTMLElement {
   })
 }
 
-export default function render(root: HTMLElement): void {
+export default function render(root: HTMLElement, ctx: { src: string | null }): void {
+  const initial = ctx.src && parseColor(ctx.src) ? ctx.src.trim() : '#2563eb'
   const textInput = el('input', {
     class: 'inp',
     type: 'text',
     style: { flex: '1', minWidth: '180px' },
     placeholder: '#2563eb / rgb(37 99 235) / hsl(221 83% 53%) / tomato',
-    value: '#2563eb',
+    value: initial,
   })
   const picker = el('input', { type: 'color', value: '#2563eb', style: { width: '42px', height: '30px', padding: '0', border: '1px solid var(--border-strong)', borderRadius: '7px', background: 'none' } })
 
@@ -121,7 +122,23 @@ export default function render(root: HTMLElement): void {
   const rampHost = el('div')
   const contrastHost = el('div', { class: 'stack' })
   const alphaHost = el('div', { class: 'stack' })
+  const twHost = el('div')
   const msg = el('div', { class: 'msg' })
+
+  /* Tailwind 式 11 级色阶：50 最浅，950 最深 */
+  const TW_STEPS: Array<[number, number, number]> = [
+    [50, 255, 0.95],
+    [100, 255, 0.9],
+    [200, 255, 0.75],
+    [300, 255, 0.55],
+    [400, 255, 0.25],
+    [500, 0, 0],
+    [600, 0, 0.12],
+    [700, 0, 0.28],
+    [800, 0, 0.42],
+    [900, 0, 0.56],
+    [950, 0, 0.7],
+  ]
 
   function renderAll(raw: string): void {
     const c = parseColor(raw)
@@ -232,6 +249,32 @@ export default function render(root: HTMLElement): void {
       )
     }
     alphaHost.append(vRow)
+
+    // Tailwind 色阶
+    twHost.innerHTML = ''
+    const grid = el('div', { class: 'grid-3' })
+    for (const [step, target, amount] of TW_STEPS) {
+      const value = toHex(mix(c, target, amount))
+      grid.append(
+        el(
+          'div',
+          { style: { cursor: 'pointer', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }, onclick: () => copy(value.toUpperCase()) },
+          el('div', { style: { height: '44px', background: value } }),
+          el('div', { style: { padding: '5px 8px', background: 'var(--surface)' } },
+            el('div', { class: 'mono', style: { fontSize: '11px' }, text: String(step) }),
+            el('div', { class: 'hint', style: { fontSize: '11px' }, text: value.toUpperCase() }),
+          ),
+        ),
+      )
+    }
+    const vars = TW_STEPS.map(([step, target, amount]) => `  --brand-${step}: ${toHex(mix(c, target, amount)).toUpperCase()};`).join('\n')
+    twHost.append(
+      grid,
+      el('div', { class: 'row', style: { marginTop: '8px' } },
+        el('span', { class: 'spacer' }),
+        btn('复制整套 CSS 变量', () => copy(`:root {\n${vars}\n}`), 'ghost'),
+      ),
+    )
   }
 
   textInput.addEventListener('input', () => renderAll(textInput.value))
@@ -269,7 +312,8 @@ export default function render(root: HTMLElement): void {
       rampHost,
     ),
     el('div', { class: 'card-box', style: { marginBottom: '12px' } }, el('div', { class: 'hint', style: { marginBottom: '8px' }, text: '可读性 / WCAG 对比度' }), contrastHost),
-    el('div', { class: 'card-box' }, el('div', { class: 'hint', style: { marginBottom: '8px' }, text: '派生色（点击复制）' }), alphaHost),
+    el('div', { class: 'card-box', style: { marginBottom: '12px' } }, el('div', { class: 'hint', style: { marginBottom: '8px' }, text: '派生色（点击复制）' }), alphaHost),
+    el('div', { class: 'card-box' }, el('div', { class: 'hint', style: { marginBottom: '8px' }, text: 'Tailwind 式 11 级色阶（点击复制）' }), twHost),
   )
 
   renderAll(textInput.value)

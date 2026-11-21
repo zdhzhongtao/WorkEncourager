@@ -8,14 +8,8 @@ export default defineConfig({
     outDir: 'dist',
     target: 'es2022',
     assetsInlineLimit: 4096,
-    chunkSizeWarningLimit: 900,
-    rollupOptions: {
-      output: {
-        // 工具都是动态 import，这里只把公共运行时代码单独拆出来
-        manualChunks(id) {
-          if (id.includes('node_modules')) return 'vendor'
-        },
-      },
-    },
+    chunkSizeWarningLimit: 1600,
+    // 不加 manualChunks：让 Rollup 跟着动态 import 自动拆，
+    // 否则打开任何一个工具都会被迫下载整个 vendor（opencc 字典就 1MB+）。
   },
 })
