@@ -5,13 +5,15 @@ export function btn(label: string, onclick: (e: MouseEvent) => void, cls = ''): 
   return el('button', { class: `btn ${cls}`.trim(), text: label, onclick })
 }
 
-/** 分段选择器 */
+/** 分段选择器；返回值带 set()，方便代码里改状态时同步高亮 */
+export type SegBox<T> = HTMLElement & { set: (v: T) => void }
+
 export function seg<T extends string | number>(
   items: Array<{ label: string; value: T }>,
   current: T,
   onPick: (v: T) => void,
-): HTMLElement {
-  const box = el('div', { class: 'seg' })
+): SegBox<T> {
+  const box = el('div', { class: 'seg' }) as unknown as SegBox<T>
   const buttons: HTMLElement[] = []
   for (const item of items) {
     const b = el('button', {
@@ -25,6 +27,10 @@ export function seg<T extends string | number>(
     })
     buttons.push(b)
     box.append(b)
+  }
+  /** 只切高亮，不触发 onPick（避免递归） */
+  box.set = (v: T) => {
+    items.forEach((item, i) => buttons[i].classList.toggle('on', item.value === v))
   }
   return box
 }

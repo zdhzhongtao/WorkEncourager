@@ -34,7 +34,7 @@ const WHOLE: Array<{ label: string; make: (s: string) => string }> = [
   { label: '每词首字母大写', make: (s) => s.replace(/\b[a-zA-Z]/g, (c) => c.toUpperCase()) },
   { label: '每句首字母大写', make: (s) => s.replace(/(^|[.!?]\s+)([a-z])/g, (_, p: string, c: string) => p + c.toUpperCase()) },
   { label: '大小写互换', make: (s) => s.replace(/[a-zA-Z]/g, (c) => (c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase())) },
-  { label: '反转大小写后再转回来', make: (s) => s.split('').reverse().join('') },
+  { label: '反转字符串', make: (s) => s.split('').reverse().join('') },
 ]
 
 export default function render(root: HTMLElement, ctx: { src: string | null }): void {

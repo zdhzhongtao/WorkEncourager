@@ -340,6 +340,11 @@ a:hover { color: var(--accent-hover); }
   font-weight: 550;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.09);
 }
+.seg button:disabled { opacity: 0.4; cursor: not-allowed; }
+.chip:disabled { opacity: 0.4; cursor: not-allowed; border-style: dashed; }
+.chip:disabled:hover { border-color: var(--border); color: inherit; }
+select.inp:disabled,
+.inp:disabled { opacity: 0.5; cursor: not-allowed; }
 
 label.check {
   display: inline-flex;

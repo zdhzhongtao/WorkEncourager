@@ -1,10 +1,12 @@
-import { el } from '../../core/dom'
+import { seg } from '../../core/ui'
 import { workbench } from '../../core/workbench'
 
 const VOID_TAGS = new Set([
   'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr',
 ])
 const RAW_TAGS = new Set(['script', 'style', 'pre', 'textarea'])
+
+type Mode = 'pretty' | 'minify'
 
 interface Piece {
   type: 'open' | 'close' | 'self' | 'text' | 'comment' | 'decl' | 'raw'
@@ -90,7 +92,7 @@ function tokenize(src: string): Piece[] {
       const re = new RegExp(`</\\s*${name}\\s*>`, 'i')
       const m = re.exec(src.slice(i))
       if (m) {
-        pieces.push({ type: 'raw', raw: src.slice(i, i + m.index) })
+        pieces.push({ type: 'raw', raw: src.slice(i, i + m.index), name })
         i += m.index
       }
     }
@@ -172,30 +174,109 @@ function formatMarkup(src: string, indentSize: number): string {
   return serialize(tree, ' '.repeat(indentSize)).join('\n')
 }
 
+/** 标签内部折叠空白，但不碰引号里的属性值 */
+function collapseTagSpace(raw: string): string {
+  let out = ''
+  let quote: string | null = null
+  let space = false
+  for (const ch of raw) {
+    if (quote) {
+      out += ch
+      if (ch === quote) quote = null
+      continue
+    }
+    if (ch === '"' || ch === "'") {
+      if (space) out += ' '
+      space = false
+      quote = ch
+      out += ch
+      continue
+    }
+    if (/\s/.test(ch)) {
+      space = true
+      continue
+    }
+    if (space) out += ' '
+    space = false
+    out += ch
+  }
+  return out
+}
+
+/**
+ * 压缩：删注释、折叠标签间与标签内的空白。
+ * script / style / pre / textarea 的内容一字不动（压了会改语义）。
+ */
 function minifyMarkup(src: string): string {
-  let out = src.replace(/<!--[\s\S]*?-->/g, '')
-  out = out
-    .split(/(<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>)/gi)
-    .map((part) =>
-      /^<(script|style)/i.test(part) ? part : part.replace(/>\s+</g, '><').replace(/\s{2,}/g, ' '),
-    )
-    .join('')
-  return out.trim()
+  const pieces = tokenize(src)
+  let out = ''
+
+  for (const p of pieces) {
+    if (p.type === 'comment') continue
+    if (p.type === 'raw') {
+      out += p.raw
+      continue
+    }
+    if (p.type === 'text') {
+      const text = p.raw.replace(/\s+/g, ' ')
+      if (!text.trim()) continue
+      // 前后各留一个空格，避免把相邻标签的文字粘在一起
+      const lead = /^\s/.test(text) ? ' ' : ''
+      const tail = /\s$/.test(text) ? ' ' : ''
+      out += lead + text.trim() + tail
+      continue
+    }
+    out += collapseTagSpace(p.raw)
+  }
+
+  return out.replace(/>\s+</g, '><').trim()
 }
 
 const SAMPLE = `<div class="card"><h2>订单</h2><p>共 3 条记录
 <span>今天</span></p><ul><li>A</li><li>B</li></ul><input type="text" /><!-- 备注 --></div>`
 
-export default function render(root: HTMLElement, ctx: { src: string | null }): void {
+export default function render(
+  root: HTMLElement,
+  ctx?: { src: string | null; params?: URLSearchParams },
+): void {
   let indentSize = 2
+  let mode: Mode = 'pretty'
 
-  const indentSel = el('select', { class: 'inp w-sm' })
-  for (const n of [2, 4]) indentSel.append(el('option', { value: String(n), text: `${n} 空格` }))
-  indentSel.value = String(indentSize)
-  indentSel.addEventListener('change', () => {
-    indentSize = Number(indentSel.value)
+  const indentSeg = seg<number>(
+    [
+      { label: '2 空格', value: 2 },
+      { label: '4 空格', value: 4 },
+    ],
+    indentSize,
+    (v) => {
+      indentSize = v
+      wb.run()
+    },
+  )
+
+  const modeSeg = seg<Mode>(
+    [
+      { label: '格式化', value: 'pretty' },
+      { label: '压缩', value: 'minify' },
+    ],
+    mode,
+    (v) => setMode(v),
+  )
+
+  function syncControls(): void {
+    const min = mode === 'minify'
+    indentSeg.querySelectorAll('button').forEach((b) => {
+      ;(b as HTMLButtonElement).disabled = min
+      b.title = min ? '压缩不缩进' : ''
+    })
+  }
+
+  function setMode(next: Mode): void {
+    mode = next
+    modeSeg.set(next)
+    syncControls()
     wb.run()
-  })
+  }
 
   let wb: ReturnType<typeof workbench>
 
@@ -204,28 +285,33 @@ export default function render(root: HTMLElement, ctx: { src: string | null }): 
     placeholder: '粘贴 XML / HTML…',
     outPh: '格式化结果…',
     sample: SAMPLE,
-    initial: ctx.src ?? undefined,
+    initial: ctx?.src ?? undefined,
     accepts: ['xml', 'html', 'text'],
     produces: ['xml', 'html'],
     downloadName: 'formatted.xml',
-    controls: [el('span', { class: 'hint', text: '缩进' }), indentSel],
+    controls: [modeSeg, indentSeg],
     run(text, w) {
       if (!text.trim()) {
         w.setOut('')
         return
       }
+      if (mode === 'minify') {
+        w.setOut(minifyMarkup(text))
+        if (w.outFoot.textContent) w.outFoot.textContent = `已压缩（删注释、折叠空白）· ${w.outFoot.textContent}`
+        w.ok()
+        return
+      }
       w.setOut(formatMarkup(text, indentSize))
+      if (w.outFoot.textContent) w.outFoot.textContent = `已格式化 · ${indentSize} 空格缩进 · ${w.outFoot.textContent}`
       w.ok()
     },
   })
 
-  const minBtn = el('button', {
-    class: 'btn',
-    text: '压缩',
-    onclick: () => {
-      if (!wb.input.value.trim()) return
-      wb.setOut(minifyMarkup(wb.input.value))
-    },
-  })
-  wb.toolbar.insertBefore(minBtn, wb.toolbar.querySelector('.spacer'))
+  syncControls()
+
+  if (ctx?.params?.get('mode') === 'minify') {
+    setMode('minify')
+    return
+  }
+  if (!ctx?.src) wb.input.focus()
 }

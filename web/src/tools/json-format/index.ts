@@ -123,18 +123,23 @@ export default function render(root: HTMLElement, ctx?: { src: string | null; pa
       { label: '压缩', value: 'minify' },
     ],
     'pretty',
-    (v) => {
-      mode = v
-      run()
-    },
+    (v) => setMode(v),
   )
 
-  /** 外部改模式时，把 seg 的高亮也带上 */
+  /** 外部改模式时，把 seg 的高亮也带上，并把只对格式化有意义的控件灰掉 */
   function setMode(next: 'pretty' | 'minify'): void {
     mode = next
-    modeSeg.querySelectorAll('button').forEach((b, i) => {
-      b.classList.toggle('on', (i === 0 ? 'pretty' : 'minify') === next)
+    modeSeg.set(next)
+    const min = next === 'minify'
+    indentSeg.querySelectorAll('button').forEach((b) => {
+      ;(b as HTMLButtonElement).disabled = min
+      b.title = min ? '压缩不带缩进' : ''
     })
+    const sortInput = sortBox.querySelector('input')
+    if (sortInput) {
+      sortInput.disabled = min
+      sortBox.title = min ? '压缩不分行，排序后看不出差别' : ''
+    }
     run()
   }
 
