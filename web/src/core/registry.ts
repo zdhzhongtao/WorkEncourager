@@ -121,8 +121,8 @@ export const TOOLS: ToolEntry[] = [
   {
     id: 'encode',
     name: '编解码转换',
-    desc: 'Base64 / Base32 / Base58 / URL / HTML / Unicode / Hex，支持文件',
-    keywords: ['base64', 'base32', 'base58', 'url', 'encode', 'decode', 'hex', '编码', '解码', '转义'],
+    desc: 'Base64 / Base32 / Base58 / URL / HTML / Unicode / Hex，粘进来就告诉你这是哪种编码',
+    keywords: ['base64', 'base32', 'base58', 'url', 'encode', 'decode', 'hex', '编码', '解码', '转义', '识别', 'detect'],
     category: 'codec',
     icon: 'codec',
     accepts: ['text'],

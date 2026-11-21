@@ -23,7 +23,7 @@
 | 数据与格式 | Markdown 预览 | 实时渲染、导出 HTML、打印成 PDF |
 | 数据与格式 | curl 转代码 | curl → fetch / axios / Python / Go / PowerShell |
 | 数据与格式 | 文本对比 | 逐行 LCS 比对，可忽略大小写与首尾空白 |
-| 编码转换 | 编解码转换 | Base64 / Base64URL / Base32 / Base58 / ASCII85 / URL / HTML / Unicode / Hex，支持文件 ↔ Base64 |
+| 编码转换 | 编解码转换 | Base64 / Base64URL / Base32 / Base58 / ASCII85 / URL / HTML / Unicode / Hex；粘进来自动识别是哪种（带匹配度和依据），每种模式都有说明、示例和「同一句话 10 种编码」对照表，支持文件 ↔ Base64 |
 | 编码转换 | URL 解析 | 拆协议、端口、路径、逐参解码，参数转 JSON |
 | 加密与认证 | JWT 工具 | 解析 Header / Payload，标注过期与生效时间 |
 | 加密与认证 | JWT 验签与签发 | 本地验签（HS / RS），或用 HMAC 签发新令牌 |

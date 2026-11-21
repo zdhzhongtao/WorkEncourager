@@ -309,7 +309,7 @@ function cleanup(): void {
   }
 }
 
-async function openTool(id: string, src: string | null): Promise<void> {
+async function openTool(id: string, src: string | null, params = new URLSearchParams()): Promise<void> {
   const tool = findTool(id)
   if (!tool) {
     location.hash = '#/'
@@ -341,7 +341,7 @@ async function openTool(id: string, src: string | null): Promise<void> {
   document.title = `${tool.name} · WadeToolbox`
   pushRecent(id)
 
-  const ctx: ToolCtx = { src, files: [] }
+  const ctx: ToolCtx = { src, files: [], params }
 
   try {
     const mod = await tool.load()
@@ -388,7 +388,7 @@ function onRoute(): void {
         src = null
       }
     }
-    void openTool(decodeURIComponent(path.slice(2)), src)
+    void openTool(decodeURIComponent(path.slice(2)), src, params)
     return
   }
   renderHome()

@@ -6,6 +6,8 @@ export interface ToolCtx {
   src: string | null
   /** 全局拖拽落到当前工具的文件 */
   files: File[]
+  /** 深链里的其它参数（如 ?mode=html），工具自己解释 */
+  params: URLSearchParams
 }
 
 export interface ToolMeta {
