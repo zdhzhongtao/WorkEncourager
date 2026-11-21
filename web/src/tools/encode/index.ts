@@ -14,17 +14,18 @@ type Mode =
   | 'unicode'
   | 'hex'
 
-const MODES: Array<{ value: Mode; label: string }> = [
-  { value: 'base64', label: 'Base64' },
-  { value: 'base64url', label: 'Base64 URL 安全' },
-  { value: 'base32', label: 'Base32' },
-  { value: 'base58', label: 'Base58（比特币字母表）' },
-  { value: 'ascii85', label: 'ASCII85' },
-  { value: 'url', label: 'URL 组件（encodeURIComponent）' },
-  { value: 'urlfull', label: '整条 URL（encodeURI）' },
-  { value: 'html', label: 'HTML 实体' },
-  { value: 'unicode', label: 'Unicode 转义' },
-  { value: 'hex', label: 'Hex（UTF-8 字节）' },
+/** short 用于勾选项上的短名，demo 是这种编码的典型长相（静态示意，不随输入变化） */
+const MODES: Array<{ value: Mode; label: string; short: string; demo: string }> = [
+  { value: 'base64', label: 'Base64', short: 'Base64', demo: 'A-Za-z0-9+/' },
+  { value: 'base64url', label: 'Base64 URL 安全', short: 'Base64URL', demo: '-_ 且无 =' },
+  { value: 'base32', label: 'Base32', short: 'Base32', demo: 'A-Z 2-7' },
+  { value: 'base58', label: 'Base58（比特币字母表）', short: 'Base58', demo: '无 0OIl +/' },
+  { value: 'ascii85', label: 'ASCII85', short: 'ASCII85', demo: '! 到 u' },
+  { value: 'url', label: 'URL 组件（encodeURIComponent）', short: 'URL 编码', demo: '%E4%BD' },
+  { value: 'urlfull', label: '整条 URL（encodeURI）', short: '整条 URL', demo: '留 :/?#&=' },
+  { value: 'html', label: 'HTML 实体', short: 'HTML 实体', demo: '&amp; &lt; &#39;' },
+  { value: 'unicode', label: 'Unicode 转义', short: 'Unicode', demo: '\\u4f60' },
+  { value: 'hex', label: 'Hex（UTF-8 字节）', short: 'Hex', demo: '0-9 a-f' },
 ]
 
 const LABEL: Record<Mode, string> = MODES.reduce(
@@ -544,12 +545,13 @@ export function detect(raw: string): Hit[] {
 
 export default function render(root: HTMLElement, ctx: { src: string | null; params?: URLSearchParams }): void {
   let mode: Mode = 'base64'
+  let curDir: 'enc' | 'dec' = 'enc'
   let lastResult = ''
   let lastBytes: Uint8Array | null = null
   let htmlNonAscii = false
 
   const input = el('textarea', { class: 'ta', spellcheck: false, placeholder: '把要处理的字符串粘到这里 —— 下面会自动告诉你它像哪种编码' })
-  const out = el('pre', { class: 'out', dataset: { ph: '选好模式后点「编码」或「解码」…' } })
+  const out = el('pre', { class: 'out', dataset: { ph: '粘上内容，勾选上面任意一个模式就会直接出结果…' } })
   const msg = el('div', { class: 'msg' })
   const stat = el('span', { text: '' })
 
@@ -559,8 +561,38 @@ export default function render(root: HTMLElement, ctx: { src: string | null; par
   const htmlCheat = el('div', { class: 'enc-cheat' })
   const noteBox = el('div', { class: 'enc-note' }, el('div', { class: 'enc-note-head' }, el('b', { text: '' }), el('span', { class: 'hint' })), noteText, noteDemo, htmlCheat)
 
-  const select = el('select', { class: 'inp' })
-  for (const m of MODES) select.append(el('option', { value: m.value, text: m.label }))
+  /* 模式：一行「编码」一行「解码」，勾哪个就直接执行 */
+  const radioInputs: Record<'enc' | 'dec', HTMLInputElement[]> = { enc: [], dec: [] }
+
+  function buildModeRow(rowDir: 'enc' | 'dec'): HTMLElement {
+    const opts = el('div', { class: 'enc-mode-opts' })
+    for (const m of MODES) {
+      const radio = el('input', { type: 'radio', name: `enc-mode-${rowDir}`, value: m.value })
+      radio.addEventListener('change', () => {
+        if (!radio.checked) return
+        pickMode(m.value, rowDir)
+        if (input.value) apply(rowDir)
+      })
+      radioInputs[rowDir].push(radio)
+      opts.append(
+        el('label', { class: 'enc-radio', title: `${m.label}\n字符集：${m.demo}\n${META[m.value].hint}` },
+          radio,
+          el('span', { class: 'enc-radio-name', text: m.short }),
+          el('code', { class: 'enc-radio-demo', text: m.demo }),
+        ),
+      )
+    }
+    return el('div', { class: 'enc-mode-row' },
+      el('span', { class: 'enc-mode-label', text: rowDir === 'enc' ? '编码 →' : '← 解码' }),
+      opts,
+    )
+  }
+
+  const modeBox = el('div', { class: 'enc-modes' }, buildModeRow('enc'), buildModeRow('dec'))
+  const modeTip = el('div', {
+    class: 'enc-modes-tip',
+    text: '勾哪一项就直接执行。右边灰色小字是这种编码的字符集特征 —— 拿手里的串对照一下，就知道它像哪一种。',
+  })
 
   const nonAsciiBox = el(
     'label',
@@ -578,9 +610,20 @@ export default function render(root: HTMLElement, ctx: { src: string | null; par
   /* 识别面板 */
   const detectHost = el('div', { class: 'enc-detect' })
 
-  function pickMode(next: Mode): void {
+  function syncRadios(): void {
+    for (const d of ['enc', 'dec'] as const) {
+      for (const radio of radioInputs[d]) {
+        const on = d === curDir && radio.value === mode
+        radio.checked = on
+        radio.parentElement?.classList.toggle('on', on)
+      }
+    }
+  }
+
+  function pickMode(next: Mode, nextDir?: 'enc' | 'dec'): void {
     mode = next
-    select.value = next
+    if (nextDir) curDir = nextDir
+    syncRadios()
     nonAsciiBox.style.display = next === 'html' ? 'flex' : 'none'
     paintNote()
   }
@@ -663,14 +706,9 @@ export default function render(root: HTMLElement, ctx: { src: string | null; par
     detectTimer = window.setTimeout(() => renderDetect(input.value), 260)
   }
 
-  select.addEventListener('change', () => {
-    pickMode(select.value as Mode)
-    out.textContent = ''
-    msg.className = 'msg'
-    msg.textContent = ''
-  })
-
   function apply(dir: 'enc' | 'dec'): void {
+    curDir = dir
+    syncRadios()
     const text = input.value
     msg.className = 'msg'
     msg.textContent = ''
@@ -694,11 +732,9 @@ export default function render(root: HTMLElement, ctx: { src: string | null; par
   }
 
   const bar = toolbar(
-    el('span', { class: 'hint', text: '模式' }),
-    select,
-    nonAsciiBox,
     btn('编码 →', () => apply('enc'), 'primary'),
     btn('← 解码', () => apply('dec')),
+    nonAsciiBox,
     el('span', { class: 'spacer' }),
     btn('交换', () => {
       input.value = out.textContent ?? ''
@@ -820,6 +856,8 @@ export default function render(root: HTMLElement, ctx: { src: string | null; par
 
   root.append(
     msg,
+    modeBox,
+    modeTip,
     bar,
     noteBox,
     detectHost,

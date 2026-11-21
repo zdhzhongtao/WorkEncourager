@@ -846,3 +846,61 @@ kbd {
 .enc-opt input { accent-color: var(--accent); }
 .enc-hit.plain { border-left-color: var(--border-strong); background: var(--surface-2); }
 .enc-hit.plain .enc-hit-title b { color: var(--text-dim); font-weight: 500; }
+
+/* ============================================================
+   编解码：勾选式模式选择（一行编码、一行解码）
+   ============================================================ */
+
+.enc-modes { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.enc-mode-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 10px 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.enc-mode-label {
+  flex: 0 0 auto;
+  min-width: 56px;
+  padding-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.enc-mode-opts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px 8px; flex: 1; min-width: 0; }
+@media (max-width: 1100px) { .enc-mode-opts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .enc-mode-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.enc-radio {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.enc-radio:hover { background: var(--surface-2); }
+.enc-radio input { margin: 0; accent-color: var(--accent); cursor: pointer; }
+.enc-radio.on { background: var(--accent-soft); border-color: #c7d2fe; color: var(--accent); }
+.enc-radio-demo {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  background: #f1f3f8;
+  padding: 0 3px;
+  border-radius: 3px;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+}
+.enc-radio.on .enc-radio-demo { background: #fff; color: var(--accent); }
+.enc-modes-tip { font-size: 11.5px; color: var(--text-faint); margin: 0 0 10px 2px; }
