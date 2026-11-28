@@ -35,7 +35,7 @@ WadeToolbox/
 ├── WadeToolbox.slnx               全库解决方案（VS 双击打开，一次加载所有工具）
 ├── .gitignore                     库级忽略规则（构建产物 / 本地配置 / 数据文件）
 ├── .github/workflows/
-│   ├── ci-workenc.yml             上班鼓励器：编译 + 179 个单元测试 + 发布 exe
+│   ├── ci-workenc.yml             上班鼓励器：编译 + 191 个单元测试 + 发布 exe
 │   ├── ci-tablediff.yml           表格比对器：编译 + 64 个单元测试 + 发布 exe
 │   ├── ci-sheetsplitter.yml       表格拆合器：编译 + 38 个单元测试 + 发布 exe
 │   ├── ci-moneycalc.yml           财务小算盘：编译 + 89 个单元测试 + 发布 exe
@@ -77,11 +77,11 @@ WadeToolbox/
 
 ### 用现成的工具
 去对应工具的 `README.md` 看安装方式。上班鼓励器 `v2.2.2`；表格那三个是 `v0.1.1`（初版 + 一轮自检修复）；Markdown 阅读器 `v0.5.3`（20 套主题 + 三槽字体 + 公式图表 + 标注书签 + 朗读 + 文件树 + 多标签 + 导出长图）。阅读器出两种包：`local` 约 2 MB（依赖本机 .NET 10 桌面运行时）、`portable` 约 62 MB（自带运行时，任何人都能双击跑）。
-本仓库现在不挂 Release，需要安装包就在 `src/<工具>` 下用对应的 `publish.ps1` 自己出（产物落到 `dist/`，不入库）。
+Release 按工具分开挂，tag 带工具前缀（`workenc-v2.2.2`、`mdviewer-v0.5.3`）：阅读器的两个包（`local` / `portable`）已经在 Releases 里，「检查更新」只在对应前缀里找最新一条；其余工具要安装包，去 Actions 下对应 workflow 的产物，或在本机 `src/<工具>` 下跑 `publish.ps1` 自己出（产物落到 `dist/`，不入库）。
 每个工具都能用 `--demo` 或 `--maketestdata` 自查一遍（见各自 README 的「自检」）。
 
 ### 用网页版（不用装任何东西）
-`web/` 是一个纯前端站点，10 个开发者小工具全在浏览器本地跑，不联网、不上传。加进浏览器书签，`Ctrl/⌘ + K` 搜工具即可。
+`web/` 是一个纯前端站点，34 个开发者小工具全在浏览器本地跑，不联网、不上传。加进浏览器书签，`Ctrl/⌘ + K` 搜工具即可。
 本地跑：`cd web && npm install && npm run dev`。发布见 [web/README.md](web/README.md)——仓库 **Settings → Pages → Source** 选 GitHub Actions，之后推 `main` 自动上线。
 
 ### 加一个新工具

@@ -46,7 +46,8 @@ namespace WorkEncourager
 
                 if (UpdateChecker.IsNewer(tag, UpdateChecker.CurrentVersion))
                 {
-                    SettingsTip.Text = "发现新版本 " + tag + "（当前 v" + UpdateChecker.CurrentVersion + "）\n" + url;
+                    SettingsTip.Text = "发现新版本 " + UpdateChecker.DisplayVersion(tag)
+                        + "（当前 v" + UpdateChecker.CurrentVersion + "）\n" + url;
                     _lastExportPath = url;
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
@@ -81,7 +82,7 @@ namespace WorkEncourager
                 if (UpdateChecker.IsNewer(tag, UpdateChecker.CurrentVersion))
                 {
                     Log.Info("发现新版本 " + tag);
-                    _tray?.ShowBalloon("上班鼓励器有新版 " + tag,
+                    _tray?.ShowBalloon("上班鼓励器有新版 " + UpdateChecker.DisplayVersion(tag),
                         "当前 v" + UpdateChecker.CurrentVersion + "。右键托盘图标 → 打开设置 → 检查更新。");
                 }
             }

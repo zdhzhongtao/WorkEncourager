@@ -1,34 +1,38 @@
 using System;
 using System.Net.Http;
-using System.Text.Json;
 using System.Threading.Tasks;
+using WorkEnc.Core;
 
 namespace WorkEncourager
 {
     /// <summary>
-    /// 版本更新检查：读 GitHub 仓库的最新 Release，和当前程序集版本比。
+    /// 版本更新检查：读 GitHub 仓库的 releases.atom，筛出本程序的发布（workenc-v*）。
+    ///
+    /// 全库多个工具共用一个仓库（WadeToolbox），最新一次发布可能是别的工具的，
+    /// 所以不能读 /releases/latest —— 那样会拿到 mdviewer 的 tag，版本号解析失败，
+    /// 于是永远显示「已是最新」，既不报错也不再提示。
     /// 网络不通 / 仓库没发 Release 都只是"检查失败"，绝不弹窗打扰。
     /// </summary>
     public static class UpdateChecker
     {
-        private const string ApiUrl =
-            "https://api.github.com/repos/zdhzhongtao/WadeToolbox/releases/latest";
-
         /// <summary>当前程序版本（如 2.0.2）。</summary>
         public static string CurrentVersion
         {
             get
             {
                 var v = typeof(UpdateChecker).Assembly.GetName().Version;
-                return v == null ? "0.0.0" : Normalize(v).ToString(3);
+                if (v == null) return "0.0.0";
+
+                Version normalized = ReleaseFeed.Normalize(v);
+                return normalized.Major + "." + normalized.Minor + "." + normalized.Build;
             }
         }
 
-        /// <summary>仓库主页，检查失败时给用户一个手动入口。</summary>
-        public const string RepoUrl = "https://github.com/zdhzhongtao/WadeToolbox/releases";
+        /// <summary>仓库发布页，检查失败时给用户一个手动入口。</summary>
+        public const string RepoUrl = "https://github.com/" + ReleaseFeed.RepoPath + "/releases";
 
         /// <summary>
-        /// 取最新 Release 的 tag 和页面地址。
+        /// 取本程序最新 Release 的 tag 和页面地址。
         /// 返回 tag 为 null 表示失败，error 里是原因。
         /// </summary>
         public static async Task<(string tag, string url, string error)> GetLatestAsync(int timeoutSeconds = 8)
@@ -37,17 +41,16 @@ namespace WorkEncourager
             {
                 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(timeoutSeconds) };
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("WorkEncourager-Updater");
-                http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
 
-                string json = await http.GetStringAsync(ApiUrl);
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
+                string xml = await http.GetStringAsync(ReleaseFeed.AtomUrl).ConfigureAwait(false);
 
-                string tag = root.TryGetProperty("tag_name", out var t) ? t.GetString() : null;
-                string url = root.TryGetProperty("html_url", out var u) ? u.GetString() : null;
+                ReleaseEntry entry = ReleaseFeed.PickLatest(xml);
+                if (entry.Tag == null)
+                {
+                    return (null, null, entry.Error ?? "没找到本程序的发布");
+                }
 
-                if (string.IsNullOrWhiteSpace(tag)) return (null, null, "Release 里没有 tag_name");
-                return (tag, url ?? RepoUrl, null);
+                return (entry.Tag, entry.PageUrl, null);
             }
             catch (TaskCanceledException)
             {
@@ -59,29 +62,18 @@ namespace WorkEncourager
             }
         }
 
-        /// <summary>tag 是否比当前版本新。tag 可以是 v2.1.0 或 2.1.0。</summary>
-        public static bool IsNewer(string tag, string current)
+        /// <summary>tag 是否比当前版本新。tag 可以是 workenc-v2.1.0 或 2.1.0。</summary>
+        public static bool IsNewer(string tag, string current) => ReleaseFeed.IsNewer(tag, current);
+
+        /// <summary>给人看的版本名：workenc-v2.2.3 显示成 v2.2.3，认不出前缀就原样返回。</summary>
+        public static string DisplayVersion(string tag)
         {
-            var a = ParseVersion(tag);
-            var b = ParseVersion(current);
-            if (a == null || b == null) return false;
-            return a > b;
+            if (string.IsNullOrWhiteSpace(tag)) return tag;
+            if (tag.StartsWith(ReleaseFeed.TagPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return "v" + tag.Substring(ReleaseFeed.TagPrefix.Length);
+            }
+            return tag;
         }
-
-        private static Version ParseVersion(string s)
-        {
-            if (string.IsNullOrWhiteSpace(s)) return null;
-            s = s.Trim().TrimStart('v', 'V');
-
-            // 去掉 -beta / +build 之类的后缀
-            int cut = s.IndexOfAny(new[] { '-', '+' });
-            if (cut > 0) s = s.Substring(0, cut);
-
-            return Version.TryParse(s, out var v) ? Normalize(v) : null;
-        }
-
-        /// <summary>补齐到四段，避免 2.0.2 和 2.0.2.0 被当成不同版本。</summary>
-        private static Version Normalize(Version v) =>
-            new Version(v.Major, v.Minor, Math.Max(0, v.Build), Math.Max(0, v.Revision));
     }
 }

@@ -5,7 +5,7 @@
 一个常驻桌面的「上班鼓励器」悬浮窗，实时计算你上班期间已经赚到多少钱，并生成工时报表。
 
 ![WPF / Windows](https://img.shields.io/badge/.NET-10.0-blue)
-![Tests](https://img.shields.io/badge/tests-179%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-191%20passed-brightgreen)
 
 ## 文档
 
@@ -124,7 +124,7 @@ src/WorkEnc/
 │   ├── QuoteProvider.cs            语录库
 │   └── Theme.cs                    主题配色
 ├── .github/workflows/ci-workenc.yml  （在库根）GitHub Actions：编译 + 测试 + 发布产物
-└── WorkEnc.Tests/                  xUnit 单元测试（179 个）
+└── WorkEnc.Tests/                  xUnit 单元测试（191 个）
 ```
 
 ## 构建与测试
