@@ -229,8 +229,8 @@
         return most;
     }
 
-    // 表格外面套一层可横向滚动的壳。列多的表在 CSS 里换紧凑排版，
-    // 30 列这种宽表才不至于一列挤成一个字。壳上的 data-cols 也方便排查问题。
+    // 表格外面套一层壳方便统计列数 / 加紧凑样式；滚动交给整页，
+    // 不再给行数多的表单独加滚动区（见 style.css 里表格段的说明）。
     function wrapTables() {
         var tables = root.querySelectorAll('table');
         for (var i = 0; i < tables.length; i++) {
@@ -250,10 +250,6 @@
                 wrap.setAttribute('data-cols', cols);
                 if (cols >= 8) wrap.classList.add('table-compact');
             }
-
-            // 行数多的表：让表格自己滚、表头吸附住。
-            // （普通表格不这么做 —— 见 style.css 里 .table-tall 的说明）
-            if (table.rows.length > 18) wrap.classList.add('table-tall');
 
             setupTableSort(table);
         }

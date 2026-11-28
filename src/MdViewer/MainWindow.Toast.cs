@@ -109,7 +109,7 @@ namespace MdViewer
             if (string.IsNullOrEmpty(path)) return;
 
             if (Directory.Exists(path)) OpenExternal(path);
-            else OpenExternal("explorer.exe /select,\"" + path + "\"");
+            else RevealInExplorer(path);
         }
     }
 }

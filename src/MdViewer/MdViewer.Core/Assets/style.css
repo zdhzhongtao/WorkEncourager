@@ -822,14 +822,12 @@ pre code {
 
 /* 表格
  *
- * 结构：.table-wrap（外层，负责横向滚动） > table
- *
- * 关键在单元格的 min-width：width:100% 会让表格「不肯超出容器」，30 列的表
- * 于是被均分成 26px 一列 —— 扣掉左右内边距什么都不剩，每格一个字，竖着长成一堵墙。
- * 给每格一个下限，表格的最小宽度就变成「列数 × 下限」，放不下时由外层滚，
- * 而不是把内容压扁。列数由 app.js 数出来写在 .table-wrap[data-cols] 上。
+ * 结构：.table-wrap（外层壳） > table
+ * 只保留正文那一个滚动条：表格不再自己横向/纵向滚。列多的表靠单元格换行
+ * 收进正文宽度，行数多的表就跟着正文一起往下滚。列数特别多的表由
+ * app.js 加 .table-compact 收一点字号和留白，不出嵌套滚动条。
  */
-.table-wrap { overflow-x: auto; margin: 1.2em 0; }
+.table-wrap { margin: 1.2em 0; }
 table {
     border-collapse: collapse;
     width: 100%;
@@ -840,9 +838,9 @@ th, td {
     padding: 8px 12px;
     text-align: left;
     vertical-align: top;
-    /* 大约三四个汉字宽：再窄就只剩一个字一行了 */
-    min-width: 3.5em;
-    overflow-wrap: break-word;
+    /* 不设最小宽度 + 长串可断行：宽表撑满正文宽度，不再顶出横向滚动条 */
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 thead th {
     background: var(--table-head);
@@ -851,7 +849,7 @@ thead th {
 tbody tr:nth-child(even) { background: var(--table-zebra); }
 
 /* 列多的表（app.js 里 ≥8 列会加 table-compact）：内边距和字号各收一点，
-   同一块屏幕就能多放下几列，代价仍然只是横向滚动 */
+   让更多内容能塞进一屏，表格本身仍然不滚 */
 .table-compact th,
 .table-compact td { padding: 6px 8px; }
 .table-compact table { font-size: 0.86em; }
@@ -1046,12 +1044,10 @@ pre.mermaid-failed {
 .tok-com { color: var(--tok-comment); font-style: italic; }
 .tok-fn { color: var(--tok-func); }
 
-/* ───────────── 表格：排序 + 长表吸附表头 ─────────────
+/* ───────────── 表格：表头排序 ─────────────
  *
- * 注意 sticky 的坑：.table-wrap 是 overflow-x:auto，它因此成了 scroll container，
- * 表头只会相对它吸附 —— 而它纵向不滚，等于不吸附。
- * 所以只在「行数很多」的表上给 wrap 加纵向滚动（app.js 加 .table-tall），
- * 让表头在表格自己的滚动区里吸附。这样不牺牲普通表格的排版。
+ * 长表不再单独滚、表头也不做吸顶：一篇文档里有很多张表时，
+ * 每张表的吸顶表头会叠在一起挡正文。表格跟着整页一起滚，只留一个滚动条。
  */
 
 th.sortable {
@@ -1076,19 +1072,6 @@ th[data-sort="desc"]::after {
     margin-left: 5px;
     color: var(--accent);
     vertical-align: 1px;
-}
-
-.table-wrap.table-tall {
-    max-height: 72vh;
-    overflow-y: auto;
-}
-
-.table-wrap.table-tall thead th {
-    position: sticky;
-    top: 0;
-    z-index: 3;
-    background: var(--table-head);
-    box-shadow: 0 1px 0 var(--line);
 }
 
 /* ───────────── 图片点击放大 ───────────── */
@@ -1266,14 +1249,10 @@ body.capturing .bubble { display: none !important; }
     body.wide { padding: 0; max-width: none; }
     #readbar, .copy-btn, .code-lang, .bubble, .lightbox, .lightbox-hint { display: none !important; }
     th.sortable::after { content: none !important; }
-    /* 纸上不要嵌套滚动条：长表一律整张铺开，靠分页解决 */
-    .table-wrap.table-tall { max-height: none; overflow: visible; }
-    .table-wrap.table-tall thead th { position: static; box-shadow: none; }
+    /* 表格本来就跟着正文铺开，没有嵌套滚动条；这里只收紧留白和字号 */
+    .table-wrap { overflow: visible; }
     a { color: var(--fg); }
     a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 11px; color: #8B949E; }
-    /* 纸上没有横向滚动条：撤掉最小列宽，让浏览器按纸张宽度重新分配，
-       宽表宁可每列窄一点也别溢出到页面外 */
-    .table-wrap { overflow: visible; }
     th, td { min-width: 0; padding: 5px 7px; }
     table { font-size: 0.78em; }
     pre, blockquote, table, img { page-break-inside: avoid; }

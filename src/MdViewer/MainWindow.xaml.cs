@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using MdViewer.Core;
@@ -415,12 +417,56 @@ namespace MdViewer
 
         public void OpenFromOutside(string path)
         {
-            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
-            Activate();
-            OpenFile(path, true);
+            Log.Info("外部打开请求：" + path + "；当前文档：" + _currentPath);
+            BringToFront();
+
+            if (string.IsNullOrWhiteSpace(path)) return;
+
+            // 双击文件总是从磁盘重新读一遍：文件可能在外部被改过，双击就是要看最新内容。
+            // 当前标签会直接重新加载；其它标签会先切过去，再刷新那一页。
+            OpenFile(path, true, forceReload: true);
         }
 
-        private async void OpenFile(string path, bool addToRecent)
+        // 把窗口从最小化 / 别的窗口后面拉到最前面。
+        // 单靠 Window.Activate() 在 Windows 上偶尔不生效，所以补一层 Win32 调用。
+        private const int SW_RESTORE = 9;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+
+        [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+        [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+        [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr hWnd);
+
+        private void BringToFront()
+        {
+            try
+            {
+                if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+                if (!IsVisible) Show();
+
+                IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                if (hwnd != IntPtr.Zero)
+                {
+                    ShowWindow(hwnd, SW_RESTORE);
+                    // 先临时置顶再取消，确保窗口越过普通窗口浮到最上层；
+                    // 取消后仍是普通窗口，不会一直压在别的程序上面。
+                    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                    SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                    BringWindowToTop(hwnd);
+                    SetForegroundWindow(hwnd);
+                }
+
+                Activate();
+                Focus();
+            }
+            catch (Exception ex) { Log.Error("激活窗口失败", ex); }
+        }
+
+        private async void OpenFile(string path, bool addToRecent, bool forceReload = false)
         {
             if (string.IsNullOrWhiteSpace(path)) return;
 
@@ -440,11 +486,12 @@ namespace MdViewer
                 return;
             }
 
-            // 这个文件已经在某个标签里开着：切过去就行，别重新加载（也就不会丢滚动位置）
+            // 这个文件已经在别的标签里开着：先切过去。普通打开就停在这里（保留那一页的
+            // 阅读位置）；从外部双击进来的要刷新，切过去之后继续往下重读磁盘。
             if (FindTab(full) != null && !NoteStore.SamePath(full, _currentPath))
             {
                 await SwitchTabAsync(full);
-                return;
+                if (!forceReload) return;
             }
 
             await LoadDocumentAsync(full, addToRecent);
@@ -456,6 +503,7 @@ namespace MdViewer
         /// </summary>
         private async Task LoadDocumentAsync(string full, bool addToRecent)
         {
+            Log.Info("加载文档：" + full);
             // 连着点两个文件时，先发起的那次可能在 await 之后才回来。发个号，回来对不上就作废。
             int seq = ++_openSeq;
 
@@ -501,7 +549,7 @@ namespace MdViewer
             }
 
             Title = Path.GetFileName(full) + " - Markdown 阅读器";
-            WelcomePanel.Visibility = Visibility.Collapsed;
+            ShowDocumentView();
             ApplyTocVisibility();   // 打开了文件，目录栏该出来了
 
             await EnsureWebViewAsync();
@@ -802,10 +850,12 @@ namespace MdViewer
                     y = (int)Math.Round(_restoreY),
                     ratio = _restoreRatio
                 };
-                string json = JsonSerializer.Serialize(new Message
+                // payload 必须是对象：app.js 的 restore 分支直接读 data.y / data.ratio，
+                // 走 PostToPage 那种「字符串 payload」会拿到 undefined，结果滚回顶部。
+                string json = JsonSerializer.Serialize(new RestoreMessage
                 {
                     kind = "restore",
-                    payload = JsonSerializer.Serialize(payload)
+                    payload = payload
                 });
                 View.CoreWebView2.PostWebMessageAsJson(json);
             }
@@ -839,6 +889,13 @@ namespace MdViewer
         {
             public int y { get; set; }
             public double ratio { get; set; }
+        }
+
+        /// <summary>restore 的 payload 也是对象，跟 app.js 里的读取方式保持一致。</summary>
+        private sealed class RestoreMessage
+        {
+            public string kind { get; set; }
+            public ScrollPayload payload { get; set; }
         }
 
         // ───────────────────────── 阅读位置 ─────────────────────────
@@ -920,8 +977,30 @@ namespace MdViewer
 
         // ───────────────────────── 欢迎页 / 目录可见性 ─────────────────────────
 
+        /// <summary>从欢迎页切回文档视图。WebView2 要在，才显示它；降级模式下留给纯文本面板。</summary>
+        private void ShowDocumentView()
+        {
+            WelcomePanel.Visibility = Visibility.Collapsed;
+            if (_webFailed)
+            {
+                // 降级模式：没有 WebView2，正文走纯文本面板
+                FallbackPanel.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                View.Visibility = Visibility.Visible;
+            }
+        }
+
         private void ShowWelcome()
         {
+            ++_openSeq;   // 作废还在 await 的加载，防止它回头又把旧文档渲染回来
+            Log.Info("回到欢迎页（标签已清空）");
+
+            // WebView2 是原生窗口，WPF 的 WelcomePanel 盖不住它——只把面板设为 Visible，
+            // 底下渲染过的旧文档会透出来。得真正把 View 隐藏，欢迎页才干净。
+            View.Visibility = Visibility.Collapsed;
+            FallbackPanel.Visibility = Visibility.Collapsed;
             WelcomePanel.Visibility = Visibility.Visible;
             TocList.ItemsSource = null;
             TocCount.Text = string.Empty;

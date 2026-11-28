@@ -393,14 +393,7 @@ namespace MdViewer
         private void RevealInExplorer()
         {
             if (string.IsNullOrEmpty(_currentPath)) return;
-            try
-            {
-                OpenExternal("explorer.exe /select,\"" + _currentPath + "\"");
-            }
-            catch (Exception ex)
-            {
-                Log.Error("打开资源管理器失败", ex);
-            }
+            RevealInExplorer(_currentPath);
         }
 
         private void CopyPathToClipboard()

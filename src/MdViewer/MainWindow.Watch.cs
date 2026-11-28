@@ -263,7 +263,7 @@ namespace MdViewer
                     : document.Title;
                 Title = title + " - Markdown 阅读器";
 
-                WelcomePanel.Visibility = Visibility.Collapsed;
+                ShowDocumentView();
                 ApplyTocVisibility();
                 RenderEpubPage();
 

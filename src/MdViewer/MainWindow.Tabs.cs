@@ -219,7 +219,7 @@ namespace MdViewer
             var reveal = new MenuItem { Header = "打开所在文件夹" };
             reveal.Click += (s, e) =>
             {
-                try { OpenExternal("explorer.exe /select,\"" + path + "\""); }
+                try { RevealInExplorer(path); }
                 catch (Exception ex) { Log.Error("打开资源管理器失败", ex); }
             };
             menu.Items.Add(reveal);
@@ -267,6 +267,7 @@ namespace MdViewer
         private async Task SwitchTabAsync(string path)
         {
             if (string.IsNullOrEmpty(path) || _switchingTab) return;
+            if (_tabs.Count == 0) return;   // 标签已全部关掉，别让在途的切换把正文又加载回来
             if (!File.Exists(path))
             {
                 MessageBox.Show("这个文件已经不在了：\n" + path, "打不开");
@@ -295,22 +296,28 @@ namespace MdViewer
             if (tab == null) return;
 
             int index = _tabs.IndexOf(tab);
-            bool wasActive = NoteStore.SamePath(path, _currentPath);
             _tabs.Remove(tab);
 
             // 关掉的文档，阅读位置和标注留着（下次在最近列表里打开还在），只清标签
             PersistTabs();
 
-            if (!wasActive)
-            {
-                RefreshTabBar();
-                return;
-            }
-
+            // 一个都不剩就回欢迎页。这个判断必须在 wasActive 之前：快速连点关闭时，
+            // 切换标签是异步的，_currentPath 还停在上一页，wasActive 会误判成 false，
+            // 导致视图留在刚关掉的文档上不回欢迎页。
             if (_tabs.Count == 0)
             {
                 RefreshTabBar();
                 ShowWelcome();
+                return;
+            }
+
+            // 当前显示的文档已经不在标签里（异步切换还没跟上）时也得切走，
+            // 否则关掉一个标签后视图仍停在已关闭的那一页。
+            bool currentStillOpen = FindTab(_currentPath) != null;
+            bool wasActive = NoteStore.SamePath(path, _currentPath) || !currentStillOpen;
+            if (!wasActive)
+            {
+                RefreshTabBar();
                 return;
             }
 

@@ -310,19 +310,20 @@ namespace MdViewer.Tests
         }
 
         [Fact]
-        public void 宽表格靠最小列宽换横向滚动而不是压扁每列()
+        public void 表格不产生自己的滚动条只跟正文一起滚()
         {
             string css = Assets.StyleCss;
 
-            // 单元格有下限 + 外层能横向滚动 = 列多的表滚动着看，而不是一列一个字
-            Assert.Contains("min-width: 3.5em", css);
-            Assert.Contains("overflow-x: auto", css);
-            Assert.Contains("body.wide", css);
+            // 表格不再套滚动容器：宽表靠单元格换行收进正文，整页只留一个滚动条
+            Assert.Contains("min-width: 0", css);
+            Assert.Contains("overflow-wrap: anywhere", css);
+            Assert.DoesNotContain(".table-wrap { overflow-x: auto; }", css);
+            Assert.DoesNotContain(".table-wrap.table-tall", css);
 
-            // 打印时撤掉最小列宽，宽表不能溢出纸张
+            // 打印时同样没有嵌套滚动条
             int printAt = css.IndexOf("@media print", StringComparison.Ordinal);
             Assert.True(printAt > 0, "样式里应该有 @media print 块");
-            Assert.Contains("min-width: 0", css.Substring(printAt));
+            Assert.Contains(".table-wrap { overflow: visible; }", css.Substring(printAt));
         }
 
         [Fact]

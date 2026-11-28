@@ -593,6 +593,24 @@ namespace MdViewer
             OpenExternal("https://developer.microsoft.com/microsoft-edge/webview2/");
         }
 
+        /// <summary>在资源管理器中定位文件：程序名与参数必须分开传，不能拼成一整串当文件名。</summary>
+        private void RevealInExplorer(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+            try
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", "/select,\"" + path + "\"")
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Error("打开资源管理器失败：" + path, ex);
+                MessageBox.Show("打不开所在文件夹：" + path + "\n\n" + ex.Message, "出错了");
+            }
+        }
+
         /// <summary>用 shell 打开文件或网址（不拼命令行）。</summary>
         private void OpenExternal(string target)
         {
