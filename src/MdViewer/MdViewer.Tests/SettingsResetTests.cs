@@ -52,7 +52,7 @@ namespace MdViewer.Tests
             Assert.True(reset.AutoReload);
             Assert.True(reset.RememberScroll);
             Assert.True(reset.TocVisible);
-            Assert.Equal("zdhzhongtao/WorkEncourager", reset.UpdateRepo);
+            Assert.Equal("zdhzhongtao/WadeToolbox", reset.UpdateRepo);
             Assert.False(reset.CheckUpdateOnStart);
             Assert.Equal(string.Empty, reset.SkippedVersion);
             Assert.Equal(string.Empty, reset.LastUpdateCheck);

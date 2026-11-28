@@ -70,7 +70,7 @@ namespace MdViewer.Core
         public Dictionary<string, double> ScrollPositions { get; set; } = new Dictionary<string, double>();
 
         /// <summary>GitHub 仓库（owner/repo），自动更新从这里取最新 Release。</summary>
-        public string UpdateRepo { get; set; } = "zdhzhongtao/WorkEncourager";
+        public string UpdateRepo { get; set; } = "zdhzhongtao/WadeToolbox";
 
         /// <summary>启动时静默检查更新。默认关：本程序的底线是不主动联网。</summary>
         public bool CheckUpdateOnStart { get; set; }
@@ -187,7 +187,7 @@ namespace MdViewer.Core
             settings.RecentEntries = RecentFiles.Normalize(settings.RecentEntries);
             settings.RecentFiles = RecentFiles.ToPaths(settings.RecentEntries);
 
-            if (string.IsNullOrWhiteSpace(settings.UpdateRepo)) settings.UpdateRepo = "zdhzhongtao/WorkEncourager";
+            if (string.IsNullOrWhiteSpace(settings.UpdateRepo)) settings.UpdateRepo = "zdhzhongtao/WadeToolbox";
             if (settings.SkippedVersion == null) settings.SkippedVersion = string.Empty;
             if (settings.LastUpdateCheck == null) settings.LastUpdateCheck = string.Empty;
             if (settings.LastDir == null) settings.LastDir = string.Empty;

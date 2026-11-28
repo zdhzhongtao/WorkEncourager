@@ -2,7 +2,7 @@
 
 打开一个网页就能用的开发者小工具集。**没有后端、没有账号、不联网、不上传任何数据**，所有计算都在浏览器里完成。
 
-- 在线版：<https://zdhzhongtao.github.io/WorkEncourager/>
+- 在线版：<https://zdhzhongtao.github.io/WadeToolbox/>
 - 本地开发：`npm install` → `npm run dev`
 - 生产构建：`npm run build`（产物在 `dist/`）
 - 单文件版：`npm run build:standalone`

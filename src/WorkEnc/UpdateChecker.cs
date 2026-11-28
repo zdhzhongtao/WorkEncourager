@@ -12,7 +12,7 @@ namespace WorkEncourager
     public static class UpdateChecker
     {
         private const string ApiUrl =
-            "https://api.github.com/repos/zdhzhongtao/WorkEncourager/releases/latest";
+            "https://api.github.com/repos/zdhzhongtao/WadeToolbox/releases/latest";
 
         /// <summary>当前程序版本（如 2.0.2）。</summary>
         public static string CurrentVersion
@@ -25,7 +25,7 @@ namespace WorkEncourager
         }
 
         /// <summary>仓库主页，检查失败时给用户一个手动入口。</summary>
-        public const string RepoUrl = "https://github.com/zdhzhongtao/WorkEncourager/releases";
+        public const string RepoUrl = "https://github.com/zdhzhongtao/WadeToolbox/releases";
 
         /// <summary>
         /// 取最新 Release 的 tag 和页面地址。
