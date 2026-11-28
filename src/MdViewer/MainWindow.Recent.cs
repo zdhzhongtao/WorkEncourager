@@ -25,7 +25,6 @@ namespace MdViewer
     {
         private const int WelcomeRecentCount = 6;
 
-        private static readonly DateTimeOffset Now = DateTimeOffset.Now;
 
         // ───────────────────────── 数据 ─────────────────────────
 
@@ -51,7 +50,7 @@ namespace MdViewer
                     Path = entry.Path,
                     Name = exists ? name : name + "（已删除）",
                     Dir = dir,
-                    When = RecentFiles.Describe(entry, Now),
+                    When = RecentFiles.Describe(entry, DateTimeOffset.Now),
                     Missing = !exists,
                     NameFg = exists ? normal : missing
                 });

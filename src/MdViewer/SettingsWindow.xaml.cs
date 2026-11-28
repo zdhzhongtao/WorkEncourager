@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using MdViewer.Core;
 
 namespace MdViewer
@@ -177,6 +178,8 @@ namespace MdViewer
             NotifyOwner();
         }
 
+        private DispatcherTimer _saveTimer;
+
         private void WidthSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (WidthValue == null) return;
@@ -186,8 +189,25 @@ namespace MdViewer
             App.Settings.MaxContentWidth = (int)e.NewValue;
             // 正在拖这个滑杆说明用户想看宽度效果；宽屏开着的话先关掉，否则屏幕上一点变化都没有
             App.Settings.WideMode = false;
-            App.SaveSettings();
             NotifyOwner();
+
+            // 拖动时 ValueChanged 会触发上百次；每次都整份序列化 + 写 tmp + 复制 .bak 太浪费
+            ScheduleSave();
+        }
+
+        private void ScheduleSave()
+        {
+            if (_saveTimer == null)
+            {
+                _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+                _saveTimer.Tick += (sender, args) =>
+                {
+                    _saveTimer.Stop();
+                    App.SaveSettings();
+                };
+            }
+            _saveTimer.Stop();
+            _saveTimer.Start();
         }
 
         private void Option_Changed(object sender, RoutedEventArgs e)
@@ -196,6 +216,10 @@ namespace MdViewer
 
             App.Settings.AutoReload = AutoReloadBox.IsChecked == true;
             App.Settings.RememberScroll = RememberScrollBox.IsChecked == true;
+
+            // 目录开关有两份状态：Settings.TocVisible 和主窗口的 TocToggle。
+            // 不同步的话，设置里勾了「默认显示目录」也会被主窗口的旧值覆盖。
+            bool tocChanged = App.Settings.TocVisible != (TocVisibleBox.IsChecked == true);
             App.Settings.TocVisible = TocVisibleBox.IsChecked == true;
             App.Settings.CheckUpdateOnStart = CheckOnStartBox.IsChecked == true;
 
@@ -203,6 +227,11 @@ namespace MdViewer
             App.Settings.AutoDim = AutoDimBox.IsChecked == true;
 
             App.SaveSettings();
+            if (tocChanged)
+            {
+                var main = Owner as MainWindow;
+                if (main != null) main.SyncTocVisibility(App.Settings.TocVisible);
+            }
             NotifyOwner();
 
             // 定时换肤是主窗口的活儿：开关一变就让它重算一次，不用等下一个整分
@@ -591,9 +620,26 @@ namespace MdViewer
                 }
 
                 File.Move(target, backup);
-                File.Move(incoming, target);
 
-                Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+                try
+                {
+                    File.Move(incoming, target);
+                }
+                catch
+                {
+                    // 新文件没能就位：把旧文件改回去，别让安装目录里没有 exe
+                    try { File.Move(backup, target); } catch (Exception) { }
+                    throw;
+                }
+
+                // 等旧进程释放单实例 Mutex 后再启动新版本；立刻 Start 会被单实例逻辑直接退掉。
+                Process.Start(new ProcessStartInfo("cmd.exe")
+                {
+                    Arguments = "/c timeout /t 2 /nobreak >nul & start \"\" \"" + target + "\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                });
                 Application.Current.Shutdown();
             }
             catch (Exception ex)

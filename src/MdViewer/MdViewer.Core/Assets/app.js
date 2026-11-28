@@ -75,8 +75,6 @@
 
     function renderMermaid() {
         var blocks = root.querySelectorAll('pre > code.language-mermaid, pre > code.lang-mermaid');
-        if (blocks.length === 0) return;
-
         var containers = [];
         for (var i = 0; i < blocks.length; i++) {
             var code = blocks[i];
@@ -88,6 +86,24 @@
             pre.parentNode.replaceChild(div, pre);
             containers.push(div);
         }
+        return runMermaid(containers);
+    }
+
+    // 切主题时重画：容器已经存在，按 data-src 恢复源码再跑一遍
+    function rerenderMermaid() {
+        var nodes = root.querySelectorAll('div.mermaid[data-src]');
+        if (nodes.length === 0) return Promise.resolve();
+        for (var i = 0; i < nodes.length; i++) {
+            // mermaid 会在渲染过的节点上打 data-processed；不清掉它会直接跳过，图就停在源码状态
+            nodes[i].removeAttribute('data-processed');
+            nodes[i].textContent = nodes[i].getAttribute('data-src') || '';
+        }
+        return runMermaid(Array.prototype.slice.call(nodes));
+    }
+
+    function runMermaid(containers) {
+        if (!containers || containers.length === 0) return Promise.resolve();
+        for (var p = 0; p < containers.length; p++) containers[p].removeAttribute('data-processed');
 
         if (!window.mermaid) {
             // 库没加载出来：把源码还回去，至少还能看
@@ -98,7 +114,7 @@
                 pre2.textContent = box.textContent;
                 box.parentNode.replaceChild(pre2, box);
             }
-            return;
+            return Promise.resolve();
         }
 
         try {
@@ -109,9 +125,12 @@
                 fontFamily: getComputedStyle(document.body).fontFamily,
                 themeVariables: mermaidTheme()
             });
-            window.mermaid.run({ nodes: containers, suppressErrors: true });
+            // 返回 Promise：调用方要等图真的画完再报 ready（否则标注会按源码文本定位）
+            return Promise.resolve(window.mermaid.run({ nodes: containers, suppressErrors: true }))
+                .catch(function () { /* 单张图画不出来不影响别的 */ });
         } catch (e) {
             /* 图表语法错就留着源码块 */
+            return Promise.resolve();
         }
     }
 
@@ -158,11 +177,19 @@
             // mermaid 的代码块交给 renderMermaid，别给它挂复制按钮和语言标签
             if (lang === 'mermaid') continue;
 
+            // 按钮/标签放到 pre 外面的容器里：放 pre 里会跟着横向滚动跑掉，
+            // 也会压住第一行代码。
+            var wrapper = document.createElement('div');
+            wrapper.className = 'code-block';
+            pre.parentNode.insertBefore(wrapper, pre);
+            wrapper.appendChild(pre);
+
             if (lang) {
                 var label = document.createElement('span');
                 label.className = 'code-lang';
-                label.textContent = lang;
-                pre.appendChild(label);
+                label.setAttribute('data-lang', lang);
+                // 文字由 CSS ::after 显示，避免被页内搜索当成正文
+                wrapper.appendChild(label);
             }
 
             highlightBlock(codeEl, lang);
@@ -170,26 +197,40 @@
             var btn = document.createElement('button');
             btn.className = 'copy-btn';
             btn.type = 'button';
-            btn.textContent = '复制';
-            btn.addEventListener('click', function () {
-                var target = this.parentNode.querySelector('code');
-                var text = target ? target.textContent : '';
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(text);
-                } else {
-                    var area = document.createElement('textarea');
-                    area.value = text;
-                    document.body.appendChild(area);
-                    area.select();
-                    try { document.execCommand('copy'); } catch (e) { }
-                    document.body.removeChild(area);
-                }
-                var self = this;
-                self.textContent = '已复制';
-                setTimeout(function () { self.textContent = '复制'; }, 1200);
-            });
-            pre.appendChild(btn);
+            btn.setAttribute('aria-label', '复制');
+            wrapper.appendChild(btn);
+
+            (function (container, button) {
+                button.addEventListener('click', function () {
+                    var target = container.querySelector('code');
+                    var text = target ? target.textContent : '';
+                    var done = function (ok) {
+                        button.classList.toggle('done', ok !== false);
+                        setTimeout(function () { button.classList.remove('done'); }, 1200);
+                    };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text)
+                            .then(function () { done(true); })
+                            .catch(function () { fallbackCopy(text, done); });
+                    } else {
+                        fallbackCopy(text, done);
+                    }
+                });
+            })(wrapper, btn);
         }
+    }
+
+    function fallbackCopy(text, done) {
+        var area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.left = '-9999px';
+        document.body.appendChild(area);
+        area.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(area);
+        done(ok);
     }
 
     // highlight.js 认 class="language-xxx"；加载不出来就什么都不做（保留纯文本）
@@ -256,6 +297,7 @@
     }
 
     // 点表头排序。数值列按数值排，其余按本地化字符串排；第三次点击恢复原始顺序。
+    // 表头可能有多行（colspan/rowspan 分组），所以按「逻辑列号」而不是 cellIndex 取列。
     function setupTableSort(table) {
         var head = table.tHead;
         if (!head || !head.rows.length) return;
@@ -263,15 +305,33 @@
         if (!body || body.rows.length < 2) return;
 
         var original = null;
-        var cells = head.rows[head.rows.length - 1].cells;
-        for (var c = 0; c < cells.length; c++) {
-            (function (index, th) {
+        var headers = [];
+        for (var r = 0; r < head.rows.length; r++) {
+            var cells = head.rows[r].cells;
+            for (var c = 0; c < cells.length; c++) headers.push(cells[c]);
+        }
+        if (headers.length === 0) return;
+
+        for (var h = 0; h < headers.length; h++) {
+            (function (th) {
+                var column = columnIndexOf(th);
                 th.classList.add('sortable');
                 th.title = '点击排序';
                 th.addEventListener('click', function () {
-                    sortBy(table, body, index, th);
+                    sortBy(table, body, column, th);
                 });
-            })(c, cells[c]);
+            })(headers[h]);
+        }
+
+        function columnIndexOf(th) {
+            var row = th.parentNode;
+            var index = 0;
+            for (var i = 0; i < row.cells.length; i++) {
+                var cell = row.cells[i];
+                if (cell === th) return index;
+                index += Math.max(1, cell.colSpan || 1);
+            }
+            return th.cellIndex || 0;
         }
 
         function snapshot() {
@@ -280,7 +340,7 @@
             for (var i = 0; i < body.rows.length; i++) original.push(body.rows[i]);
         }
 
-        function sortBy(tbl, tbody, index, th) {
+        function sortBy(tbl, tbody, column, th) {
             snapshot();
             var step = th.getAttribute('data-sort');
             var next = step === 'asc' ? 'desc' : (step === 'desc' ? 'none' : 'asc');
@@ -290,27 +350,37 @@
                 for (var r = 0; r < original.length; r++) tbody.appendChild(original[r]);
             } else {
                 var sign = next === 'asc' ? 1 : -1;
-                all.sort(function (a, b) {
-                    return sign * compare(cellText(a, index), cellText(b, index));
+                var decorated = all.map(function (row, index) { return { row: row, index: index }; });
+                decorated.sort(function (a, b) {
+                    var result = sign * compare(cellText(a.row, column), cellText(b.row, column));
+                    return result !== 0 ? result : a.index - b.index;   // 稳定排序
                 });
-                for (var k = 0; k < all.length; k++) tbody.appendChild(all[k]);
+                for (var k = 0; k < decorated.length; k++) tbody.appendChild(decorated[k].row);
             }
 
-            for (var t = 0; t < cells.length; t++) cells[t].removeAttribute('data-sort');
+            for (var t = 0; t < headers.length; t++) headers[t].removeAttribute('data-sort');
             if (next !== 'none') th.setAttribute('data-sort', next);
         }
 
-        function cellText(row, index) {
-            var cell = row.cells[index];
-            return cell ? (cell.textContent || '').trim() : '';
+        function cellText(row, column) {
+            var index = 0;
+            for (var i = 0; i < row.cells.length; i++) {
+                var cell = row.cells[i];
+                var span = Math.max(1, cell.colSpan || 1);
+                if (column >= index && column < index + span) return (cell.textContent || '').trim();
+                index += span;
+            }
+            return '';
         }
 
         function compare(a, b) {
             if (a === b) return 0;
-            // 去掉千分位、货币符号和百分号再试数字
             var na = parseNumber(a);
             var nb = parseNumber(b);
-            if (na !== null && nb !== null) return na < nb ? -1 : 1;
+            // 百分数与普通数、不同货币不放在一起比大小
+            if (na !== null && nb !== null && (a.indexOf('%') >= 0) === (b.indexOf('%') >= 0)) {
+                return na < nb ? -1 : 1;
+            }
             return a.localeCompare(b, 'zh-CN', { numeric: true, sensitivity: 'base' });
         }
 
@@ -517,41 +587,83 @@
 
     var annotations = [];
 
+    // 把一条标注的 [start,end) 重新对齐到当前 DOM。
+    // 文档改过之后偏移会漂移：先用记录位置附近的同文匹配，而不是全文第一次出现。
+    function nearestIndex(text, quote, hint) {
+        if (!quote) return -1;
+        var best = -1;
+        var bestDistance = Infinity;
+        var at = 0;
+        while (true) {
+            at = text.indexOf(quote, at);
+            if (at < 0) break;
+            var distance = Math.abs(at - hint);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = at;
+            }
+            at += Math.max(1, quote.length);
+        }
+        return best;
+    }
+
+    function wholeText(nodes) {
+        var text = '';
+        for (var i = 0; i < nodes.length; i++) text += nodes[i].nodeValue;
+        return text;
+    }
+
     function applyAnnotations(items) {
         clearAnnotations();
         annotations = items || [];
         if (annotations.length === 0) return;
 
         var nodes = textNodes();
-        var total = fullLength(nodes);
+        if (nodes.length === 0) return;
+        var whole = wholeText(nodes);
 
+        var ranges = [];
         for (var i = 0; i < annotations.length; i++) {
             var item = annotations[i];
             var start = item.start | 0;
             var end = item.end | 0;
             if (end <= start) continue;
 
-            // 文档改过之后偏移会漂移：对不上原文就在全文里找一次
-            var segs = segments(nodes, start, end);
-            var got = '';
-            for (var k = 0; k < segs.length; k++) {
-                got += segs[k].node.nodeValue.substr(segs[k].from, segs[k].to - segs[k].from);
-            }
-            if (item.quote && got !== item.quote) {
-                var whole = '';
-                for (var n = 0; n < nodes.length; n++) whole += nodes[n].nodeValue;
-                if (whole.length !== total) { nodes = textNodes(); }
-                var at = whole.indexOf(item.quote);
-                if (at >= 0) {
+            if (item.quote) {
+                var got = whole.substring(start, end);
+                if (got !== item.quote) {
+                    var at = nearestIndex(whole, item.quote, start);
+                    if (at < 0) continue;       // 原文找不到了就跳过，别错位到别处
                     start = at;
                     end = at + item.quote.length;
-                    segs = segments(nodes, start, end);
-                } else {
-                    continue; // 原文找不到了，跳过这条，不破坏排版
                 }
             }
 
-            wrapSegments(segs, item.id || String(i), item.kind, item.note);
+            if (start < 0 || end > whole.length || end <= start) continue;
+            ranges.push({
+                start: start,
+                end: end,
+                id: item.id || String(ranges.length),
+                kind: item.kind,
+                note: item.note
+            });
+        }
+
+        // 重叠的标注只保留前一条：包成嵌套 mark 会让 measureAnnotations 读错。
+        // 宁可少画一条，也不画到别的词上。
+        ranges.sort(function (a, b) { return a.start - b.start || b.end - a.end; });
+        var accepted = [];
+        var lastEnd = 0;
+        for (var r = 0; r < ranges.length; r++) {
+            if (ranges[r].start < lastEnd) continue;
+            accepted.push(ranges[r]);
+            lastEnd = ranges[r].end;
+        }
+
+        // 从后往前包：splitText 只影响后面的节点，前面区间的偏移仍然有效。
+        for (var k = accepted.length - 1; k >= 0; k--) {
+            var range = accepted[k];
+            wrapSegments(segments(nodes, range.start, range.end), range.id, range.kind, range.note);
         }
     }
 
@@ -586,29 +698,67 @@
     // 选中文字后浮出来的小工具条：高亮 / 批注 / 朗读
     var bubble = null;
 
+    // 三击选中整段 / 选择边界落在元素上时，取容器里第一个（或最后一个）文本节点
+    function boundaryText(nodes, container, isStart) {
+        if (!container) return null;
+        if (container.nodeType === 3) return container;
+        var found = null;
+        for (var i = 0; i < nodes.length; i++) {
+            if (!container.contains(nodes[i])) continue;
+            if (isStart) return nodes[i];
+            found = nodes[i];
+        }
+        return found;
+    }
+
     function selectionInfo() {
         var sel = window.getSelection();
         if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
-        var text = sel.toString();
-        if (!text || !text.trim()) return null;
-        if (text.length > 4000) return null;
 
         var range = sel.getRangeAt(0);
         if (!root.contains(range.commonAncestorContainer)) return null;
 
         var nodes = textNodes();
-        var pos = 0, start = -1, end = -1;
+        if (nodes.length === 0) return null;
+
+        var starts = new Array(nodes.length);
+        var pos = 0;
         for (var i = 0; i < nodes.length; i++) {
-            var node = nodes[i];
-            var len = node.nodeValue.length;
-            if (node === range.startContainer) start = pos + range.startOffset;
-            if (node === range.endContainer) end = pos + range.endOffset;
-            pos += len;
+            starts[i] = pos;
+            pos += nodes[i].nodeValue.length;
+        }
+
+        function indexOfNode(node) {
+            for (var j = 0; j < nodes.length; j++) if (nodes[j] === node) return j;
+            return -1;
+        }
+
+        var start = -1;
+        var end = -1;
+        var si = range.startContainer.nodeType === 3 ? indexOfNode(range.startContainer) : -1;
+        if (si >= 0) start = starts[si] + range.startOffset;
+        var ei = range.endContainer.nodeType === 3 ? indexOfNode(range.endContainer) : -1;
+        if (ei >= 0) end = starts[ei] + range.endOffset;
+
+        if (start < 0) {
+            var first = boundaryText(nodes, range.startContainer, true);
+            if (first) start = starts[indexOfNode(first)];
+        }
+        if (end < 0) {
+            var last = boundaryText(nodes, range.endContainer, false);
+            if (last) end = starts[indexOfNode(last)] + last.nodeValue.length;
         }
         if (start < 0 || end < 0 || end <= start) return null;
+
+        var whole = wholeText(nodes);
+        var text = whole.substring(start, end);
+        if (!text || !text.trim()) return null;
+        if (text.length > 4000) return null;
+
+        // 注意：quote 必须用计算出来的区间，不能用 sel.toString()。
+        // 跨代码块时 sel 会带上"复制"按钮和语言标签的文字，偏移就对不上了。
         return { text: text, start: start, end: end, rect: range.getBoundingClientRect() };
     }
-
     function hideBubble() {
         if (bubble) bubble.classList.remove('on');
     }
@@ -670,13 +820,31 @@
         guard: null      // 看门狗定时器
     };
 
+    // 只取「属于这个块自己」的文本：li 里嵌套的 ul/子 li、li 里包的 p 交给子块读，
+    // 否则父 li 和子 li 会把同一段读两遍。
+    function directText(el) {
+        var out = '';
+        for (var node = el.firstChild; node; node = node.nextSibling) {
+            if (node.nodeType === 3) {
+                out += node.nodeValue;
+            } else if (node.nodeType === 1) {
+                var tag = node.tagName;
+                if (tag === 'UL' || tag === 'OL' || tag === 'LI' || tag === 'P' || tag === 'PRE' ||
+                    tag === 'TABLE' || tag === 'BLOCKQUOTE' || tag === 'DIV' || tag === 'SECTION') continue;
+                out += node.textContent || '';
+            }
+        }
+        return out.replace(/\s+/g, ' ').trim();
+    }
+
     function collectReadableBlocks() {
         var blocks = [];
-        var nodes = root.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote>p,td,th');
+        var nodes = root.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,th,td');
         for (var i = 0; i < nodes.length; i++) {
             var el = nodes[i];
-            if (el.querySelector('pre, .mermaid')) continue;
-            var text = (el.textContent || '').trim();
+            if (el.parentNode && el.parentNode.closest && el.parentNode.closest('pre, .mermaid')) continue;
+
+            var text = directText(el);
             if (!text) continue;
             // 太短的（页码、单字）跳过，读起来断断续续
             if (text.length < 2) continue;
@@ -824,15 +992,23 @@
         }
 
         if (action === 'resume') {
-            if (!speech.active) { speakFrom(0, 0); return; }
+            if (!speech.active) { delayedSpeak(0, 0); return; }
             speech.paused = false;
-            speakFrom(speech.index, speech.offset);
+            delayedSpeak(speech.index, speech.offset);
             return;
         }
 
         // play：从头读，段落列表重新收集（改过字号、切过主题后位置会变）
         resetSpeech();
-        speakFrom(0, 0);
+        delayedSpeak(0, 0);
+    }
+
+    // cancel() 之后马上 speak()，Chromium 有概率把新语句吞掉；隔一个 tick 再开口。
+    function delayedSpeak(index, offset) {
+        setTimeout(function () {
+            if (speech.paused) return;
+            speakFrom(index, offset);
+        }, 30);
     }
 
     // ───────────────────────── 进度条 + 章节回报 ─────────────────────────
@@ -880,6 +1056,9 @@
         return headings[index].id;
     }
 
+    var lastRatioPost = 0;
+    var lastRatioValue = -1;
+
     function onScroll() {
         if (ticking) return;
         ticking = true;
@@ -889,7 +1068,16 @@
                 barFill.style.width = (ratio * 100).toFixed(2) + '%';
                 if (bar) bar.classList.toggle('on', ratio > 0.005);
             }
+            hideBubble();   // 选区气泡是 fixed 定位，滚动后必须收掉
             post('heading', currentAnchor());
+
+            // 宿主关窗时要用「最后一次读到的位置」同步落盘，所以定期回报一次比例
+            var now = Date.now();
+            if (now - lastRatioPost > 700 && Math.abs(ratio - lastRatioValue) > 0.002) {
+                lastRatioPost = now;
+                lastRatioValue = ratio;
+                post('scrollRatio', ratio.toFixed(4));
+            }
             ticking = false;
         });
     }
@@ -922,16 +1110,10 @@
             document.body.setAttribute('data-mode', mode);
         }
 
-        // 图表是按主题配色画出来的 SVG，换主题要重画一遍
-        if (root.querySelector('.mermaid svg')) {
-            var sources = root.querySelectorAll('.mermaid');
-            for (var i = 0; i < sources.length; i++) {
-                var svg = sources[i].querySelector('svg');
-                if (!svg) continue;
-                var code = sources[i].getAttribute('data-src');
-                if (code) sources[i].textContent = code;
-            }
-            renderMermaid();
+        // 图表是按主题配色画出来的 SVG，换主题要按 data-src 重画一遍。
+        // 注意不能只找 `pre > code`：第一次渲染后代码块已经被换成 div.mermaid 了。
+        if (root.querySelector('div.mermaid[data-src]')) {
+            rerenderMermaid();
         }
     }
 
@@ -960,19 +1142,65 @@
         target.scrollIntoView({ behavior: behavior, block: 'start' });
     }
 
-    // 恢复阅读位置：图片陆续加载会让 scrollHeight 变化，隔一小会儿再校一次
+    // 恢复阅读位置：图片陆续加载会让 scrollHeight 变化，隔一小会儿再校一次。
+    // 但用户一旦自己滚了（滚轮 / 触摸 / 键盘 / 拖滚动条），后面的校正必须放弃，
+    // 否则会出现「我往下滚，它又把我拽回去」。
+    var restoreTimers = [];
+    var restoreDetach = null;
+
+    function cancelRestore() {
+        for (var i = 0; i < restoreTimers.length; i++) clearTimeout(restoreTimers[i]);
+        restoreTimers = [];
+        if (restoreDetach) {
+            var detach = restoreDetach;
+            restoreDetach = null;
+            detach();
+        }
+    }
+
     function restoreScroll(y, ratio) {
+        cancelRestore();
+
+        var expectedTop = -1;
         var apply = function () {
             var doc = document.documentElement;
             var max = Math.max(0, (doc.scrollHeight || 0) - window.innerHeight);
             var top = 0;
             if (y > 0) top = y;
             else if (ratio > 0) top = ratio * max;
-            window.scrollTo(0, Math.min(top, max));
+            expectedTop = Math.min(top, max);
+            window.scrollTo(0, expectedTop);
         };
+
         apply();
-        setTimeout(apply, 260);
-        setTimeout(apply, 900);
+        restoreTimers.push(setTimeout(apply, 260));
+        restoreTimers.push(setTimeout(apply, 900));
+
+        var stop = function () {
+            for (var i = 0; i < restoreTimers.length; i++) clearTimeout(restoreTimers[i]);
+            restoreTimers = [];
+            var detach = restoreDetach;
+            restoreDetach = null;
+            if (detach) detach();
+        };
+        var detach = function () {
+            window.removeEventListener('wheel', stop);
+            window.removeEventListener('touchstart', stop);
+            window.removeEventListener('keydown', stop);
+            window.removeEventListener('mousedown', stop);
+            window.removeEventListener('scroll', onScrollCheck);
+        };
+        // 用户拖滚动条 / 用脚本滚走时不会触发 wheel，只能看滚动位置有没有偏离我们设的目标
+        var onScrollCheck = function () {
+            if (expectedTop >= 0 && Math.abs(window.scrollY - expectedTop) > 8) stop();
+        };
+        restoreDetach = detach;
+
+        window.addEventListener('wheel', stop, { passive: true });
+        window.addEventListener('touchstart', stop, { passive: true });
+        window.addEventListener('keydown', stop);
+        window.addEventListener('mousedown', stop);
+        window.addEventListener('scroll', onScrollCheck, { passive: true });
     }
 
     // 正文栏宽度：>0 = 限制在这么多 px（阅读舒适），0 = 铺满窗口（宽屏，给多列表格用）。
@@ -987,9 +1215,11 @@
         }
     }
 
-    // 无干扰模式：宿主把工具栏和状态栏藏起来后，正文两侧留白可以再收一点
+    // 无干扰模式：宿主把工具栏和状态栏藏起来后，正文两侧留白可以再收一点。
+    // 宿主发的是字符串 "1"/"0"，不能直接 !!on —— "0" 是真值。
     function setZen(on) {
-        document.body.classList.toggle('zen', !!on);
+        var enabled = on === true || on === 1 || on === '1' || on === 'true';
+        document.body.classList.toggle('zen', enabled);
     }
 
     function listenHost() {
@@ -1017,6 +1247,10 @@
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             } else if (msg.kind === 'restore') {
                 var data = payload || {};
+                // 兼容旧协议：payload 被二次序列化成字符串时，先解一层
+                if (typeof data === 'string') {
+                    try { data = JSON.parse(data) || {}; } catch (e) { data = {}; }
+                }
                 restoreScroll(Number(data.y) || 0, Number(data.ratio) || 0);
             } else if (msg.kind === 'zen') {
                 setZen(payload);
@@ -1058,8 +1292,101 @@
                 if (junk[i].parentNode) junk[i].parentNode.removeChild(junk[i]);
             }
             return '<!DOCTYPE html>\n' + clone.outerHTML;
+        },
+        // 导出 HTML：直接快照当前已经渲染好的 DOM —— 公式是 KaTeX 生成的节点、
+        // 图表是内联 SVG、代码是 hljs 着色后的 span，不再依赖任何外部脚本。
+        exportHtml: function (epubRoot) {
+            var clone = document.documentElement.cloneNode(true);
+
+            var junk = clone.querySelectorAll('script, link[rel="stylesheet"], .bubble, #readbar, .copy-btn, .code-lang, .lightbox');
+            for (var i = 0; i < junk.length; i++) {
+                if (junk[i].parentNode) junk[i].parentNode.removeChild(junk[i]);
+            }
+
+            // 阅读器自己的 CSP 会把对方浏览器里的远程图片挡掉，导出页不要带它
+            var meta = clone.querySelector('meta[http-equiv="Content-Security-Policy"]');
+            if (meta && meta.parentNode) meta.parentNode.removeChild(meta);
+
+            var nonced = clone.querySelectorAll('[nonce]');
+            for (var n = 0; n < nonced.length; n++) nonced[n].removeAttribute('nonce');
+
+            var mdHost = /^https:\/\/md\d+\.local\//i;
+            var epubHost = /^https:\/\/epub\d+\.local\//i;
+            var elements = clone.querySelectorAll('[src], [href]');
+            for (var e = 0; e < elements.length; e++) {
+                var el = elements[e];
+                for (var a = 0; a < 2; a++) {
+                    var attr = a === 0 ? 'src' : 'href';
+                    var value = el.getAttribute(attr);
+                    if (!value) continue;
+                    try {
+                        if (mdHost.test(value)) {
+                            el.setAttribute(attr, decodeURIComponent(value.replace(mdHost, '')));
+                        } else if (epubRoot && epubHost.test(value)) {
+                            el.setAttribute(attr, epubRoot + decodeURIComponent(value.replace(epubHost, '')));
+                        }
+                    } catch (err) {
+                        // 路径里有过奇怪的 % 就保持原样
+                    }
+                }
+            }
+
+            var body = clone.querySelector('body');
+            if (body) {
+                body.classList.remove('zen', 'capturing', 'tts-active');
+                body.classList.add('for-export');
+            }
+
+            return '<!DOCTYPE html>\n' + clone.outerHTML;
         }
     };
+
+    // 把页面里的按键翻译成宿主命令。宿主那套快捷键在正文获得焦点后收不到键，
+    // 必须由页面转发（见 MainWindow.Shortcuts.cs）。
+    function shortcutAction(e) {
+        if (e.isComposing) return null;
+        var ctrl = e.ctrlKey || e.metaKey;
+        var shift = e.shiftKey;
+        var alt = e.altKey;
+        var key = e.key;
+
+        if (ctrl && shift && (key === 'e' || key === 'E')) return 'editor';
+        if (ctrl && shift && (key === 'd' || key === 'D')) return 'theme';
+        if (ctrl && shift && (key === 'w' || key === 'W')) return 'wide';
+        if (ctrl && shift && (key === 'r' || key === 'R')) return 'speak';
+        if (ctrl && shift && (key === 'b' || key === 'B')) return 'bookmark';
+        if (ctrl && shift && (key === 's' || key === 'S')) return 'exportPng';
+
+        if (ctrl && !shift && (key === 'o' || key === 'O')) return 'open';
+        if (ctrl && !shift && (key === 'f' || key === 'F')) return 'find';
+        if (ctrl && !shift && (key === 'p' || key === 'P')) return 'exportPdf';
+        if (ctrl && !shift && (key === 'e' || key === 'E')) return 'recent';
+        if (ctrl && (key === ',' || key === '，')) return 'settings';
+        if (ctrl && !shift && (key === 't' || key === 'T')) return 'toc';
+        if (ctrl && (key === '=' || key === '+')) return 'fontUp';
+        if (ctrl && (key === '-' || key === '_')) return 'fontDown';
+        if (ctrl && key === '0') return 'fontReset';
+
+        if (key === 'F11') return 'zen';
+        if (key === 'F5') return 'reload';
+        if (alt && key === 'ArrowLeft') return 'back';
+        if (alt && key === 'ArrowRight') return 'forward';
+        if (key === 'Escape') return 'escape';
+        return null;
+    }
+
+    function forwardShortcut(e) {
+        var action = shortcutAction(e);
+        if (!action) return;
+        if (action !== 'escape') e.preventDefault();
+        post('shortcut', action);
+    }
+
+    function forwardWheel(e) {
+        if (!e.ctrlKey) return;
+        e.preventDefault();
+        post('shortcut', e.deltaY < 0 ? 'fontUp' : 'fontDown');
+    }
 
     function notifyReady() {
         post('ready', {
@@ -1077,8 +1404,9 @@
 
         renderMath();
         setupCodeBlocks();
-        // mermaid 要在 setupCodeBlocks 之后（它会把 mermaid 代码块整个换掉）
-        renderMermaid();
+        // mermaid 要在 setupCodeBlocks 之后（它会把 mermaid 代码块整个换掉）。
+        // 它返回 Promise：等 SVG 真的落地再报 ready，标注才不会按源码文本定位。
+        var mermaidReady = renderMermaid();
         wrapTables();
         markFailedImages();
         setupLightbox();
@@ -1099,6 +1427,8 @@
                     if (window.__mdviewerLightboxClose) window.__mdviewerLightboxClose();
                 }
             });
+            document.addEventListener('keydown', forwardShortcut, true);
+            window.addEventListener('wheel', forwardWheel, { passive: false });
             document.addEventListener('mousedown', function (e) {
                 if (bubble && !bubble.contains(e.target)) hideBubble();
             });
@@ -1106,6 +1436,10 @@
 
         window.addEventListener('scroll', onScroll, { passive: true });
         onScroll();
-        notifyReady();
+        if (mermaidReady && typeof mermaidReady.then === 'function') {
+            mermaidReady.then(notifyReady, notifyReady);
+        } else {
+            notifyReady();
+        }
     });
 })();

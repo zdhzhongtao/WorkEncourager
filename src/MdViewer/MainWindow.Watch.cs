@@ -80,17 +80,24 @@ namespace MdViewer
 
         private void OnWatcherError(object sender, ErrorEventArgs e)
         {
-            // 缓冲区溢出之类的：重启监听，别让自动刷新就这么静默死掉
+            // 缓冲区溢出之类的：重启监听，别让自动刷新就这么静默死掉。
+            // FileSystemWatcher 的事件在 ThreadPool 线程上，StartWatching 会碰 WPF 控件，
+            // 必须切回 UI 线程，否则跨线程异常会让进程静默退出。
             Log.Error("文件监听出错", e.GetException());
-            StartWatching();
+            Dispatcher.BeginInvoke(new Action(StartWatching));
         }
 
         /// <summary>文件被写入：防抖，等写入方彻底写完再读一次。</summary>
         private void OnSourceTouched(object sender, FileSystemEventArgs e)
         {
             if (!App.Settings.AutoReload) return;
-            _reloadTimer.Stop();
-            _reloadTimer.Start();
+
+            // DispatcherTimer 属于 UI 线程；事件回调在 ThreadPool 上，统一切回去
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _reloadTimer.Stop();
+                _reloadTimer.Start();
+            }));
         }
 
         private void OnSourceGone(object sender, FileSystemEventArgs e)
@@ -243,10 +250,14 @@ namespace MdViewer
             string host = "epub" + (_docSeq + 1) + ".local";
             string dir = Path.Combine(App.EpubCacheDir, EpubKey(full));
 
+            int seq = _openSeq;
             try
             {
                 var document = await Task.Run(() =>
                     EpubReader.Open(full, dir, "https://" + host, keepScroll));
+
+                // 解析期间用户切到了别的文档：这次结果作废，别再抢回视图
+                if (seq != _openSeq) return;
 
                 _epub = document;
                 _epubHost = host;
@@ -296,15 +307,24 @@ namespace MdViewer
             }
         }
 
+        private bool _busy;
+
         private void ShowBusy(string text)
         {
+            _busy = true;
             BusyText.Text = text;
+            // BusyPanel 和 WebView2 在同一个 Grid 里，HwndHost 会把它盖住；
+            // 解析期间先把正文藏起来，用户才能看见「正在解析」。
+            View.Visibility = Visibility.Collapsed;
             BusyPanel.Visibility = Visibility.Visible;
         }
 
         private void HideBusy()
         {
+            _busy = false;
             BusyPanel.Visibility = Visibility.Collapsed;
+            if (!_webFailed && !string.IsNullOrEmpty(_currentPath))
+                View.Visibility = Visibility.Visible;
         }
 
         // ───────────────────────── 设置 / 更新 / 关于 ─────────────────────────

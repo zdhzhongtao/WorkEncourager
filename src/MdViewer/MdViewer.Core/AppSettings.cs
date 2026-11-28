@@ -52,6 +52,10 @@ namespace MdViewer.Core
 
         public double WindowWidth { get; set; } = 1200;
         public double WindowHeight { get; set; } = 820;
+
+        /// <summary>窗口左上角。-1 表示没记录过，启动时用系统默认位置。</summary>
+        public double WindowLeft { get; set; } = -1;
+        public double WindowTop { get; set; } = -1;
         public bool WindowMaximized { get; set; }
         public double TocWidth { get; set; } = 240;
         public bool TocVisible { get; set; } = true;
@@ -164,6 +168,19 @@ namespace MdViewer.Core
             if (double.IsNaN(settings.MaxContentWidth) || settings.MaxContentWidth < 640 || settings.MaxContentWidth > 1400)
                 settings.MaxContentWidth = 880;
 
+            // 窗口尺寸/位置也要收敛：手改或异常值（NaN/Infinity）会让 System.Text.Json
+            // 直接拒绝序列化，之后每次保存都静默失败。
+            if (!IsFinite(settings.WindowWidth) || settings.WindowWidth < 400 || settings.WindowWidth > 20000)
+                settings.WindowWidth = 1200;
+            if (!IsFinite(settings.WindowHeight) || settings.WindowHeight < 300 || settings.WindowHeight > 20000)
+                settings.WindowHeight = 820;
+            if (!IsFinite(settings.WindowLeft) || settings.WindowLeft < -30000 || settings.WindowLeft > 30000)
+                settings.WindowLeft = -1;
+            if (!IsFinite(settings.WindowTop) || settings.WindowTop < -30000 || settings.WindowTop > 30000)
+                settings.WindowTop = -1;
+            if (!IsFinite(settings.TocWidth) || settings.TocWidth < 100 || settings.TocWidth > 600)
+                settings.TocWidth = 240;
+
             string theme = (settings.Theme ?? string.Empty).Trim().ToLowerInvariant();
             if (theme != "light" && theme != "dark" && theme != "system") theme = "system";
             settings.Theme = theme;
@@ -178,6 +195,14 @@ namespace MdViewer.Core
             if (settings.RecentEntries == null) settings.RecentEntries = new List<RecentEntry>();
             if (settings.RecentFiles == null) settings.RecentFiles = new List<string>();
             if (settings.ScrollPositions == null) settings.ScrollPositions = new Dictionary<string, double>();
+
+            // 阅读位置只接受 0~1 的有限数；坏值留着会让页面滚到 NaN 位置
+            var badPositions = new List<string>();
+            foreach (var pair in settings.ScrollPositions)
+            {
+                if (!IsFinite(pair.Value) || pair.Value < 0 || pair.Value > 1) badPositions.Add(pair.Key);
+            }
+            foreach (string key in badPositions) settings.ScrollPositions.Remove(key);
 
             // v1 → v2：老配置只有 RecentFiles，迁到 RecentEntries（时间未知就留空）。
             // 只在版本号还是老的时候迁，否则用户手动清空列表会被旧字段又填回来。
@@ -215,11 +240,13 @@ namespace MdViewer.Core
             {
                 // 去空、去重（同一个文件不该在标签栏里出现两次），最多留 20 个
                 var kept = new List<string>();
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var path in settings.OpenTabs)
                 {
                     if (string.IsNullOrWhiteSpace(path)) continue;
-                    if (kept.Contains(path)) continue;
-                    kept.Add(path);
+                    string full = NormalizeTabPath(path);
+                    if (!seen.Add(full)) continue;
+                    kept.Add(full);
                 }
                 if (kept.Count > 20) kept.RemoveRange(0, kept.Count - 20);
                 settings.OpenTabs = kept;
@@ -231,9 +258,26 @@ namespace MdViewer.Core
             if (settings.Version < CurrentVersion) settings.Version = CurrentVersion;
         }
 
-        /// <summary>字体名只留第一个名字，去掉引号和逗号 —— 这个值会被拼进 css 的 font-family。</summary>
-        private static string CleanFontName(string value)
+        private static bool IsFinite(double value)
         {
+            return !double.IsNaN(value) && !double.IsInfinity(value);
+        }
+
+        /// <summary>标签路径统一成完整路径；失败就退回原字符串。</summary>
+        private static string NormalizeTabPath(string path)
+        {
+            try
+            {
+                return System.IO.Path.GetFullPath(path.Trim());
+            }
+            catch (Exception)
+            {
+                return path.Trim();
+            }
+        }
+
+        /// <summary>字体名只留第一个名字，去掉引号和逗号 —— 这个值会被拼进 css 的 font-family。</summary>
+        private static string CleanFontName(string value)        {
             string text = (value ?? string.Empty).Trim();
             if (text.Length == 0) return string.Empty;
 
@@ -298,6 +342,8 @@ namespace MdViewer.Core
 
             defaults.WindowWidth = current.WindowWidth;
             defaults.WindowHeight = current.WindowHeight;
+            defaults.WindowLeft = current.WindowLeft;
+            defaults.WindowTop = current.WindowTop;
             defaults.WindowMaximized = current.WindowMaximized;
             defaults.TocWidth = current.TocWidth;
 

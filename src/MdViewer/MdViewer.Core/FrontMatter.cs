@@ -89,11 +89,41 @@ namespace MdViewer.Core
 
             if (end < 0) return markdown; // 没闭合，当普通正文（不能吞掉内容）
 
+            string raw = text.Substring(firstLineEnd + 1, Math.Max(0, endLineStart - firstLineEnd - 1));
+
+            // 开头 `---` 也可能只是一条分隔线。只有内容真的像 YAML（至少有一个 key:）才当
+            // front matter，否则整篇原样交给 Markdown —— 否则「--- 第一段 --- 第二段」会把
+            // 第一段静默吞掉（0.5.x 实测）。
+            if (!LooksLikeYaml(raw)) return markdown;
+
             frontMatter.Found = true;
-            frontMatter.Raw = text.Substring(firstLineEnd + 1, Math.Max(0, endLineStart - firstLineEnd - 1));
+            frontMatter.Raw = raw;
             frontMatter.Parse(frontMatter.Raw);
 
             return end >= text.Length ? string.Empty : text.Substring(end + 1);
+        }
+
+        /// <summary>至少有一行 `key:` 才算 YAML front matter；空块 / 只有分隔线的不算。</summary>
+        private static bool LooksLikeYaml(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return true;   // 空 front matter 无害
+
+            string[] lines = raw.Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i].Trim();
+                if (line.Length == 0 || line[0] == '#') continue;
+                if (line.StartsWith("-", StringComparison.Ordinal)) continue;
+
+                int colon = line.IndexOf(':');
+                if (colon <= 0) continue;
+
+                string key = line.Substring(0, colon).Trim();
+                if (key.Length == 0) continue;
+                if (!char.IsLetterOrDigit(key[0])) continue;
+                return true;
+            }
+            return false;
         }
 
         private void Parse(string raw)

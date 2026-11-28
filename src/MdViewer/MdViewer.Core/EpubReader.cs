@@ -55,8 +55,16 @@ namespace MdViewer.Core
             RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
         private static readonly Regex StyleBlock = new Regex(
-            @"<(style|link|base|meta|title)\b[^>]*?(/>|>.*?</\1\s*>)",
+            @"<(style|title)\b[^>]*>.*?</\1\s*>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+
+        private static readonly Regex StyleOpenOnly = new Regex(
+            @"</?(style|title)\b[^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static readonly Regex HeadVoid = new Regex(
+            @"<(link|base|meta)\b[^>]*/?>",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex UrlAttribute = new Regex(
             @"\b(src|href|xlink:href|poster)\s*=\s*(?:""([^""]*)""|'([^']*)')",
@@ -298,10 +306,17 @@ namespace MdViewer.Core
 
         private static byte[] ReadEntryBytes(ZipArchiveEntry entry)
         {
+            // 解压时的大小限制同样要覆盖「读取」这一步：0.5.x 只限制了 ExtractAll，
+            // 一个 1MB 的 epub 里塞 120MB 单章可以直接把内存吃到 1GB。
+            if (entry.Length > MaxEntryBytes)
+                throw new FriendlyException("EPUB 里有单个文件过大（" + (entry.Length / 1024 / 1024) + "MB），已跳过。");
+
             using (var input = entry.Open())
             using (var memory = new MemoryStream())
             {
-                input.CopyTo(memory);
+                input.CopyTo(memory, 64 * 1024);
+                if (memory.Length > MaxEntryBytes)
+                    throw new FriendlyException("EPUB 里有单个文件过大，已跳过。");
                 return memory.ToArray();
             }
         }
@@ -600,7 +615,7 @@ namespace MdViewer.Core
             ZipArchiveEntry entry;
             if (!entries.TryGetValue(zipPath, out entry)) return null;
 
-            string raw = Decode(ReadEntryBytes(entry));
+            string raw = DecodeHtml(ReadEntryBytes(entry));
             if (string.IsNullOrWhiteSpace(raw)) return null;
 
             string body = raw;
@@ -609,7 +624,7 @@ namespace MdViewer.Core
             else body = HeadBlock.Replace(raw, string.Empty);
 
             // 书里的样式表和 <style> 一律丢掉，统一用本站的排版
-            body = StyleBlock.Replace(body, string.Empty);
+            body = StripHeadTags(body);
             body = HtmlSanitizer.Clean(body);
 
             string prefix = "c" + number.ToString(CultureInfo.InvariantCulture) + "-";
@@ -620,7 +635,7 @@ namespace MdViewer.Core
                 string value = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
                 if (string.IsNullOrEmpty(value)) return m.Value;
                 if (value.StartsWith(prefix, StringComparison.Ordinal)) return m.Value;
-                return "id=\"" + prefix + value + "\"";
+                return "id=\"" + WebUtilityEncode(prefix + value) + "\"";
             });
 
             // <a name="x"> 这种旧式锚点改成 id，跳转才有效
@@ -629,7 +644,9 @@ namespace MdViewer.Core
                 string attrs = m.Groups[1].Value ?? string.Empty;
                 string value = m.Groups[2].Success ? m.Groups[2].Value : m.Groups[3].Value;
                 string clean = Regex.Replace(attrs, @"\bname\s*=\s*(?:""[^""]*""|'[^']*')", string.Empty).Trim();
-                string id = string.IsNullOrEmpty(value) ? string.Empty : " id=\"" + prefix + value + "\"";
+                string id = string.IsNullOrEmpty(value)
+                    ? string.Empty
+                    : " id=\"" + WebUtilityEncode(prefix + value) + "\"";
                 return "<a" + (clean.Length > 0 ? " " + clean : string.Empty) + id;
             });
 
@@ -640,8 +657,12 @@ namespace MdViewer.Core
                 string name = m.Groups[1].Value;
                 string value = m.Groups[2].Success ? m.Groups[2].Value : m.Groups[3].Value;
                 string rewritten = RewriteUrl(name, value, chapterDir, prefix, chapterOfFile, contentOrigin);
-                return name + "=\"" + rewritten + "\"";
+                return name + "=\"" + WebUtilityEncode(rewritten) + "\"";
             });
+
+            // URL 重写是「清洗之后」又拼了一遍属性，这里再洗一次兜底：
+            // 万一书里的引号跑出属性，注入的 HTML 会在这一层被清掉。
+            body = HtmlSanitizer.Clean(body);
 
             return body.Trim();
         }
@@ -732,6 +753,65 @@ namespace MdViewer.Core
         }
 
         // ───────────────────────── 小工具 ─────────────────────────
+
+        /// <summary>只删成对的 style/title；没闭合的开标签单独删，避免正则一路吞到下一个闭合标签。</summary>
+        private static string StripHeadTags(string body)
+        {
+            if (string.IsNullOrEmpty(body)) return body;
+            string text = StyleBlock.Replace(body, string.Empty);
+            text = StyleOpenOnly.Replace(text, string.Empty);
+            return HeadVoid.Replace(text, string.Empty);
+        }
+
+        /// <summary>按 HTML 的 encoding 声明解码（GBK 章节在中文 epub 里并不少见）。</summary>
+        private static string DecodeHtml(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0) return string.Empty;
+            if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+                return Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
+            if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE)
+                return Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2);
+            if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF)
+                return Encoding.BigEndianUnicode.GetString(bytes, 2, bytes.Length - 2);
+
+            string declared = SniffEncoding(bytes);
+            if (declared != null)
+            {
+                try
+                {
+                    var encoding = Encoding.GetEncoding(declared);
+                    return encoding.GetString(bytes);
+                }
+                catch (Exception)
+                {
+                    // 声明不认识就按 UTF-8 走
+                }
+            }
+            return Encoding.UTF8.GetString(bytes);
+        }
+
+        /// <summary>从文件头部找 encoding="gbk" / charset=gb2312 这类声明。</summary>
+        private static string SniffEncoding(byte[] bytes)
+        {
+            int count = Math.Min(bytes.Length, 2048);
+            var sb = new StringBuilder(count);
+            for (int i = 0; i < count; i++)
+            {
+                byte b = bytes[i];
+                sb.Append(b >= 0x20 && b < 0x7F ? (char)b : ' ');
+            }
+            string head = sb.ToString();
+            Match match = Regex.Match(head, @"(?:encoding|charset)\s*=\s*[""']?([A-Za-z0-9._-]+)",
+                RegexOptions.IgnoreCase);
+            if (!match.Success) return null;
+
+            string name = match.Groups[1].Value.ToLowerInvariant();
+            if (name == "gb2312" || name == "gbk" || name == "gb18030" || name == "cp936")
+                return "gb18030";
+            if (name == "big5" || name == "utf-8" || name == "utf8" || name == "iso-8859-1")
+                return name == "utf8" ? "utf-8" : name;
+            return null;
+        }
 
         private static XElement FindElement(XDocument doc, string localName)
         {

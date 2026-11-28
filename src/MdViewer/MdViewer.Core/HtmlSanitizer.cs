@@ -1,89 +1,66 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace MdViewer.Core
 {
     /// <summary>
-    /// 清洗 md 里带进来的内联 HTML：剥掉 script / iframe / on* 事件 / javascript: 链接。
-    /// 用正则而不是 HTML 解析器，是因为这里只防"明显有害"的几种，不是通用 sanitizer。
+    /// 清洗 md / EPUB 里带进来的内联 HTML。
+    ///
+    /// 只做「明显有害」的几种：脚本、外来框架、事件属性、伪协议、能盖住界面的行内样式。
+    /// 实现分两步：
+    ///   1) 先成对删掉 script / style / iframe 这类整块元素（未闭合的开标签在第二步丢弃）；
+    ///   2) 逐标签扫描，**只改标签内部**，正文文本原样保留。
+    ///
+    /// 为什么不用一条大正则跑全文：0.5.x 的写法会把正文/代码里的 `onerror="…"` 当成属性删掉
+    /// （实测 `<p>把 onclick= 去掉</p>` 会变成 `<p>把>`），而且漏掉 `src="x"onerror=…` 这种
+    /// 属性值后没空格的写法。逐标签处理既不会误伤正文，也不依赖「属性前必须有空格」。
     /// </summary>
     public static class HtmlSanitizer
     {
-        private static readonly Regex ScriptBlock = new Regex(@"<script\b[^>]*>.*?</script\s*>",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+        /// <summary>整块删掉（连同内容）的元素。</summary>
+        private static readonly string[] BlockElements =
+        {
+            "script", "style", "iframe", "object", "frame", "frameset", "title", "noscript"
+        };
 
-        private static readonly Regex ScriptSelfClosing = new Regex(@"<script\b[^>]*/\s*>",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        /// <summary>只删标签本身的元素（没有闭合标签，或由浏览器自己配对）。</summary>
+        private static readonly HashSet<string> VoidBlocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "link", "base", "meta", "embed"
+        };
 
-        private static readonly Regex ScriptOpenOnly = new Regex(@"<script\b[^>]*>",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        /// <summary>连同内容一起丢弃的标签（表单控件是钓鱼页的入口，也不属于 Markdown 语法）。</summary>
+        private static readonly HashSet<string> FormBlocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "form", "input", "textarea", "select", "option"
+        };
 
-        private static readonly Regex IframeBlock = new Regex(@"<iframe\b[^>]*>.*?</iframe\s*>",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+        /// <summary>即使没配成对（自闭合 / 未闭合），标签本身也必须丢掉。</summary>
+        private static readonly HashSet<string> TagBlocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "script", "style", "iframe", "object", "frame", "frameset", "title", "noscript", "embed", "link", "base", "meta"
+        };
 
-        private static readonly Regex IframeSingle = new Regex(@"<iframe\b[^>]*/?>",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex TagName = new Regex(@"^<\s*/?\s*([a-zA-Z][a-zA-Z0-9:-]*)", RegexOptions.Compiled);
 
-        private static readonly Regex ObjectEmbed = new Regex(@"<(object|embed|frame|frameset)\b[^>]*>.*?</\1\s*>",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+        /// <summary>事件属性。属性名前面不能是单词字符、冒号或连字符（`data-onerror` 不算）。</summary>
+        private static readonly Regex EventAttr = new Regex(
+            @"(?<![\w:-])on[a-zA-Z]+\s*=\s*(?:""[^""]*""|'[^']*'|[^\s>]+)",
+            RegexOptions.Compiled);
 
-        /// <summary>没有闭合标签的写法，比如 &lt;embed src="x"&gt;。</summary>
-        private static readonly Regex ObjectEmbedSingle = new Regex(@"<(object|embed|frame|frameset)\b[^>]*/?>",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex SrcdocAttr = new Regex(
+            @"(?<![\w:-])srcdoc\s*=\s*(?:""[^""]*""|'[^']*'|[^\s>]+)",
+            RegexOptions.Compiled);
 
-        // ── 文档级标签 ──
-        // md 里写一句 <style>body{display:none}</style> 就能让整页空白，
-        // <meta http-equiv="refresh"> 还能触发跳转。EPUB 那边早就单独剥过，
-        // 普通 md 走的是这里，所以必须在这层处理掉。
-
-        private static readonly Regex StyleBlock = new Regex(@"<style\b[^>]*>.*?</style\s*>",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-
-        private static readonly Regex StyleSingle = new Regex(@"<style\b[^>]*/?>",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex TitleBlock = new Regex(@"<title\b[^>]*>.*?</title\s*>",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-
-        private static readonly Regex TitleSingle = new Regex(@"<title\b[^>]*/?>",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex LinkTag = new Regex(@"<link\b[^>]*/?>",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex BaseTag = new Regex(@"<base\b[^>]*/?>",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex MetaTag = new Regex(@"<meta\b[^>]*/?>",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex EventAttrDouble = new Regex(@"\son[a-z]+\s*=\s*""[^""]*""",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex EventAttrSingle = new Regex(@"\son[a-z]+\s*=\s*'[^']*'",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex EventAttrBare = new Regex(@"\son[a-z]+\s*=\s*[^\s>]+",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex JsHrefDouble = new Regex(@"(href|src|xlink:href)\s*=\s*""\s*javascript:[^""]*""",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        private static readonly Regex JsHrefSingle = new Regex(@"(href|src|xlink:href)\s*=\s*'\s*javascript:[^']*'",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        /// <summary>
-        /// 所有可能带 URL 的属性。按「先解码再判断」处理，因为 jav&amp;#x61;script: 这种
-        /// 写法浏览器照样执行，光看原始字符串拦不住。
-        /// </summary>
+        /// <summary>带 URL 的属性：值可能是双引号、单引号或不带引号。</summary>
         private static readonly Regex UrlAttr = new Regex(
-            @"\b(href|src|xlink:href|action|formaction|poster)\s*=\s*(?:""([^""]*)""|'([^']*)')",
+            @"(?<![\w:-])(href|src|xlink:href|action|formaction|poster|srcset)\s*=\s*(?:""([^""]*)""|'([^']*)'|([^\s>]+))",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        /// <summary>不带引号的写法：&lt;a href=javascript:alert(1)&gt;。</summary>
-        private static readonly Regex UrlAttrBare = new Regex(
-            @"\b(href|src|xlink:href|action|formaction|poster)\s*=\s*([^\s""'>]+)",
+        private static readonly Regex StyleAttr = new Regex(
+            @"(?<![\w:-])style\s*=\s*(?:""([^""]*)""|'([^']*)')",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly string[] DangerousSchemes =
@@ -91,54 +68,165 @@ namespace MdViewer.Core
             "javascript:", "vbscript:", "data:text/html", "data:application/xhtml", "data:image/svg"
         };
 
+        /// <summary>允许出现在 style="" 里的属性。刻意不含 position / inset / z-index / overflow / transform。</summary>
+        private static readonly HashSet<string> SafeStyleProperties = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "text-align", "font-weight", "font-style", "font-size", "font-family",
+            "text-decoration", "text-indent", "line-height", "vertical-align",
+            "color", "background-color", "white-space", "word-break", "overflow-wrap",
+            "width", "height", "max-width", "border", "border-radius", "opacity"
+        };
+
         public static string Clean(string html)
         {
             if (string.IsNullOrEmpty(html)) return string.Empty;
 
-            string text = html;
+            string text = RemoveComments(html);
+            text = RemoveBlockElements(text);
+            return ScanTags(text);
+        }
 
-            text = ScriptBlock.Replace(text, string.Empty);
-            text = ScriptSelfClosing.Replace(text, string.Empty);
-            text = ScriptOpenOnly.Replace(text, string.Empty);
+        // ───────────────────────── 第一步：整块元素 ─────────────────────────
 
-            text = IframeBlock.Replace(text, string.Empty);
-            text = IframeSingle.Replace(text, string.Empty);
-            text = ObjectEmbed.Replace(text, string.Empty);
-            text = ObjectEmbedSingle.Replace(text, string.Empty);
+        private static string RemoveComments(string text)
+        {
+            // 成对注释整段删；未闭合的 `<!--` 也要删掉 —— 否则浏览器会把后面整篇当注释，
+            // 表现为「后半篇文档凭空消失」。
+            text = Regex.Replace(text, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+            return text.Replace("<!--", string.Empty);
+        }
 
-            // 文档级标签：<style> 会改整页排版，<link> 会引入外部样式，<meta refresh> 会触发跳转。
-            // 版面配色由宿主统一提供，这些一律不该由文档自己决定。
-            text = StyleBlock.Replace(text, string.Empty);
-            text = StyleSingle.Replace(text, string.Empty);
-            text = TitleBlock.Replace(text, string.Empty);
-            text = TitleSingle.Replace(text, string.Empty);
-            text = LinkTag.Replace(text, string.Empty);
-            text = BaseTag.Replace(text, string.Empty);
-            text = MetaTag.Replace(text, string.Empty);
-
-            text = EventAttrDouble.Replace(text, string.Empty);
-            text = EventAttrSingle.Replace(text, string.Empty);
-            text = EventAttrBare.Replace(text, string.Empty);
-
-            text = JsHrefDouble.Replace(text, "$1=\"#\"");
-            text = JsHrefSingle.Replace(text, "$1='#'");
-
-            // 带引号的：取属性值 → 还原实体 → 去掉空白与控制符 → 看协议
-            text = UrlAttr.Replace(text, match =>
+        private static string RemoveBlockElements(string text)
+        {
+            foreach (string name in BlockElements)
             {
-                string name = match.Groups[1].Value;
-                string value = match.Groups[2].Success ? match.Groups[2].Value : match.Groups[3].Value;
-                return IsDangerousUrl(value) ? name + "=\"#\"" : match.Value;
-            });
-
-            text = UrlAttrBare.Replace(text, match =>
-            {
-                string name = match.Groups[1].Value;
-                string value = match.Groups[2].Value;
-                return IsDangerousUrl(value) ? name + "=\"#\"" : match.Value;
-            });
-
+                text = Regex.Replace(text,
+                    "<" + name + @"\b[^>]*>.*?</" + name + @"\s*>",
+                    string.Empty,
+                    RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            }
             return text;
+        }
+
+        // ───────────────────────── 第二步：逐标签 ─────────────────────────
+
+        private static string ScanTags(string input)
+        {
+            var sb = new StringBuilder(input.Length);
+            int i = 0;
+            while (i < input.Length)
+            {
+                char c = input[i];
+                if (c != '<')
+                {
+                    sb.Append(c);
+                    i++;
+                    continue;
+                }
+
+                int end = FindTagEnd(input, i);
+                if (end < 0)
+                {
+                    // 没有闭合的 `<`：看起来像标签就把剩下整段丢掉（浏览器也会这么干），
+                    // 否则当普通文本（比如数学里的 a < b）。
+                    if (i + 1 < input.Length && LooksLikeTagStart(input[i + 1]))
+                        break;
+                    sb.Append(c);
+                    i++;
+                    continue;
+                }
+
+                string tag = input.Substring(i, end - i + 1);
+                sb.Append(CleanTag(tag));
+                i = end + 1;
+            }
+            return sb.ToString();
+        }
+
+        private static bool LooksLikeTagStart(char ch)
+        {
+            return char.IsLetter(ch) || ch == '/' || ch == '!' || ch == '?';
+        }
+
+        /// <summary>找标签的 `>`，跳过引号里的内容。遇到嵌套的 `&lt;` 认为标签不合法。</summary>
+        private static int FindTagEnd(string text, int start)
+        {
+            char quote = '\0';
+            for (int i = start + 1; i < text.Length; i++)
+            {
+                char ch = text[i];
+                if (quote != '\0')
+                {
+                    if (ch == quote) quote = '\0';
+                    continue;
+                }
+                if (ch == '"' || ch == '\'')
+                {
+                    quote = ch;
+                    continue;
+                }
+                if (ch == '>') return i;
+                if (ch == '<') return -1;
+            }
+            return -1;
+        }
+
+        private static string CleanTag(string tag)
+        {
+            // 注释 / doctype / CDATA 之类：TagName 不命中，原样保留（注释已在第一步删掉）。
+            Match nameMatch = TagName.Match(tag);
+            if (!nameMatch.Success) return tag;
+
+            string name = nameMatch.Groups[1].Value;
+            if (TagBlocked.Contains(name) || VoidBlocked.Contains(name) || FormBlocked.Contains(name)) return string.Empty;
+
+            string result = EventAttr.Replace(tag, string.Empty);
+            result = SrcdocAttr.Replace(result, string.Empty);
+
+            result = UrlAttr.Replace(result, match =>
+            {
+                string attr = match.Groups[1].Value;
+                string value = match.Groups[2].Success ? match.Groups[2].Value
+                    : match.Groups[3].Success ? match.Groups[3].Value
+                    : match.Groups[4].Value;
+
+                // srcset 里可以塞多个候选地址，统一丢掉（Markdown / EPUB 都很少用）
+                if (string.Equals(attr, "srcset", StringComparison.OrdinalIgnoreCase)) return string.Empty;
+
+                return IsDangerousUrl(value) ? attr + "=\"#\"" : match.Value;
+            });
+
+            result = StyleAttr.Replace(result, match =>
+            {
+                string value = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
+                string safe = SanitizeStyle(value);
+                return safe.Length == 0 ? string.Empty : "style=\"" + safe + "\"";
+            });
+
+            return result;
+        }
+
+        /// <summary>只保留排版类属性，去掉能整页覆盖/定位的属性。</summary>
+        public static string SanitizeStyle(string style)
+        {
+            if (string.IsNullOrWhiteSpace(style)) return string.Empty;
+
+            var kept = new List<string>();
+            foreach (string part in style.Split(';'))
+            {
+                int colon = part.IndexOf(':');
+                if (colon <= 0) continue;
+
+                string property = part.Substring(0, colon).Trim();
+                string value = part.Substring(colon + 1).Trim();
+                if (property.Length == 0 || value.Length == 0) continue;
+                if (!SafeStyleProperties.Contains(property)) continue;
+                if (value.IndexOf("url(", StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                if (value.IndexOf("expression", StringComparison.OrdinalIgnoreCase) >= 0) continue;
+
+                kept.Add(property + ": " + value);
+            }
+            return string.Join("; ", kept.ToArray());
         }
 
         /// <summary>
@@ -174,7 +262,7 @@ namespace MdViewer.Core
                     default: return match.Value;
                 }
             });
-            var sb = new System.Text.StringBuilder(raw.Length);
+            var sb = new StringBuilder(raw.Length);
             for (int i = 0; i < raw.Length; i++)
             {
                 char ch = raw[i];
@@ -190,12 +278,34 @@ namespace MdViewer.Core
             return false;
         }
 
-        /// <summary>把 HTML 里的实体还原成纯文本（目录、标题用）。</summary>
+        /// <summary>把 HTML 里的实体还原成纯文本（目录、标题用）。线性扫描，避免大量 `&lt;` 触发回溯。</summary>
         public static string ToPlainText(string html)
         {
             if (string.IsNullOrEmpty(html)) return string.Empty;
-            string text = Regex.Replace(html, "<[^>]+>", string.Empty);
-            return System.Net.WebUtility.HtmlDecode(text).Trim();
+
+            var sb = new StringBuilder(html.Length);
+            int i = 0;
+            while (i < html.Length)
+            {
+                char ch = html[i];
+                if (ch != '<')
+                {
+                    sb.Append(ch);
+                    i++;
+                    continue;
+                }
+
+                int end = FindTagEnd(html, i);
+                if (end < 0)
+                {
+                    if (i + 1 < html.Length && LooksLikeTagStart(html[i + 1])) break;
+                    sb.Append(ch);
+                    i++;
+                    continue;
+                }
+                i = end + 1;   // 跳过标签，保留正文
+            }
+            return System.Net.WebUtility.HtmlDecode(sb.ToString()).Trim();
         }
     }
 }

@@ -6,7 +6,9 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
+using System.ComponentModel;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -104,6 +106,9 @@ namespace MdViewer
         private double _restoreY;
         private double _restoreRatio;
 
+        /// <summary>页面回报的「最后一次滚动比例」，关窗/切文档时同步落盘用。</summary>
+        private double _liveRatio;
+
         /// <summary>进宽屏之前目录是不是开着的：退出宽屏时按这个还原，不动设置里的 TocVisible。</summary>
         private bool _tocBeforeWide;
 
@@ -125,6 +130,7 @@ namespace MdViewer
 
             Width = Math.Max(780, App.Settings.WindowWidth);
             Height = Math.Max(460, App.Settings.WindowHeight);
+            RestoreWindowPlacement();
             TocColumn.Width = new GridLength(Math.Max(140, Math.Min(420, App.Settings.TocWidth)));
             TocToggle.IsChecked = App.Settings.TocVisible;
             WideToggle.IsChecked = App.Settings.WideMode;
@@ -184,6 +190,8 @@ namespace MdViewer
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            // 低级键盘钩子：正文（WebView2）拿到焦点后 WPF 收不到键，只能在这里兜
+            WebViewKeyboardHook.Install(this, HandlePageShortcut);
             InitFolderPanel();
             RestoreTabsOnStartup();
             SwitchSidebarTab(App.Settings.SidebarTab);
@@ -260,6 +268,7 @@ namespace MdViewer
             core.Find.MatchCountChanged += (s, args) => UpdateFindLabel();
             core.Find.ActiveMatchIndexChanged += (s, args) => UpdateFindLabel();
 
+
             _webReady = true;
             _webFailed = false;
             FallbackPanel.Visibility = Visibility.Collapsed;
@@ -304,8 +313,32 @@ namespace MdViewer
                     }
                     else if (kind == "ready")
                     {
-                        // 页面 DOM 好了才还原滚动位置，早了会算错
+                        // 页面 DOM 好了才还原滚动位置，早了会算错。
+                        // 标注也在这里再推一次：Mermaid 是异步渲染的，第一次推送时
+                        // 偏移量可能还是「源码文本」的坐标系。
+                        PostAnnotationsToPage();
                         RestoreScrollIfPending();
+
+                    }
+                    else if (kind == "shortcut")
+                    {
+                        string action = json.RootElement.TryGetProperty("payload", out var sc)
+                            ? sc.GetString()
+                            : null;
+                        HandlePageShortcut(action);
+                    }
+                    else if (kind == "scrollRatio")
+                    {
+                        string raw = json.RootElement.TryGetProperty("payload", out var rp)
+                            ? rp.GetString()
+                            : null;
+                        double ratio;
+                        if (!string.IsNullOrEmpty(_currentPath) &&
+                            double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out ratio) &&
+                            ratio >= 0 && ratio <= 1)
+                        {
+                            _liveRatio = ratio;
+                        }
                     }
                     else if (kind == "annotate")
                     {
@@ -530,9 +563,11 @@ namespace MdViewer
                 return;
             }
 
-            // 换文档前记下上一份读到哪了
+            // 换文档前把上一份读到的位置同步落盘（_liveRatio 由页面定期回报）。
+            // 0.5.x 这里用的是 async void + ExecuteScriptAsync，await 回来时
+            // _currentPath 已经变成新文档，会把旧文档的位置写成 0。
             if (!string.IsNullOrEmpty(_currentPath) && !NoteStore.SamePath(_currentPath, full))
-                RememberScroll(_currentPath);
+                SaveScrollPosition(_currentPath, _liveRatio);
 
             _currentPath = full;
             _currentText = text;
@@ -555,6 +590,7 @@ namespace MdViewer
             await EnsureWebViewAsync();
             if (seq != _openSeq) return;   // 这期间又打开了别的文件，这里的结果已经过期
             _restorePending = App.Settings.RememberScroll && TryRecallScroll(full);
+            _liveRatio = _restorePending ? _restoreRatio : 0;
             Render();
             StartWatching();
 
@@ -577,6 +613,9 @@ namespace MdViewer
             }
 
             _doc = MarkdownRenderer.Render(_currentText);
+
+            if (_doc.Error != null)
+                Log.Error("Markdown 渲染降级：" + _doc.Error, null);
 
             if (!_webReady)
             {
@@ -612,6 +651,8 @@ namespace MdViewer
 
             FillToc();
             UpdateStatus();
+            if (_doc != null && _doc.Error != null)
+                StatusRight.Text = "文档结构过于复杂，已按纯文本显示";
             PostAnnotationsToPage();
         }
 
@@ -932,34 +973,26 @@ namespace MdViewer
             if (!_restorePending) return;
             _restorePending = false;
             PostRestoreToPage();
-            RememberScrollForCurrent();
+            _liveRatio = _restoreRatio;
         }
 
-        /// <summary>把比例存进 settings，下次打开同一篇文档直接跳回原处。</summary>
-        private void RememberScrollForCurrent()
+        /// <summary>把某个文档的阅读比例存进 settings（同步，不碰页面）。</summary>
+        private void SaveScrollPosition(string path, double ratio)
         {
-            if (string.IsNullOrEmpty(_currentPath)) return;
-            if (App.Settings.ScrollPositions == null) App.Settings.ScrollPositions = new Dictionary<string, double>();
-            App.Settings.ScrollPositions[_currentPath] = Math.Round(_restoreRatio, 4);
+            if (!App.Settings.RememberScroll || string.IsNullOrEmpty(path)) return;
+            if (double.IsNaN(ratio) || double.IsInfinity(ratio) || ratio < 0) ratio = 0;
+            if (ratio > 1) ratio = 1;
+
+            if (App.Settings.ScrollPositions == null)
+                App.Settings.ScrollPositions = new Dictionary<string, double>();
+            App.Settings.ScrollPositions[path] = Math.Round(ratio, 4);
+
             if (App.Settings.ScrollPositions.Count > 40)
             {
                 // 太多就只留最近的一批（字典无序，按值不重要，直接砍）
                 var keys = new List<string>(App.Settings.ScrollPositions.Keys);
                 for (int i = 0; i < keys.Count - 40; i++) App.Settings.ScrollPositions.Remove(keys[i]);
             }
-            App.SaveSettings();
-        }
-
-        /// <summary>离开当前文档前，把阅读位置记下来。</summary>
-        private async void RememberScroll(string path)
-        {
-            if (!App.Settings.RememberScroll) return;
-            // 这里只是「存档」，不要顺手把新文档也标记成需要还原
-            await CaptureScrollAsync(false);
-            _restorePending = false;
-            if (string.IsNullOrEmpty(path)) return;
-            if (App.Settings.ScrollPositions == null) App.Settings.ScrollPositions = new Dictionary<string, double>();
-            App.Settings.ScrollPositions[path] = Math.Round(_restoreRatio, 4);
             App.SaveSettings();
         }
 
@@ -986,7 +1019,7 @@ namespace MdViewer
                 // 降级模式：没有 WebView2，正文走纯文本面板
                 FallbackPanel.Visibility = Visibility.Visible;
             }
-            else
+            else if (!_busy)
             {
                 View.Visibility = Visibility.Visible;
             }
@@ -1009,6 +1042,7 @@ namespace MdViewer
             Title = "Markdown 阅读器";
             _currentPath = null;
             _currentKind = KindMarkdown;
+            _liveRatio = 0;
             _epub = null;
             _epubHost = null;
             StopWatching();
@@ -1031,7 +1065,7 @@ namespace MdViewer
             TocColumn.MaxWidth = show ? 420 : 0;
 
             TocPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-            TocColumn.Width = show ? new GridLength(Math.Max(140, App.Settings.TocWidth)) : new GridLength(0);
+            TocColumn.Width = show ? new GridLength(Math.Min(420, Math.Max(140, App.Settings.TocWidth))) : new GridLength(0);
         }
 
         private void UpdateStatus()
@@ -1193,48 +1227,108 @@ namespace MdViewer
             }
         }
 
-        private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        /// <summary>
+        /// 关窗口。这里刻意是同步的：0.5.x 用 `async void` + await ExecuteScriptAsync，
+        /// Closing 不会等续体，位置保存 / 停监听 / 停朗读都不保证执行。
+        /// 现在改用页面定期回报的 _liveRatio，同步落盘即可。
+        /// </summary>
+        private void Window_Closing(object sender, CancelEventArgs e)
         {
-            App.Settings.WindowWidth = Width;
-            App.Settings.WindowHeight = Height;
-            // 目录收起时 ActualWidth 是 0，别把用户之前拖好的宽度存成 140
-            if (TocPanel.Visibility == Visibility.Visible && TocColumn.ActualWidth > 0)
-                App.Settings.TocWidth = Math.Max(140, TocColumn.ActualWidth);
-            App.Settings.TocVisible = TocToggle.IsChecked == true;
-
-            if (App.Settings.RememberScroll && !string.IsNullOrEmpty(_currentPath) && _webReady)
+            try
             {
-                try
-                {
-                    string raw = await View.CoreWebView2.ExecuteScriptAsync(
-                        "window.__mdviewer ? window.__mdviewer.getScroll() : ''");
-                    if (!string.IsNullOrEmpty(raw) && raw != "\"\"")
-                    {
-                        string inner = JsonSerializer.Deserialize<string>(raw);
+                SaveWindowPlacement();
 
-                        // 页面正在导航时 ExecuteScriptAsync 会返回 null，反序列化出来也是 null，
-                        // 直接 Parse 会抛 ArgumentNullException（旧版每次自动刷新中途关窗口都会留一条错日志）。
-                        // 注意这里不能 return —— 后面的 StopWatching / SaveSettings 必须照常执行。
-                        if (!string.IsNullOrWhiteSpace(inner))
-                        {
-                            using (var document = JsonDocument.Parse(inner))
-                            {
-                                JsonElement element;
-                                if (document.RootElement.TryGetProperty("ratio", out element))
-                                {
-                                    if (App.Settings.ScrollPositions == null)
-                                        App.Settings.ScrollPositions = new Dictionary<string, double>();
-                                    App.Settings.ScrollPositions[_currentPath] = Math.Round(element.GetDouble(), 4);
-                                }
-                            }
-                        }
-                    }
+                // 目录收起时 ActualWidth 是 0，别把用户之前拖好的宽度存成 140
+                if (TocPanel.Visibility == Visibility.Visible && TocColumn.ActualWidth > 0)
+                    App.Settings.TocWidth = Math.Min(420, Math.Max(140, TocColumn.ActualWidth));
+                App.Settings.TocVisible = TocToggle.IsChecked == true;
+
+                if (!string.IsNullOrEmpty(_currentPath))
+                    SaveScrollPosition(_currentPath, _liveRatio);
+
+                WebViewKeyboardHook.Uninstall();
+                StopWatching();
+                StopSpeak(true);        // 关窗口就得断掉，不然进程退了语音引擎还在读
+                App.SaveSettings();
+            }
+            catch (Exception ex)
+            {
+                Log.Error("关窗时保存状态失败", ex);
+            }
+        }
+
+        /// <summary>恢复上次的窗口位置与最大化状态；位置不在任何屏幕上时回落到默认居中。</summary>
+        private void RestoreWindowPlacement()
+        {
+            try
+            {
+                AppSettings settings = App.Settings;
+                if (settings.WindowLeft >= 0 && settings.WindowTop >= 0 &&
+                    IsOnVirtualScreen(settings.WindowLeft, settings.WindowTop, Width, Height))
+                {
+                    WindowStartupLocation = WindowStartupLocation.Manual;
+                    Left = settings.WindowLeft;
+                    Top = settings.WindowTop;
                 }
-                catch (Exception ex) { Log.Error("退出前记录阅读位置失败", ex); }
+
+                if (settings.WindowMaximized) WindowState = WindowState.Maximized;
+            }
+            catch (Exception ex)
+            {
+                Log.Error("恢复窗口位置失败", ex);
+            }
+        }
+
+        private static bool IsOnVirtualScreen(double left, double top, double width, double height)
+        {
+            double screenLeft = SystemParameters.VirtualScreenLeft;
+            double screenTop = SystemParameters.VirtualScreenTop;
+            double screenRight = screenLeft + SystemParameters.VirtualScreenWidth;
+            double screenBottom = screenTop + SystemParameters.VirtualScreenHeight;
+
+            // 至少要有 80x40 的标题栏落在屏幕内，否则用户可能再也找不到窗口
+            double visibleLeft = Math.Max(left, screenLeft);
+            double visibleTop = Math.Max(top, screenTop);
+            double visibleRight = Math.Min(left + width, screenRight);
+            double visibleBottom = Math.Min(top + height, screenBottom);
+            return visibleRight - visibleLeft >= 80 && visibleBottom - visibleTop >= 40;
+        }
+
+        /// <summary>把当前窗口尺寸/位置/最大化状态写进设置（不落盘，SaveSettings 由调用方决定）。</summary>
+        private void SaveWindowPlacement()
+        {
+            if (WindowState == WindowState.Maximized)
+            {
+                App.Settings.WindowMaximized = true;
+                Rect restore = RestoreBounds;
+                if (!restore.IsEmpty && restore.Width > 0 && restore.Height > 0)
+                {
+                    App.Settings.WindowLeft = restore.Left;
+                    App.Settings.WindowTop = restore.Top;
+                    App.Settings.WindowWidth = restore.Width;
+                    App.Settings.WindowHeight = restore.Height;
+                }
+                return;
             }
 
-            StopWatching();
-            StopSpeak(true);        // 关窗口就得断掉，不然进程退了语音引擎还在读
+            App.Settings.WindowMaximized = false;
+            App.Settings.WindowLeft = Left;
+            App.Settings.WindowTop = Top;
+            App.Settings.WindowWidth = Width;
+            App.Settings.WindowHeight = Height;
+        }
+
+        /// <summary>设置里改了「默认显示目录」时，把开关同步到工具栏。</summary>
+        public void SyncTocVisibility(bool visible)
+        {
+            TocToggle.IsChecked = visible;
+            UpdateChrome();
+        }
+
+        private void TocSplitter_DragCompleted(object sender, DragCompletedEventArgs e)
+        {
+            if (TocPanel.Visibility != Visibility.Visible || TocColumn.ActualWidth <= 0) return;
+            App.Settings.TocWidth = Math.Min(420, Math.Max(140, TocColumn.ActualWidth));
             App.SaveSettings();
         }
     }

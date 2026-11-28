@@ -165,6 +165,7 @@ namespace MdViewer
 
             Log.Init(DataDir);
             AtomicFile.ErrorHandler = (where, error) => Log.Error(where, error);
+            CleanupOldExecutables();
 
             // 渲染缓存只留最近 20 个，别让 %APPDATA% 无限长
             try { CacheStore.Trim(CacheDir); } catch (Exception ex) { Log.Error("清理渲染缓存失败", ex); }
@@ -501,6 +502,30 @@ namespace MdViewer
             ApplyTheme(Theme.ForMarkdownTheme(EffectiveMarkdownTheme));
             Log.Info("设置已恢复默认值，备份：" + (backup ?? "(无)"));
             return backup;
+        }
+
+        /// <summary>自动更新会把旧 exe 改名成 .old；下次启动时清掉，别一直堆在安装目录里。</summary>
+        private static void CleanupOldExecutables()
+        {
+            try
+            {
+                string exe = Environment.ProcessPath;
+                if (string.IsNullOrEmpty(exe)) return;
+
+                string dir = Path.GetDirectoryName(exe);
+                string name = Path.GetFileName(exe);
+                if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(name) || !Directory.Exists(dir)) return;
+
+                foreach (string file in Directory.GetFiles(dir, name + "*.old"))
+                {
+                    try { File.Delete(file); }
+                    catch (Exception) { /* 正被占用就下次再说 */ }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("清理旧版本 exe 失败", ex);
+            }
         }
 
         /// <summary>清掉上次渲染留下的 html，别让 cache 目录越堆越大。</summary>

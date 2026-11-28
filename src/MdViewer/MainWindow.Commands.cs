@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -395,7 +397,7 @@ namespace MdViewer
             }
         }
 
-        private void ExportHtml_Click(object sender, RoutedEventArgs e)
+        private async void ExportHtml_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(_currentPath)) return;
 
@@ -410,42 +412,70 @@ namespace MdViewer
 
             try
             {
-                RenderedMarkdown doc;
+                string page = null;
                 string note;
 
-                if (_currentKind == KindEpub && _epub != null)
-                {
-                    string body = _epub.BodyHtml;
-                    if (!string.IsNullOrEmpty(_epubHost))
-                    {
-                        string origin = "https://" + _epubHost + "/";
-                        string local = "file:///" + (_epub.RootDir ?? string.Empty).Replace('\\', '/').TrimEnd('/') + "/";
-                        body = body.Replace(origin, local);
-                    }
-                    doc = new RenderedMarkdown { BodyHtml = body, Toc = _epub.Toc };
+                if (_currentKind == KindEpub)
                     note = "EPUB 里的图片指向本机缓存目录，只在这台机器上能看。";
-                }
                 else
-                {
-                    doc = MarkdownRenderer.Render(_currentText);
-                    doc.BodyHtml = ImageRewriter.NormalizeRelative(doc.BodyHtml);
                     note = "图片仍是相对路径，记得把 images 之类的一起拷走。";
+
+                // 直接快照已经渲染好的页面：公式是 KaTeX 节点、图表是内联 SVG、
+                // 代码是 hljs 着色后的 span，导出后不依赖任何外部脚本。
+                if (_webReady && View.CoreWebView2 != null)
+                {
+                    string epubRoot = null;
+                    if (_currentKind == KindEpub && _epub != null && !string.IsNullOrWhiteSpace(_epub.RootDir))
+                        epubRoot = "file:///" + _epub.RootDir.Replace('\\', '/').TrimEnd('/') + "/";
+
+                    string argument = epubRoot == null ? "null" : JsonSerializer.Serialize(epubRoot);
+                    string raw = await View.CoreWebView2.ExecuteScriptAsync(
+                        "window.__mdviewer ? window.__mdviewer.exportHtml(" + argument + ") : ''");
+
+                    if (!string.IsNullOrEmpty(raw) && raw != "\"\"")
+                    {
+                        page = JsonSerializer.Deserialize<string>(raw);
+                    }
                 }
 
-                string page = MarkdownRenderer.BuildPage(
-                    doc,
-                    new PageOptions
+                // 没有 WebView2 时退回旧的纯 Markdown 渲染（公式/图表会降级）
+                if (string.IsNullOrEmpty(page))
+                {
+                    RenderedMarkdown doc;
+                    if (_currentKind == KindEpub && _epub != null)
                     {
-                        Title = Path.GetFileNameWithoutExtension(_currentPath),
-                        ThemeId = App.EffectiveMarkdownTheme.Id,
-                        FontSize = App.Settings.FontSize,
-                        // 跟界面上看到的一致：宽屏导出铺满浏览器，普通模式导出还是 880 的阅读栏。
-                        // 以前这里写死 MaxContentWidth，宽屏下导出的 html 又被锁回中间那条窄缝。
-                        ContentWidth = ContentWidthForHost,
-                        ContentOrigin = null,
-                        BodyClass = App.Settings.WideMode ? "wide" : null,
-                        ForExport = true
-                    });
+                        string body = _epub.BodyHtml;
+                        if (!string.IsNullOrEmpty(_epubHost))
+                        {
+                            string origin = "https://" + _epubHost + "/";
+                            string local = "file:///" + (_epub.RootDir ?? string.Empty).Replace('\\', '/').TrimEnd('/') + "/";
+                            body = body.Replace(origin, local);
+                        }
+                        doc = new RenderedMarkdown { BodyHtml = body, Toc = _epub.Toc };
+                    }
+                    else
+                    {
+                        doc = MarkdownRenderer.Render(_currentText);
+                        doc.BodyHtml = ImageRewriter.NormalizeRelative(doc.BodyHtml);
+                    }
+
+                    page = MarkdownRenderer.BuildPage(
+                        doc,
+                        new PageOptions
+                        {
+                            Title = Path.GetFileNameWithoutExtension(_currentPath),
+                            ThemeId = App.EffectiveMarkdownTheme.Id,
+                            FontSize = App.Settings.FontSize,
+                            ContentWidth = ContentWidthForHost,
+                            ContentOrigin = null,
+                            BodyClass = App.Settings.WideMode ? "wide" : null,
+                            ForExport = true
+                        });
+                }
+
+                // 导出页里公式是 KaTeX 的 DOM，必须把 KaTeX 的样式（含字体的 data URI）一起带上
+                if (HasMathInCurrentDocument())
+                    page = InjectKatexCss(page);
 
                 File.WriteAllText(dialog.FileName, page, new UTF8Encoding(true));
                 StatusRight.Text = "已导出 HTML：" + Path.GetFileName(dialog.FileName);
@@ -460,6 +490,44 @@ namespace MdViewer
             }
         }
 
+        private bool HasMathInCurrentDocument()
+        {
+            if (_currentKind == KindEpub && _epub != null)
+                return !string.IsNullOrEmpty(_epub.BodyHtml) && _epub.BodyHtml.Contains("class=\"math\"");
+            return _doc != null && _doc.HasMath;
+        }
+
+        /// <summary>把 KaTeX 的 CSS 内联进导出页，字体转成 data URI，保证单文件可看。</summary>
+        private static string InjectKatexCss(string html)
+        {
+            if (string.IsNullOrEmpty(html) || string.IsNullOrEmpty(App.VendorDir)) return html;
+
+            string cssPath = Path.Combine(App.VendorDir, "katex", "katex.min.css");
+            if (!File.Exists(cssPath)) return html;
+
+            string fontDir = Path.Combine(App.VendorDir, "katex", "fonts");
+            string css = File.ReadAllText(cssPath);
+
+            css = Regex.Replace(css, @"url\(\s*['""]?fonts/([^)'""]+)['""]?\s*\)", match =>
+            {
+                string name = match.Groups[1].Value;
+                string file = Path.Combine(fontDir, name);
+                if (!File.Exists(file)) return match.Value;
+                try
+                {
+                    byte[] bytes = File.ReadAllBytes(file);
+                    return "url(data:font/woff2;base64," + Convert.ToBase64String(bytes) + ")";
+                }
+                catch (Exception)
+                {
+                    return match.Value;
+                }
+            });
+
+            int head = html.IndexOf("</head>", StringComparison.OrdinalIgnoreCase);
+            if (head < 0) return html;
+            return html.Substring(0, head) + "<style>\n" + css + "\n</style>\n" + html.Substring(head);
+        }
         // ───────────────────────── 文件关联 ─────────────────────────
 
         private void Assoc_Click(object sender, RoutedEventArgs e)
@@ -534,59 +602,10 @@ namespace MdViewer
 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
-            bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
-            bool alt = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
-
-            if (ctrl && e.Key == Key.O) { Open_Click(sender, new RoutedEventArgs()); e.Handled = true; return; }
-            if (ctrl && e.Key == Key.F) { ShowFindBar(); e.Handled = true; return; }
-            if (ctrl && e.Key == Key.P) { ExportPdf_Click(sender, new RoutedEventArgs()); e.Handled = true; return; }
-            if (ctrl && e.Key == Key.E) { Recent_Click(sender, new RoutedEventArgs()); e.Handled = true; return; }
-            if (ctrl && e.Key == Key.OemComma) { Settings_Click(sender, new RoutedEventArgs()); e.Handled = true; return; }
-            if (ctrl && e.Key == Key.T)
-            {
-                TocToggle.IsChecked = TocToggle.IsChecked != true;
-                UpdateChrome();
-                e.Handled = true;
-                return;
-            }
-            if (ctrl && shift && e.Key == Key.D) { Theme_Click(sender, new RoutedEventArgs()); e.Handled = true; return; }
-            if (ctrl && shift && e.Key == Key.W) { SetWideMode(!App.Settings.WideMode); e.Handled = true; return; }
-            if (ctrl && shift && e.Key == Key.R) { ToggleSpeak(); e.Handled = true; return; }
-            if (ctrl && shift && e.Key == Key.B) { AddBookmark(); e.Handled = true; return; }
-            if (ctrl && shift && e.Key == Key.E) { OpenInExternalEditor(); e.Handled = true; return; }
-            if (ctrl && shift && e.Key == Key.S) { ExportPng_Click(sender, new RoutedEventArgs()); e.Handled = true; return; }
-            if (ctrl && (e.Key == Key.OemPlus || e.Key == Key.Add)) { ChangeFontSize(1); e.Handled = true; return; }
-            if (ctrl && (e.Key == Key.OemMinus || e.Key == Key.Subtract)) { ChangeFontSize(-1); e.Handled = true; return; }
-            if (ctrl && e.Key == Key.D0) { ChangeFontSize(16 - App.Settings.FontSize); e.Handled = true; return; }
-
-            if (e.Key == Key.F11) { ToggleZenMode(); e.Handled = true; return; }
-
-            if (alt && e.Key == Key.Left) { Back_Click(sender, new RoutedEventArgs()); e.Handled = true; return; }
-            if (alt && e.Key == Key.Right) { Forward_Click(sender, new RoutedEventArgs()); e.Handled = true; return; }
-
-            if (e.Key == Key.Escape && FindBar.Visibility == Visibility.Visible)
-            {
-                HideFindBar();
-                e.Handled = true;
-                return;
-            }
-
-            // 无干扰模式下 Esc 先退模式，别的都不用管
-            if (e.Key == Key.Escape && IsZenMode)
-            {
-                ToggleZenMode();
-                e.Handled = true;
-                return;
-            }
-
-            if (e.Key == Key.F5 && !string.IsNullOrEmpty(_currentPath))
-            {
-                _ = ReloadCurrentAsync(false);
-                e.Handled = true;
-            }
+            string action = ShortcutActionFor(e);
+            if (action == null) return;
+            if (HandleShortcut(action)) e.Handled = true;
         }
-
         private void DownloadWebView_Click(object sender, RoutedEventArgs e)
         {
             // 用户主动点了这个按钮才联网

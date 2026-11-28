@@ -47,6 +47,11 @@ namespace MdViewer.Core
         private static readonly Regex VersionInTag = new Regex(
             @"(\d+(?:\.\d+){0,3})", RegexOptions.Compiled);
 
+        /// <summary>预发布标记。RSS 里没有 prerelease 字段，只能按 tag 名排掉。</summary>
+        private static readonly Regex Prerelease = new Regex(
+            @"(?:^|[-_.])(alpha|beta|rc|pre|preview|dev|nightly|canary)(?:[-_.]|\d|$)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         public static bool TryParseVersion(string tag, out Version version)
         {
             version = null;
@@ -201,6 +206,9 @@ namespace MdViewer.Core
                 if (!string.IsNullOrEmpty(assetHint) &&
                     tag.IndexOf(assetHint, StringComparison.OrdinalIgnoreCase) < 0) continue;
 
+                // 预发布不能当正式版：否则会去下载一个按正式版命名、实际不存在的附件
+                if (Prerelease.IsMatch(tag)) continue;
+
                 Version version;
                 if (!TryParseVersion(tag, out version)) continue;
                 version = Normalize(version);
@@ -223,17 +231,18 @@ namespace MdViewer.Core
             string assetName = string.IsNullOrEmpty(assetHint)
                 ? null
                 : assetHint + "-" + bestVersionText + "-portable.exe";
+            string encodedTag = Uri.EscapeDataString(bestTag ?? string.Empty);
 
             return new UpdateResult
             {
                 Current = currentVersion,
                 Tag = bestTag,
                 Latest = bestVersion.ToString(),
-                PageUrl = "https://github.com/" + repoPath + "/releases/tag/" + bestTag,
+                PageUrl = "https://github.com/" + repoPath + "/releases/tag/" + encodedTag,
                 AssetName = assetName,
                 AssetUrl = assetName == null
                     ? null
-                    : "https://github.com/" + repoPath + "/releases/download/" + bestTag + "/" + assetName,
+                    : "https://github.com/" + repoPath + "/releases/download/" + encodedTag + "/" + Uri.EscapeDataString(assetName),
                 PublishedAt = bestPublished,
                 HasUpdate = IsNewer(bestVersion, current)
             };

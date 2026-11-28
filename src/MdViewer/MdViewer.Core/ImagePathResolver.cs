@@ -20,6 +20,11 @@ namespace MdViewer.Core
         {
             if (string.IsNullOrWhiteSpace(src)) return true;
             string text = src.Trim();
+
+            // UNC 路径（\\host\share\x.png）当远程：不去 File.Exists —— 一个不可达的
+            // \\10.255.255.1\share 会让 UI 线程阻塞 20 秒以上，还会向对方发起 SMB 认证。
+            if (text.StartsWith("\\\\", StringComparison.Ordinal)) return true;
+
             foreach (var scheme in RemoteSchemes)
             {
                 if (text.StartsWith(scheme, StringComparison.OrdinalIgnoreCase)) return true;

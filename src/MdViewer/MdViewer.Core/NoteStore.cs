@@ -91,6 +91,10 @@ namespace MdViewer.Core
                 if (book == null) return new NoteBook();
                 if (book.Annotations == null) book.Annotations = new List<Annotation>();
                 if (book.Bookmarks == null) book.Bookmarks = new List<Bookmark>();
+
+                // 手改 / 合并冲突可能在数组里留下 null，后续只要解引用就会 NRE
+                book.Annotations.RemoveAll(item => item == null);
+                book.Bookmarks.RemoveAll(item => item == null);
                 return book;
             }
             catch (Exception)
@@ -217,7 +221,20 @@ namespace MdViewer.Core
             string text = (path ?? string.Empty).Trim();
             if (text.Length == 0) return text;
 
+            // 去掉 Win32 长路径前缀，再交给 GetFullPath 收敛 `..` 与重复分隔符
+            if (text.StartsWith(@"\\?\", StringComparison.Ordinal)) text = text.Substring(4);
+            else if (text.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) text = @"\\" + text.Substring(8);
+
             text = text.Replace('/', '\\');
+            try
+            {
+                text = System.IO.Path.GetFullPath(text);
+            }
+            catch (Exception)
+            {
+                // 路径不合法就按原样比较
+            }
+
             // 尾部多余的反斜杠去掉（"C:\docs\" 与 "C:\docs" 指同一处），"C:\" 这种根保留
             while (text.Length > 3 && text.EndsWith("\\", StringComparison.Ordinal))
                 text = text.Substring(0, text.Length - 1);

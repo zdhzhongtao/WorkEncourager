@@ -59,24 +59,35 @@ namespace MdViewer.Core
                 string arg = Unquote(args[i]);
                 if (arg.Length == 0) continue;
 
-                if (arg.StartsWith("--", StringComparison.Ordinal) || arg.StartsWith("/", StringComparison.Ordinal))
+                bool doubleDash = arg.StartsWith("--", StringComparison.Ordinal);
+                bool slash = arg.StartsWith("/", StringComparison.Ordinal);
+                bool singleDash = arg.Length > 1 && arg[0] == '-' && !doubleDash;
+
+                if (doubleDash || slash || singleDash)
                 {
                     string name = arg.TrimStart('-', '/').ToLowerInvariant();
-                    if (name == "demo") { options.Demo = true; continue; }
-                    if (name == "help" || name == "h" || name == "?" || name == "？") { options.Help = true; continue; }
-                    if (name == "snapshot")
+                    bool known = name == "demo" || name == "help" || name == "h" || name == "?"
+                                 || name == "？" || name == "snapshot" || name == "make-shortcut";
+
+                    // 单个短横线只认已知选项；`-x` 这种仍当文件名（老版本能打开名为 -x 的文件）
+                    if (!singleDash || known)
                     {
-                        // 后面那个参数是输出图片路径
-                        if (i + 1 < args.Length) options.SnapshotPath = Unquote(args[++i]);
+                        if (name == "demo") { options.Demo = true; continue; }
+                        if (name == "help" || name == "h" || name == "?" || name == "？") { options.Help = true; continue; }
+                        if (name == "snapshot")
+                        {
+                            // 后面那个参数是输出图片路径
+                            if (i + 1 < args.Length) options.SnapshotPath = Unquote(args[++i]);
+                            continue;
+                        }
+                        if (name == "make-shortcut")
+                        {
+                            if (i + 1 < args.Length) options.ShortcutPath = Unquote(args[++i]);
+                            continue;
+                        }
+                        unknown.Add(arg);
                         continue;
                     }
-                    if (name == "make-shortcut")
-                    {
-                        if (i + 1 < args.Length) options.ShortcutPath = Unquote(args[++i]);
-                        continue;
-                    }
-                    unknown.Add(arg);
-                    continue;
                 }
 
                 if (!options.HasFile) options.FilePath = arg;

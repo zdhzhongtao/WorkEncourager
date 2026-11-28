@@ -15,6 +15,9 @@ namespace MdViewer.Core
         public string BodyHtml { get; set; }
         public List<TocItem> Toc { get; set; }
 
+        /// <summary>非空表示渲染降级了（例如嵌套过深被 Markdig 拒绝），宿主可以提示用户。</summary>
+        public string Error { get; set; }
+
         /// <summary>文档头的 YAML front matter（没有就是 Found=false）。</summary>
         public FrontMatter FrontMatter { get; set; }
 
@@ -112,7 +115,8 @@ namespace MdViewer.Core
         public static string FontStack(string name, string fallback)
         {
             if (string.IsNullOrWhiteSpace(name)) return null;
-            return "'" + name.Trim() + "', " + fallback;
+            string value = "'" + name.Trim() + "'";
+            return string.IsNullOrWhiteSpace(fallback) ? value : value + ", " + fallback;
         }
     }
 
@@ -127,7 +131,6 @@ namespace MdViewer.Core
             @"<input\b[^>]*type\s*=\s*""checkbox""[^>]*>",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        private static readonly Regex TagOnly = new Regex(@"<[^>]+>", RegexOptions.Compiled);
 
         private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
             .UseEmphasisExtras()
@@ -145,9 +148,22 @@ namespace MdViewer.Core
             FrontMatter frontMatter;
             string body = FrontMatter.Split(markdown ?? string.Empty, out frontMatter);
 
-            string raw = Markdown.ToHtml(body, Pipeline);
-            string clean = HtmlSanitizer.Clean(raw);
-            clean = NormalizeTaskLists(clean);
+            string raw;
+            try
+            {
+                raw = Markdown.ToHtml(body, Pipeline);
+            }
+            catch (Exception ex)
+            {
+                // Markdig 对 >200 层嵌套会抛 ArgumentException（203 字节就能触发）。
+                // 不能让它冒到全局 handler —— 那样文档打不开、也没有任何提示。
+                return PlainFallback(body, frontMatter, ex);
+            }
+
+            // 任务列表要先生成字形再清洗：清洗器会丢弃 input（表单控件），
+            // checkbox 必须在这之前换成 span。
+            string clean = NormalizeTaskLists(raw);
+            clean = HtmlSanitizer.Clean(clean);
             HeadingScan scan = HeadingAnchors.Process(clean);
 
             // 信息卡放在正文最前面。它不属于 Markdown 语法，但读文档的人需要它。
@@ -159,6 +175,20 @@ namespace MdViewer.Core
                 BodyHtml = html,
                 Toc = scan.Toc,
                 FrontMatter = frontMatter
+            };
+        }
+
+        /// <summary>渲染失败时退回纯文本，至少还能读内容。</summary>
+        private static RenderedMarkdown PlainFallback(string body, FrontMatter frontMatter, Exception error)
+        {
+            string escaped = WebUtility.HtmlEncode(body ?? string.Empty);
+            return new RenderedMarkdown
+            {
+                BodyHtml = "<p class=\"render-error\">这篇文档的结构过于复杂（可能是深层嵌套），已按纯文本显示。</p>"
+                           + "<pre class=\"plain-fallback\">" + escaped + "</pre>",
+                Toc = new List<TocItem>(),
+                FrontMatter = frontMatter,
+                Error = error == null ? "渲染失败" : error.Message
             };
         }
 
@@ -290,7 +320,7 @@ namespace MdViewer.Core
                 "Consolas, 'Cascadia Mono', 'Cascadia Code', monospace");
             if (codeFont != null) sb.Append("--font-code:").Append(codeFont).Append(';');
 
-            string headingFont = PageOptions.FontStack(options.FontHeading, "inherit");
+            string headingFont = PageOptions.FontStack(options.FontHeading, null);
             if (headingFont != null) sb.Append("--font-heading:").Append(headingFont).Append(';');
 
             sb.Append("\">\r\n");
@@ -315,9 +345,16 @@ namespace MdViewer.Core
         /// <summary>md 的纯文本版本（WebView2 缺失时降级显示用）。</summary>
         public static string ToPlainText(string markdown)
         {
-            string html = Markdown.ToHtml(markdown ?? string.Empty, Pipeline);
-            string text = TagOnly.Replace(html, string.Empty);
-            text = WebUtility.HtmlDecode(text);
+            string html;
+            try
+            {
+                html = Markdown.ToHtml(markdown ?? string.Empty, Pipeline);
+            }
+            catch (Exception)
+            {
+                return (markdown ?? string.Empty).Trim();
+            }
+            string text = HtmlSanitizer.ToPlainText(html);
             text = text.Replace("\r\n", "\n").Replace('\r', '\n');
             while (text.Contains("\n\n\n")) text = text.Replace("\n\n\n", "\n\n");
             return text.Trim();

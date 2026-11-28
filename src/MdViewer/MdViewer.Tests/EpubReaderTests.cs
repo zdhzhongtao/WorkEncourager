@@ -320,5 +320,38 @@ namespace MdViewer.Tests
             Assert.False(EpubReader.IsEpubFile("a.md"));
             Assert.False(EpubReader.IsEpubFile(null));
         }
-    }
+        [Fact]
+        public void 章节里单引号属性不能注入HTML()
+        {
+            using (var dir = new TempDir())
+            {
+                const string evil = "<html><head><title>x</title></head><body><p>正文</p>"
+                    + "<a href='#x\" ><div style=position:fixed;top:0;left:0;width:100%;height:100%;background:white>FAKE</div>'>anchor</a>"
+                    + "</body></html>";
+
+                string path = BuildEpub(dir, ch1: evil);
+                EpubDocument doc = EpubReader.Open(path, Path.Combine(dir.Path, "out"), "https://epub.local");
+
+                Assert.Contains("正文", doc.BodyHtml);
+                Assert.Contains("anchor", doc.BodyHtml);
+                Assert.DoesNotContain("<div", doc.BodyHtml);
+            }
+        }
+
+        [Fact]
+        public void 未闭合的style不会吞掉章节内容()
+        {
+            using (var dir = new TempDir())
+            {
+                const string evil = "<html><head><title>x</title></head><body>"
+                    + "<style>/* 只写了一半 */<p>正文</p>"
+                    + "</body></html>";
+
+                string path = BuildEpub(dir, ch1: evil);
+                EpubDocument doc = EpubReader.Open(path, Path.Combine(dir.Path, "out"), "https://epub.local");
+
+                Assert.Contains("正文", doc.BodyHtml);
+                Assert.DoesNotContain("<style", doc.BodyHtml, StringComparison.OrdinalIgnoreCase);
+            }
+        }    }
 }

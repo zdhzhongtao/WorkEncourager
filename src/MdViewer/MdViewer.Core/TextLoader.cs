@@ -45,7 +45,9 @@ namespace MdViewer.Core
             {
                 try
                 {
-                    return Encoding.GetEncoding(18030).GetString(bytes);
+                    // GB18030 的代码页是 54936；18030 不是合法的 .NET 代码页
+                    // （GetEncoding(18030) 必抛 NotSupportedException，之前这条兜底等于死代码）。
+                    return Encoding.GetEncoding(54936).GetString(bytes);
                 }
                 catch (Exception)
                 {

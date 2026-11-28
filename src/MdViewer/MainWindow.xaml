@@ -448,10 +448,10 @@
                 </DockPanel>
             </Border>
 
-            <GridSplitter Grid.Column="1" Width="3" HorizontalAlignment="Stretch"
-                          Background="Transparent" ResizeBehavior="PreviousAndNext" />
+            <GridSplitter x:Name="TocSplitter" Grid.Column="1" Width="3" HorizontalAlignment="Stretch"
+                          Background="Transparent" ResizeBehavior="PreviousAndNext" DragCompleted="TocSplitter_DragCompleted" />
 
-            <Grid Grid.Column="2" Background="{DynamicResource ThemeCardBg}">
+            <Grid x:Name="ContentGrid" Grid.Column="2" Background="{DynamicResource ThemeCardBg}">
                 <wv2:WebView2 x:Name="View" DefaultBackgroundColor="White" />
 
                 <!-- 欢迎 / 起始页（没打开文件时显示） -->
@@ -594,38 +594,42 @@
                 </Border>
 
                 <!-- 轻量通知：导出成功这类「只是告诉你一声」的事，不该弹模态框拦着人。
-                     几秒后自己消失，鼠标移上去就停住不走，点 ✕ 直接关 -->
-                <Border x:Name="Toast" Panel.ZIndex="20" Visibility="Collapsed"
-                        HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,18"
-                        MaxWidth="430" Background="{DynamicResource ThemeCardBg}"
-                        BorderBrush="{DynamicResource ThemeCardBorder}" BorderThickness="1"
-                        CornerRadius="8" Padding="14,10,12,10"
-                        MouseEnter="Toast_MouseEnter" MouseLeave="Toast_MouseLeave">
-                    <Border.Effect>
-                        <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.16" Color="#000000" />
-                    </Border.Effect>
-                    <StackPanel>
-                        <DockPanel>
-                            <Button x:Name="ToastClose" DockPanel.Dock="Right" Content="✕"
-                                    Style="{StaticResource IconButton}" Width="22" Height="22"
-                                    Padding="0" FontSize="11" Margin="10,0,0,0"
-                                    VerticalAlignment="Top" ToolTip="关掉" Click="ToastClose_Click" />
-                            <TextBlock x:Name="ToastTitle" FontSize="12.5" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource ThemeTextPrimary}"
-                                       TextWrapping="Wrap" VerticalAlignment="Center" />
-                        </DockPanel>
-                        <TextBlock x:Name="ToastDetail" Style="{StaticResource MutedText}" FontSize="11.5"
-                                   TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed" />
-                        <StackPanel x:Name="ToastActions" Orientation="Horizontal" Margin="0,9,0,0"
-                                    Visibility="Collapsed">
-                            <Button x:Name="ToastOpen" Content="打开" Style="{StaticResource GhostButton}"
-                                    Padding="10,3" FontSize="11.5" Click="ToastOpen_Click" />
-                            <Button x:Name="ToastReveal" Content="所在文件夹" Style="{StaticResource GhostButton}"
-                                    Padding="10,3" FontSize="11.5" Margin="6,0,0,0" Click="ToastReveal_Click" />
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-            </Grid>
+                     放在 Popup 里：WebView2 是原生子窗口（HwndHost），同 Grid 里的 WPF
+                     元素永远盖在它下面，Toast 会完全看不见。Popup 是独立顶层窗口，能盖住。 -->
+                <Popup x:Name="ToastPopup" PlacementTarget="{Binding ElementName=ContentGrid}"
+                       Placement="Relative" AllowsTransparency="True" StaysOpen="True"
+                       PopupAnimation="Fade">
+                    <Grid Margin="12">
+                        <Border x:Name="Toast" MaxWidth="430" Background="{DynamicResource ThemeCardBg}"
+                                BorderBrush="{DynamicResource ThemeCardBorder}" BorderThickness="1"
+                                CornerRadius="8" Padding="14,10,12,10"
+                                MouseEnter="Toast_MouseEnter" MouseLeave="Toast_MouseLeave">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.16" Color="#000000" />
+                            </Border.Effect>
+                            <StackPanel>
+                                <DockPanel>
+                                    <Button x:Name="ToastClose" DockPanel.Dock="Right" Content="✕"
+                                            Style="{StaticResource IconButton}" Width="22" Height="22"
+                                            Padding="0" FontSize="11" Margin="10,0,0,0"
+                                            VerticalAlignment="Top" ToolTip="关掉" Click="ToastClose_Click" />
+                                    <TextBlock x:Name="ToastTitle" FontSize="12.5" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource ThemeTextPrimary}"
+                                               TextWrapping="Wrap" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <TextBlock x:Name="ToastDetail" Style="{StaticResource MutedText}" FontSize="11.5"
+                                           TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed" />
+                                <StackPanel x:Name="ToastActions" Orientation="Horizontal" Margin="0,9,0,0"
+                                            Visibility="Collapsed">
+                                    <Button x:Name="ToastOpen" Content="打开" Style="{StaticResource GhostButton}"
+                                            Padding="10,3" FontSize="11.5" Click="ToastOpen_Click" />
+                                    <Button x:Name="ToastReveal" Content="所在文件夹" Style="{StaticResource GhostButton}"
+                                            Padding="10,3" FontSize="11.5" Margin="6,0,0,0" Click="ToastReveal_Click" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Popup>            </Grid>
         </Grid>
 
         <!-- ══════════ 状态栏 ══════════ -->

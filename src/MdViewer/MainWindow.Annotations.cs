@@ -277,10 +277,12 @@ namespace MdViewer
                 // 锚点找不到（文档结构改过）：退回按比例滚
                 try
                 {
-                    string json = JsonSerializer.Serialize(new Message
+                    // payload 必须是对象：页面 restore 分支直接读 data.y / data.ratio，
+                    // 二次序列化成字符串会让 Number(undefined) 变成 0（滚到文档顶部）。
+                    string json = JsonSerializer.Serialize(new RestoreMessage
                     {
                         kind = "restore",
-                        payload = JsonSerializer.Serialize(new ScrollPayload { y = 0, ratio = row.Ratio })
+                        payload = new ScrollPayload { y = 0, ratio = row.Ratio }
                     });
                     View.CoreWebView2.PostWebMessageAsJson(json);
                 }

@@ -39,7 +39,7 @@ namespace MdViewer.Core
             RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
         private static readonly Regex ExistingId = new Regex(
-            @"\sid\s*=\s*""([^""]*)""",
+            @"\sid\s*=\s*(?:""([^""]*)""|'([^']*)')",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         public static HeadingScan Process(string html)
@@ -58,12 +58,14 @@ namespace MdViewer.Core
 
                 string id = null;
                 var existing = ExistingId.Match(attrs);
-                if (existing.Success) id = existing.Groups[1].Value;
+                if (existing.Success)
+                    id = existing.Groups[1].Success ? existing.Groups[1].Value : existing.Groups[2].Value;
                 if (string.IsNullOrWhiteSpace(id)) id = Slug(HtmlSanitizer.ToPlainText(inner));
                 id = Unique(seen, id);
 
-                if (attrs.IndexOf(" id=", StringComparison.OrdinalIgnoreCase) < 0)
-                    attrs = attrs + " id=\"" + id + "\"";
+                // 重复的显式 id 也要改写成唯一值，否则目录里是 "dup-1"、页面里还是两个 "dup"，
+                // 点第二条目录永远跳不过去。
+                attrs = SetId(attrs, id);
 
                 if (level <= TocMaxLevel)
                 {
@@ -98,9 +100,19 @@ namespace MdViewer.Core
             return slug.Length == 0 ? "section" : slug;
         }
 
-        private static string Unique(Dictionary<string, int> seen, string id)
+        /// <summary>把标签属性里的 id 换成给定值；没有就补一个。</summary>
+        private static string SetId(string attrs, string id)
         {
-            if (!seen.TryGetValue(id, out int used))
+            string safe = Regex.Replace(id ?? string.Empty, "[\"<>]", string.Empty);
+            Match existing = ExistingId.Match(attrs);
+            if (existing.Success)
+                return attrs.Substring(0, existing.Index) + " id=\"" + safe + "\"" + attrs.Substring(existing.Index + existing.Length);
+
+            return attrs + " id=\"" + safe + "\"";
+        }
+
+        private static string Unique(Dictionary<string, int> seen, string id)
+        {            if (!seen.TryGetValue(id, out int used))
             {
                 seen[id] = 0;
                 return id;

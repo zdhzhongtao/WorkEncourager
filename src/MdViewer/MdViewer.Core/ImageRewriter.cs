@@ -110,7 +110,9 @@ namespace MdViewer.Core
             string name = equals > 0 ? match.Value.Substring(0, equals).Trim() : "src";
             string quote = doubleQuoted ? "\"" : "'";
 
-            string replacement = name + "=" + quote + mapped + quote;
+            // 值必须编码：文件名里带 `"` / `&` 时不能把属性截断
+            string encoded = System.Net.WebUtility.HtmlEncode(mapped);
+            string replacement = name + "=" + quote + encoded + quote;
             return tag.Substring(0, match.Index) + replacement + tag.Substring(match.Index + match.Length);
         }
 

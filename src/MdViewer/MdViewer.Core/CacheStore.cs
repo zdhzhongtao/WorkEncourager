@@ -63,7 +63,33 @@ namespace MdViewer.Core
                     // 被占用就下次再说
                 }
             }
+
+            TrimBackups(directory, today, maxAgeDays);
             return removed;
+        }
+
+        /// <summary>
+        /// 渲染页每次写入都会留一份 `view-N.html.bak`（原子写的备份），但清理只匹配
+        /// `view-*.html`，于是 .bak 会永久堆积。这里删掉「对应 html 已经不在了」或太旧的 .bak。
+        /// </summary>
+        private static void TrimBackups(string directory, DateTime today, int maxAgeDays)
+        {
+            try
+            {
+                foreach (string bak in Directory.GetFiles(directory, "view-*.html.bak", SearchOption.TopDirectoryOnly))
+                {
+                    string html = bak.Substring(0, bak.Length - 4);   // 去掉 ".bak"
+                    bool orphan = !File.Exists(html);
+                    bool tooOld = (today - File.GetLastWriteTimeUtc(bak)).TotalDays > maxAgeDays;
+                    if (!orphan && !tooOld) continue;
+
+                    try { File.Delete(bak); }
+                    catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { }
+                }
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException)
+            {
+            }
         }
     }
 }

@@ -118,7 +118,7 @@ namespace MdViewer
                         "'Microsoft YaHei UI', 'Microsoft YaHei', -apple-system, 'Segoe UI', sans-serif"),
                     code = Stack(App.Settings.FontCode,
                         "Consolas, 'Cascadia Mono', 'Cascadia Code', monospace"),
-                    heading = Stack(App.Settings.FontHeading, "inherit")
+                    heading = Stack(App.Settings.FontHeading, null)
                 };
                 string json = JsonSerializer.Serialize(new FontMessage { kind = "fonts", payload = payload });
                 View.CoreWebView2.PostWebMessageAsJson(json);
@@ -132,7 +132,9 @@ namespace MdViewer
         private static string Stack(string name, string fallback)
         {
             if (string.IsNullOrWhiteSpace(name)) return null;
-            return "'" + name.Trim() + "', " + fallback;
+            string value = "'" + name.Trim() + "'";
+            // 标题字体不能再拼 "inherit" —— inherit 不是合法字体名，整条声明会失效
+            return string.IsNullOrWhiteSpace(fallback) ? value : value + ", " + fallback;
         }
 
         private sealed class FontMessage
@@ -152,6 +154,8 @@ namespace MdViewer
 
         private WindowState _zenPrevState;
         private bool _zen;
+        private bool _wideBeforeZen;
+        private bool _tocBeforeZen;
 
         /// <summary>
         /// F11：藏掉工具栏、搜索条、状态栏，只留正文。长文阅读时工具栏那一条其实一直在分心。
@@ -164,6 +168,9 @@ namespace MdViewer
             if (_zen)
             {
                 _zenPrevState = WindowState;
+                // 记住进无干扰之前的宽屏/目录状态，退出时原样还原
+                _wideBeforeZen = App.Settings.WideMode;
+                _tocBeforeZen = TocToggle.IsChecked == true;
                 Toolbar.Visibility = Visibility.Collapsed;
                 StatusBar.Visibility = Visibility.Collapsed;
                 FindBar.Visibility = Visibility.Collapsed;
@@ -178,7 +185,13 @@ namespace MdViewer
                 Toolbar.Visibility = Visibility.Visible;
                 StatusBar.Visibility = Visibility.Visible;
                 if (_zenPrevState != WindowState.Maximized) WindowState = _zenPrevState;
-                UpdateChrome();          // 目录的可见性交回给 UpdateChrome 判断
+
+                // 退出时把宽屏和目录恢复到进入前的样子；0.5.x 只进不出，
+                // 结果 F11 退出后正文还是铺满、目录还是消失，而且被写进了 settings。
+                if (App.Settings.WideMode != _wideBeforeZen)
+                    SetWideMode(_wideBeforeZen);
+                TocToggle.IsChecked = _tocBeforeZen;
+                UpdateChrome();
                 ApplyTocVisibility();
             }
 

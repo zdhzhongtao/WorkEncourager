@@ -51,7 +51,29 @@ namespace MdViewer
                     FillBehavior = FillBehavior.Stop
                 });
 
+            // 先关再开，位置会重新算；Popup 是独立顶层窗口，能盖住 WebView2
+            ToastPopup.IsOpen = false;
+            ToastPopup.IsOpen = true;
+            Dispatcher.BeginInvoke(new Action(PositionToast), DispatcherPriority.Loaded);
+
             RestartToastTimer(ToastLifetime);
+        }
+
+        /// <summary>把 Toast 放到右下角（Popup 的坐标是相对内容区左上角的）。</summary>
+        private void PositionToast()
+        {
+            if (Toast == null || ContentGrid == null) return;
+
+            Toast.Measure(new Size(430, double.PositiveInfinity));
+            double width = Toast.ActualWidth > 0 ? Toast.ActualWidth : Toast.DesiredSize.Width;
+            double height = Toast.ActualHeight > 0 ? Toast.ActualHeight : Toast.DesiredSize.Height;
+            if (width <= 0 || height <= 0) return;
+
+            // Popup 的 child 有 12px 边距（留给阴影），所以额外减 12
+            double left = ContentGrid.ActualWidth - width - 32;
+            double top = ContentGrid.ActualHeight - height - 30;
+            ToastPopup.HorizontalOffset = Math.Max(8, left);
+            ToastPopup.VerticalOffset = Math.Max(8, top);
         }
 
         private void RestartToastTimer(TimeSpan lifetime)
@@ -76,6 +98,7 @@ namespace MdViewer
             if (Toast == null) return;
             if (_toastTimer != null) _toastTimer.Stop();
             Toast.Visibility = Visibility.Collapsed;
+            if (ToastPopup != null) ToastPopup.IsOpen = false;
             _toastPath = null;
         }
 

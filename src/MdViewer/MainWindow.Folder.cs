@@ -394,6 +394,7 @@ namespace MdViewer
                 _folderWatcher.Created += FolderChanged;
                 _folderWatcher.Deleted += FolderChanged;
                 _folderWatcher.Renamed += FolderChanged;
+                _folderWatcher.Error += FolderWatcherError;
                 _folderWatcher.EnableRaisingEvents = true;
             }
             catch (Exception ex)
@@ -412,6 +413,17 @@ namespace MdViewer
             }
             catch (Exception) { }
             _folderWatcher = null;
+        }
+
+        /// <summary>监听出错（缓冲区溢出 / 目录被删）时重启，别让文件树悄悄停止刷新。</summary>
+        private void FolderWatcherError(object sender, ErrorEventArgs e)
+        {
+            Log.Error("文件树监听出错", e.GetException());
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                string root = App.Settings.FolderRoot;
+                if (!string.IsNullOrEmpty(root) && Directory.Exists(root)) StartFolderWatcher(root);
+            }));
         }
 
         private void FolderChanged(object sender, FileSystemEventArgs e)

@@ -766,14 +766,21 @@ code {
     border: 1px solid var(--line-soft);
 }
 
-/* 代码块 */
+/* 代码块：按钮/语言标签放在 .code-block 壳里，不跟着 pre 横向滚动 */
+.code-block {
+    position: relative;
+    margin: 1.2em 0;
+}
+.code-block > pre {
+    margin: 0;
+}
 pre {
     position: relative;
     background: var(--code-bg);
     border: 1px solid var(--line);
     border-radius: var(--radius, 8px);
-    padding: 14px 16px;
-    margin: 1.2em 0;
+    /* 右侧留出复制按钮/语言标签的位置，代码首行不再被压住 */
+    padding: 14px 88px 14px 16px;
     overflow-x: auto;
     line-height: 1.6;
 }
@@ -781,14 +788,15 @@ pre code {
     background: transparent;
     border: 0;
     padding: 0;
-    font-size: 13.5px;
+    /* 跟着正文字号缩放：之前写死 13.5px，正文调到 22px 时代码还是小字 */
+    font-size: 0.84em;
     white-space: pre;
 }
 
 .code-lang {
     position: absolute;
     top: 0;
-    right: 74px;
+    right: 70px;
     font-size: 12px;
     color: var(--fg-muted);
     background: var(--bg);
@@ -796,7 +804,9 @@ pre code {
     border-radius: 0 0 calc(var(--radius, 8px) * .7) calc(var(--radius, 8px) * .7);
     padding: 1px 8px;
     user-select: none;
+    pointer-events: none;
 }
+.code-lang::after { content: attr(data-lang); }
 
 .copy-btn {
     position: absolute;
@@ -810,7 +820,11 @@ pre code {
     padding: 1px 8px;
     cursor: pointer;
     font-family: "Microsoft YaHei UI", sans-serif;
+    line-height: 1.5;
 }
+/* 文字放在伪元素里：页内搜索不会命中"复制"这两个字 */
+.copy-btn::before { content: "复制"; }
+.copy-btn.done::before { content: "已复制"; }
 .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
 
 /* 代码高亮（app.js 里的轻量分词器输出这些 class） */
@@ -1255,9 +1269,26 @@ body.capturing .bubble { display: none !important; }
     a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 11px; color: #8B949E; }
     th, td { min-width: 0; padding: 5px 7px; }
     table { font-size: 0.78em; }
+    /* 无干扰模式的 body.zen 权重比 body 高，打印时也要归零 */
+    body.zen,
+    body.zen.wide { padding: 0; }
+    /* 长代码行在纸上没有滚动条，必须换行，否则右侧被静默裁掉 */
+    pre { overflow: visible !important; white-space: pre-wrap !important; padding-right: 16px !important; }
+    pre code { white-space: pre-wrap !important; overflow-wrap: anywhere; word-break: break-word; }
     pre, blockquote, table, img { page-break-inside: avoid; }
     h1, h2, h3 { page-break-after: avoid; }
 }
+
+/* 渲染降级（Markdig 嵌套过深时） */
+.render-error {
+    margin: 1em 0;
+    padding: 10px 12px;
+    border-left: 3px solid var(--accent);
+    background: var(--quote-bg);
+    color: var(--fg-soft);
+    font-size: 0.92em;
+}
+pre.plain-fallback { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* 导出 HTML 时由 app.js 挂上（隐藏只在阅读器里有意义的外壳） */
 body.for-export #readbar,

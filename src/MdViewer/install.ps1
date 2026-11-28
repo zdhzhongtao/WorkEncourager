@@ -124,9 +124,27 @@ if ($Uninstall) {
         $current = Get-DefaultValue $key
         if ($current -eq $ProgId) {
             $original = if ($restore.ContainsKey($ext)) { $restore[$ext] } else { '' }
-            Set-ItemProperty -Path $key -Name '(default)' -Value $original
-            if ($original) { Write-Step "已把 $ext 的默认打开方式还原成 $original" }
-            else { Write-Step "已解除 $ext 的默认关联" }
+            if ([string]::IsNullOrEmpty($original)) {
+                # 空值不能写成空串：HKCU 的空默认值会遮蔽 HKLM 的系统关联，
+                # 卸载后双击 .md 就变成「选择打开方式」。默认值只能走 .NET API 删
+                # （PowerShell 的 Remove-ItemProperty -Name '(default)' 在注册表上不生效）。
+                $regKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Software\Classes\$ext", $true)
+                if ($regKey) {
+                    try { $regKey.DeleteValue('', $false) } catch { }
+                    $regKey.Dispose()
+                }
+                Write-Step "已解除 $ext 的默认关联"
+            }
+            else {
+                Set-ItemProperty -Path $key -Name '(default)' -Value $original
+                Write-Step "已把 $ext 的默认打开方式还原成 $original"
+            }
+        }
+
+        # 安装时写进去的 Content Type 也要一起清掉，否则卸载后仍挂着一个不存在的程序
+        $contentType = (Get-ItemProperty -Path $key -Name 'Content Type' -ErrorAction SilentlyContinue).'Content Type'
+        if ($contentType -eq $ContentType) {
+            Remove-ItemProperty -Path $key -Name 'Content Type' -ErrorAction SilentlyContinue
         }
 
         $openWith = Join-Path $key 'OpenWithProgids'
