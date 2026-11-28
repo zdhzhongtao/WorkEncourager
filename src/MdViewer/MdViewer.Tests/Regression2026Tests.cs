@@ -104,6 +104,63 @@ namespace MdViewer.Tests
             Assert.Contains("style=\"text-align: left", clean);
         }
 
+        [Fact]
+        public void 不带引号的遮罩样式也会被剥掉()
+        {
+            string clean = HtmlSanitizer.Clean(
+                "<div style=position:fixed;top:0;left:0;width:100%;height:100%;z-index:9;background:#fff>遮罩</div>");
+
+            Assert.DoesNotContain("position:", clean, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("z-index", clean, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("遮罩", clean);
+        }
+
+        [Fact]
+        public void 大量未闭合script不会让清洗卡住()
+        {
+            var payload = new StringBuilder();
+            for (int i = 0; i < 4000; i++) payload.Append("<script");
+            payload.Append("正文");
+
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            string clean = HtmlSanitizer.Clean(payload.ToString());
+            watch.Stop();
+
+            // 这些 `<script` 都没闭合，按 HTML 的规则后面会被当标签丢掉；这里只验证不卡死
+            Assert.True(watch.ElapsedMilliseconds < 3000, "清洗耗时 " + watch.ElapsedMilliseconds + "ms");
+            Assert.NotNull(clean);
+        }
+
+        [Fact]
+        public void 没有BOM的UTF16也能读()
+        {
+            byte[] bytes = Encoding.Unicode.GetBytes("# 标题\r\n正文");
+
+            string text = TextLoader.Decode(bytes);
+
+            Assert.Contains("标题", text);
+            Assert.Contains("正文", text);
+        }
+
+        [Fact]
+        public void 并发写同一个文件不会留下坏内容()
+        {
+            using (var dir = new TempDir())
+            {
+                string path = Path.Combine(dir.Path, "data.json");
+                var errors = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+                System.Threading.Tasks.Parallel.For(0, 200, i =>
+                {
+                    try { AtomicFile.WriteAllText(path, "{\"id\":" + i + "}"); }
+                    catch (Exception ex) { errors.Add(ex); }
+                });
+
+                Assert.Empty(errors);
+                string text = File.ReadAllText(path);
+                Assert.StartsWith("{\"id\":", text);
+                Assert.EndsWith("}", text.Trim());
+            }
+        }
         // ───────────────────────── front matter ─────────────────────────
 
         [Fact]

@@ -122,6 +122,8 @@
                 startOnLoad: false,
                 securityLevel: 'strict',
                 theme: 'base',
+                // false = 保留图的原始尺寸，大图用容器横向滚动，而不是整体缩到看不清
+                useMaxWidth: false,
                 fontFamily: getComputedStyle(document.body).fontFamily,
                 themeVariables: mermaidTheme()
             });
@@ -360,6 +362,10 @@
 
             for (var t = 0; t < headers.length; t++) headers[t].removeAttribute('data-sort');
             if (next !== 'none') th.setAttribute('data-sort', next);
+
+            // 排序把行搬走了，标注的字符偏移随之变化；重新量一遍交给宿主存回去
+            var moved = measureAnnotations();
+            if (moved.length > 0) post('annotationsMoved', moved);
         }
 
         function cellText(row, column) {
@@ -381,7 +387,7 @@
             if (na !== null && nb !== null && (a.indexOf('%') >= 0) === (b.indexOf('%') >= 0)) {
                 return na < nb ? -1 : 1;
             }
-            return a.localeCompare(b, 'zh-CN', { numeric: true, sensitivity: 'base' });
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
         }
 
         function parseNumber(text) {
@@ -498,7 +504,9 @@
         function close() {
             if (!overlay) return;
             overlay.classList.remove('on');
-            stage.src = '';
+            // src='' 会被解析成当前文档地址再发一次请求；直接移除属性
+            stage.removeAttribute('src');
+            stage.alt = '';
         }
 
         window.__mdviewerLightboxClose = close;
@@ -1032,9 +1040,13 @@
         return Math.min(1, Math.max(0, window.scrollY / max));
     }
 
+    var anchorSections = null;
+    var anchorHeadings = null;
+
     function currentAnchor() {
         // EPUB：整本拼在一页里，用章节 section 判断读到第几章
-        var sections = document.querySelectorAll('section.epub-chapter[id]');
+        if (!anchorSections) anchorSections = document.querySelectorAll('section.epub-chapter[id]');
+        var sections = anchorSections;
         if (sections.length > 0) {
             var top = -1;
             for (var i = 0; i < sections.length; i++) {
@@ -1045,7 +1057,8 @@
             return sections[top].id;
         }
 
-        var headings = document.querySelectorAll('h1[id], h2[id], h3[id]');
+        if (!anchorHeadings) anchorHeadings = document.querySelectorAll('h1[id], h2[id], h3[id]');
+        var headings = anchorHeadings;
         if (headings.length === 0) return '';
         var index = -1;
         for (var j = 0; j < headings.length; j++) {
@@ -1058,6 +1071,7 @@
 
     var lastRatioPost = 0;
     var lastRatioValue = -1;
+    var lastAnchor = null;
 
     function onScroll() {
         if (ticking) return;
@@ -1069,7 +1083,12 @@
                 if (bar) bar.classList.toggle('on', ratio > 0.005);
             }
             hideBubble();   // 选区气泡是 fixed 定位，滚动后必须收掉
-            post('heading', currentAnchor());
+
+            var anchor = currentAnchor();
+            if (anchor !== lastAnchor) {
+                lastAnchor = anchor;
+                post('heading', anchor);
+            }
 
             // 宿主关窗时要用「最后一次读到的位置」同步落盘，所以定期回报一次比例
             var now = Date.now();

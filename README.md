@@ -20,7 +20,7 @@
 | [表格比对器 TableDiff](src/TableDiff/README.md) | 比两个 xlsx / csv 的差异：按键 / 按位置 / 按整行，导出 CSV 或高亮 xlsx | WPF 桌面程序 | 🚧 v0.1.1 |
 | [表格拆合器 SheetSplitter](src/SheetSplitter/README.md) | 按列值拆分、多文件合并、多 sheet 合并、按行数拆分，源文件只读 | WPF 桌面程序 | 🚧 v0.1.1 |
 | [财务小算盘 MoneyCalc](src/MoneyCalc/README.md) | 人民币大写、工作日计算、含税换算、日期推算、汇率换算 | WPF 桌面程序 | 🚧 v0.1.1 |
-| [Markdown 阅读器 MdViewer](src/MdViewer/README.md) | 双击 .md / .epub 直接打开，20 套主题 + 公式图表 + 标注书签 + 朗读 + 多标签 + 导出 PDF/长图，自带安装脚本 | WPF 桌面程序 | ✅ v0.5.4 |
+| [Markdown 阅读器 MdViewer](src/MdViewer/README.md) | 双击 .md / .epub 直接打开，20 套主题 + 公式图表 + 标注书签 + 朗读 + 多标签 + 导出 PDF/长图，自带安装脚本 | WPF 桌面程序 | ✅ v0.5.5 |
 | [网页工具箱 WadeToolbox Web](web/README.md) | 打开网页就能用的开发者小工具集（34 个：JSON / 格式互转 / 转代码 / SQL / Markdown / JWT 验签 / AES / 国密 / 正则 / Cron / 子网 / 图片 / 二维码…），支持工具接力、深链、片段库、PWA 离线，纯前端本地计算 | 静态网页（GitHub Pages） | ✅ v0.2.0 |
 
 > 新增工具请同时在 `WadeToolbox.slnx` 里加一行、在这张表里加一行。
@@ -76,8 +76,8 @@ WadeToolbox/
 ## 怎么开始
 
 ### 用现成的工具
-去对应工具的 `README.md` 看安装方式。上班鼓励器 `v2.2.2`；表格那三个是 `v0.1.1`（初版 + 一轮自检修复）；Markdown 阅读器 `v0.5.4`（20 套主题 + 三槽字体 + 公式图表 + 标注书签 + 朗读 + 文件树 + 多标签 + 导出长图）。阅读器出两种包：`local` 约 2 MB（依赖本机 .NET 10 桌面运行时）、`portable` 约 62 MB（自带运行时，任何人都能双击跑）。
-Release 按工具分开挂，tag 带工具前缀（`workenc-v2.2.2`、`mdviewer-v0.5.4`）：阅读器的两个包（`local` / `portable`）已经在 Releases 里，「检查更新」只在对应前缀里找最新一条；其余工具要安装包，去 Actions 下对应 workflow 的产物，或在本机 `src/<工具>` 下跑 `publish.ps1` 自己出（产物落到 `dist/`，不入库）。
+去对应工具的 `README.md` 看安装方式。上班鼓励器 `v2.2.2`；表格那三个是 `v0.1.1`（初版 + 一轮自检修复）；Markdown 阅读器 `v0.5.5`（20 套主题 + 三槽字体 + 公式图表 + 标注书签 + 朗读 + 文件树 + 多标签 + 导出长图）。阅读器出两种包：`local` 约 2 MB（依赖本机 .NET 10 桌面运行时）、`portable` 约 62 MB（自带运行时，任何人都能双击跑）。
+Release 按工具分开挂，tag 带工具前缀（`workenc-v2.2.2`、`mdviewer-v0.5.5`）：阅读器的两个包（`local` / `portable`）已经在 Releases 里，「检查更新」只在对应前缀里找最新一条；其余工具要安装包，去 Actions 下对应 workflow 的产物，或在本机 `src/<工具>` 下跑 `publish.ps1` 自己出（产物落到 `dist/`，不入库）。
 每个工具都能用 `--demo` 或 `--maketestdata` 自查一遍（见各自 README 的「自检」）。
 
 ### 用网页版（不用装任何东西）

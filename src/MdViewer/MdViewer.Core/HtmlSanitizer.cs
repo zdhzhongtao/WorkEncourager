@@ -60,7 +60,7 @@ namespace MdViewer.Core
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex StyleAttr = new Regex(
-            @"(?<![\w:-])style\s*=\s*(?:""([^""]*)""|'([^']*)')",
+            @"(?<![\w:-])style\s*=\s*(?:""([^""]*)""|'([^']*)'|([^\s>]+))",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly string[] DangerousSchemes =
@@ -99,15 +99,71 @@ namespace MdViewer.Core
         private static string RemoveBlockElements(string text)
         {
             foreach (string name in BlockElements)
-            {
-                text = Regex.Replace(text,
-                    "<" + name + @"\b[^>]*>.*?</" + name + @"\s*>",
-                    string.Empty,
-                    RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            }
+                text = RemoveElement(text, name);
             return text;
         }
 
+        /// <summary>
+        /// 线性删掉一个元素：找到开标签，再找对应闭标签；没有闭合就只删开标签。
+        /// 不用正则是因为大量 `&lt;script` 会让 `.*?</script>` 回溯到超线性。
+        /// </summary>
+        private static string RemoveElement(string text, string name)
+        {
+            var sb = new StringBuilder(text.Length);
+            int pos = 0;
+            string open = "<" + name;
+
+            while (pos < text.Length)
+            {
+                int start = text.IndexOf(open, pos, StringComparison.OrdinalIgnoreCase);
+                if (start < 0)
+                {
+                    sb.Append(text, pos, text.Length - pos);
+                    break;
+                }
+
+                int after = start + open.Length;
+                bool boundary = after >= text.Length || char.IsWhiteSpace(text[after]) || text[after] == '>' || text[after] == '/';
+                if (!boundary)
+                {
+                    sb.Append(text, pos, after - pos);
+                    pos = after;
+                    continue;
+                }
+
+                int openEnd = text.IndexOf('>', after);
+                if (openEnd < 0)
+                {
+                    // 开标签都没闭合：整段丢弃（浏览器也会当标签处理）
+                    sb.Append(text, pos, start - pos);
+                    pos = text.Length;
+                    break;
+                }
+
+                sb.Append(text, pos, start - pos);
+
+                // 自闭合 <style ... />
+                if (text[openEnd - 1] == '/')
+                {
+                    pos = openEnd + 1;
+                    continue;
+                }
+
+                string close = "</" + name;
+                int closeStart = text.IndexOf(close, openEnd + 1, StringComparison.OrdinalIgnoreCase);
+                if (closeStart < 0)
+                {
+                    // 未闭合：只删开标签，内容留给逐标签清洗（不会静默吞掉正文）
+                    pos = openEnd + 1;
+                    continue;
+                }
+
+                int closeEnd = text.IndexOf('>', closeStart);
+                pos = closeEnd < 0 ? text.Length : closeEnd + 1;
+            }
+
+            return sb.ToString();
+        }
         // ───────────────────────── 第二步：逐标签 ─────────────────────────
 
         private static string ScanTags(string input)
@@ -198,7 +254,9 @@ namespace MdViewer.Core
 
             result = StyleAttr.Replace(result, match =>
             {
-                string value = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
+                string value = match.Groups[1].Success ? match.Groups[1].Value
+                    : match.Groups[2].Success ? match.Groups[2].Value
+                    : match.Groups[3].Value;
                 string safe = SanitizeStyle(value);
                 return safe.Length == 0 ? string.Empty : "style=\"" + safe + "\"";
             });

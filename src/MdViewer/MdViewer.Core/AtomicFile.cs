@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 
@@ -17,30 +18,46 @@ namespace MdViewer.Core
         public static Action<string, Exception> ErrorHandler;
 
         /// <summary>原子写入文本（UTF-8 无 BOM）。失败抛异常，由调用方决定是否吞掉。</summary>
+        private static readonly ConcurrentDictionary<string, object> Locks =
+            new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
         public static void WriteAllText(string path, string content)
         {
             if (string.IsNullOrEmpty(path)) throw new ArgumentException("path 不能为空", nameof(path));
 
-            string dir = Path.GetDirectoryName(path);
-            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            string full = Path.GetFullPath(path);
+            object gate = Locks.GetOrAdd(full, _ => new object());
 
-            string tmp = path + ".tmp";
-            File.WriteAllText(tmp, content, new UTF8Encoding(false));
-
-            try
+            lock (gate)
             {
-                if (File.Exists(path))
+                string dir = Path.GetDirectoryName(full);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
+                // 临时文件名带随机后缀：并发写同一个文件时不会互相踩 .tmp
+                string tmp = full + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
                 {
-                    string bak = path + ".bak";
-                    if (File.Exists(bak)) File.Delete(bak);
-                    File.Copy(path, bak, true);
+                    File.WriteAllText(tmp, content, new UTF8Encoding(false));
+
+                    try
+                    {
+                        if (File.Exists(full))
+                        {
+                            string bak = full + ".bak";
+                            if (File.Exists(bak)) File.Delete(bak);
+                            File.Copy(full, bak, true);
+                        }
+                    }
+                    catch (Exception ex) { Report("备份失败: " + full, ex); }
+
+                    File.Move(tmp, full, true);
+                }
+                finally
+                {
+                    try { if (File.Exists(tmp)) File.Delete(tmp); } catch (Exception) { }
                 }
             }
-            catch (Exception ex) { Report("备份失败: " + path, ex); }
-
-            File.Move(tmp, path, true);
         }
-
         /// <summary>
         /// 反序列化 JSON。主文件损坏时隔离它并回退到 .bak；都不可用返回 null。
         /// </summary>

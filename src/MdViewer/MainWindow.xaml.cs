@@ -248,7 +248,24 @@ namespace MdViewer
             {
                 Log.Error("WebView2 初始化失败", ex);
                 _webInit = null;
-                ShowFallback("没有检测到 WebView2 运行时：" + ex.Message);
+
+                string runtime = null;
+                try { runtime = CoreWebView2Environment.GetAvailableBrowserVersionString(); }
+                catch (Exception) { runtime = null; }
+
+                if (string.IsNullOrWhiteSpace(runtime))
+                {
+                    ShowFallback("没有检测到 WebView2 运行时：" + ex.Message);
+                    WebViewDownloadButton.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    // 运行时在，但初始化还是失败：多半是用户数据目录被占用/权限问题，
+                    // 别再引导用户去装运行时（装了也没用）。
+                    ShowFallback("WebView2 初始化失败（已检测到运行时 " + runtime + "）：" + ex.Message
+                        + "\n\n可以看日志：" + Log.FilePath);
+                    WebViewDownloadButton.Visibility = Visibility.Collapsed;
+                }
                 return;
             }
 
@@ -340,6 +357,13 @@ namespace MdViewer
                             _liveRatio = ratio;
                         }
                     }
+                    else if (kind == "annotationsMoved")
+                    {
+                        string payloadJson = json.RootElement.TryGetProperty("payload", out var am)
+                            ? am.GetRawText()
+                            : null;
+                        HandleAnnotationsMoved(payloadJson);
+                    }
                     else if (kind == "annotate")
                     {
                         string payloadJson = json.RootElement.TryGetProperty("payload", out var ap)
@@ -405,7 +429,7 @@ namespace MdViewer
                 if (target != null && File.Exists(target))
                 {
                     if (IsReadableDocument(target)) OpenFile(target, true);
-                    else OpenExternal(target);
+                    else OpenLinkedFile(target);
                 }
                 else
                 {
@@ -428,6 +452,36 @@ namespace MdViewer
                 OpenExternal(uri);
         }
 
+        /// <summary>可执行/脚本类后缀：从 md 里点开一律不直接运行。</summary>
+        private static readonly HashSet<string> DangerousLinkExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".exe", ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh",
+            ".msi", ".msp", ".scr", ".com", ".pif", ".lnk", ".url", ".reg", ".hta", ".cpl", ".jar",
+            ".appx", ".msix", ".dll", ".sys", ".cpl"
+        };
+
+        /// <summary>点开链接指向的本地文件。危险后缀拒绝，未知类型先问一句。</summary>
+        private void OpenLinkedFile(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+
+            string ext = (Path.GetExtension(path) ?? string.Empty).ToLowerInvariant();
+            if (DangerousLinkExtensions.Contains(ext))
+            {
+                MessageBox.Show("这个链接指向可执行文件/脚本，阅读器不会直接运行它：\n" + path,
+                    "已拦截", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(ext))
+            {
+                var confirm = MessageBox.Show("这个链接没有扩展名，确定要打开吗？\n" + path,
+                    "打开文件", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (confirm != MessageBoxResult.Yes) return;
+            }
+
+            OpenExternal(path);
+        }
         private void Core_NewWindowRequested(object sender, CoreWebView2NewWindowRequestedEventArgs e)
         {
             e.Handled = true;

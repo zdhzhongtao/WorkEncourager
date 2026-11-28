@@ -137,6 +137,49 @@ namespace MdViewer
             return flat.Length <= max ? flat : flat.Substring(0, max) + "…";
         }
 
+        /// <summary>页面排序表格后重新量出来的标注位置，按 Id 写回 notes.json。</summary>
+        private void HandleAnnotationsMoved(string json)
+        {
+            if (string.IsNullOrEmpty(json) || Notes == null) return;
+
+            try
+            {
+                var moved = JsonSerializer.Deserialize<List<MovedAnnotation>>(json);
+                if (moved == null || moved.Count == 0) return;
+
+                bool changed = false;
+                foreach (var item in moved)
+                {
+                    if (item == null || string.IsNullOrEmpty(item.id)) continue;
+                    foreach (var note in Notes.Annotations)
+                    {
+                        if (note == null || !string.Equals(note.Id, item.id, StringComparison.Ordinal)) continue;
+                        if (note.Start == item.start && note.End == item.end &&
+                            string.Equals(note.Quote, item.quote, StringComparison.Ordinal)) continue;
+
+                        note.Start = item.start;
+                        note.End = item.end;
+                        if (!string.IsNullOrEmpty(item.quote)) note.Quote = item.quote;
+                        changed = true;
+                        break;
+                    }
+                }
+
+                if (changed) SaveNotes();
+            }
+            catch (Exception ex)
+            {
+                Log.Error("更新标注位置失败", ex);
+            }
+        }
+
+        private sealed class MovedAnnotation
+        {
+            public string id { get; set; }
+            public int start { get; set; }
+            public int end { get; set; }
+            public string quote { get; set; }
+        }
         /// <summary>把当前文档的标注推给页面重画。</summary>
         private void PostAnnotationsToPage()
         {

@@ -251,12 +251,22 @@ namespace MdViewer
             if (!_instance.IsFirst)
             {
                 bool sent = SingleInstance.TrySend(initialPath);
-                if (!sent && !string.IsNullOrWhiteSpace(initialPath))
+                // 冷启动时第一个实例可能还没把管道服务器起好，多等几次
+                for (int i = 0; i < 6 && !sent && !string.IsNullOrWhiteSpace(initialPath); i++)
                 {
                     System.Threading.Thread.Sleep(300);
                     sent = SingleInstance.TrySend(initialPath);
                 }
-                if (!sent) Log.Info("已有实例在运行，但没有路径可转发，直接退出。");
+
+                if (!sent)
+                {
+                    Log.Info("已有实例在运行，但没有路径可转发，直接退出。");
+                    if (!string.IsNullOrWhiteSpace(initialPath))
+                    {
+                        MessageBox.Show("本程序已经在运行，但暂时没能把文件交给它。\n请稍等一秒再双击一次，或从任务栏切到已打开的窗口。",
+                            "Markdown 阅读器", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
                 Shutdown(0);
                 return;
             }

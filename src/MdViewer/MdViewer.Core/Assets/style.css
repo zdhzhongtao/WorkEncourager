@@ -997,7 +997,7 @@ section.epub-chapter img { border-radius: calc(var(--radius, 8px) * .5); }
     overflow-x: auto;
 }
 
-.mermaid svg { max-width: 100%; height: auto; }
+.mermaid svg { max-width: none; height: auto; }
 
 /* 库没加载出来时把源码还回去，至少能看 */
 pre.mermaid-failed {
@@ -1219,6 +1219,12 @@ body.zen.wide {
 body.capturing #readbar,
 body.capturing .bubble { display: none !important; }
 
+/* ───────────── 双向文本（阿拉伯语 / 希伯来语等） ─────────────
+ * 每个块自己判断方向，中英混排和 RTL 段落都不会整篇按 LTR 排。
+ */
+p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, .markdown-body {
+    unicode-bidi: plaintext;
+}
 /* ══════════════════════ 3. 打印 / 导出 PDF ══════════════════════ */
 
 /*
@@ -1275,6 +1281,8 @@ body.capturing .bubble { display: none !important; }
     /* 长代码行在纸上没有滚动条，必须换行，否则右侧被静默裁掉 */
     pre { overflow: visible !important; white-space: pre-wrap !important; padding-right: 16px !important; }
     pre code { white-space: pre-wrap !important; overflow-wrap: anywhere; word-break: break-word; }
+    .mermaid { overflow: visible; }
+    .mermaid svg { max-width: 100%; }
     pre, blockquote, table, img { page-break-inside: avoid; }
     h1, h2, h3 { page-break-after: avoid; }
 }
